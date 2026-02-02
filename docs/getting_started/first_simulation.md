@@ -1,69 +1,69 @@
-# 第一个仿真
+# First Simulation
 
-本教程将引导你运行一个简单的导航仿真示例。
+This tutorial will guide you through running a simple navigation simulation example.
 
-## 准备工作
+## Prerequisites
 
-确保你已完成 [安装](installation.md) 步骤。
+Ensure you have completed the [Installation](installation.md) steps.
 
-## 基础示例
+## Basic Example
 
-创建一个新文件 `my_first_sim.py`：
+Create a new file `my_first_sim.py`:
 
 ```python
 import omninav
 from omninav import OmniNavEnv
 
-# 初始化环境
+# Initialize environment
 env = OmniNavEnv(config_path="configs/config.yaml")
 
-# 重置环境，获取初始观测
+# Reset environment, get initial observation
 obs = env.reset()
 
-print(f"机器人初始位置: {obs['robot_state'].position}")
-print(f"目标位置: {obs.get('goal_position', 'N/A')}")
+print(f"Robot initial position: {obs['robot_state'].position}")
+print(f"Goal position: {obs.get('goal_position', 'N/A')}")
 
-# 运行仿真循环
+# Run simulation loop
 step_count = 0
 while not env.is_done:
-    # 使用配置文件中指定的算法计算动作
+    # Calculate action using algorithm specified in config
     action = env.algorithm.step(obs)
     
-    # 执行一步仿真
+    # Execute one simulation step
     obs, info = env.step(action)
     step_count += 1
     
     if step_count % 100 == 0:
-        print(f"Step {step_count}: 位置 = {obs['robot_state'].position[:2]}")
+        print(f"Step {step_count}: Position = {obs['robot_state'].position[:2]}")
 
-# 获取评测结果
+# Get evaluation result
 result = env.get_result()
-print(f"\n=== 仿真结束 ===")
-print(f"成功: {result.success}")
-print(f"总步数: {step_count}")
-print(f"指标: {result.metrics}")
+print(f"\n=== Simulation Ended ===")
+print(f"Success: {result.success}")
+print(f"Total steps: {step_count}")
+print(f"Metrics: {result.metrics}")
 
-# 清理资源
+# Cleanup resources
 env.close()
 ```
 
-运行：
+Run:
 
 ```bash
 python my_first_sim.py
 ```
 
-## 使用可视化
+## Using Visualization
 
-启用 Genesis Viewer 查看仿真过程：
+Enable Genesis Viewer to see the simulation process:
 
 ```python
-# 方法 1: 通过配置文件
-# 在 configs/config.yaml 中设置:
+# Method 1: Via config file
+# Set in configs/config.yaml:
 # simulation:
 #   show_viewer: true
 
-# 方法 2: 通过代码覆盖
+# Method 2: Via code override
 from omegaconf import OmegaConf
 
 cfg = OmegaConf.load("configs/config.yaml")
@@ -71,25 +71,25 @@ cfg.simulation.show_viewer = True
 env = OmniNavEnv(cfg=cfg)
 ```
 
-## 自定义配置
+## Custom Configuration
 
-你可以通过修改配置文件来自定义仿真：
+You can custom the simulation by modifying the config file:
 
 ```yaml
 # configs/config.yaml
 defaults:
-  - robot: go2          # 使用 Go2 机器人
-  - algorithm: apf      # 使用人工势场算法
-  - task: point_nav     # 点到点导航任务
+  - robot: go2          # Use Go2 robot
+  - algorithm: apf      # Use Artificial Potential Field algorithm
+  - task: point_nav     # Point-to-Point Navigation task
 
 simulation:
-  backend: "gpu"        # 使用 GPU 加速
-  dt: 0.01              # 仿真步长
-  show_viewer: true     # 显示可视化窗口
+  backend: "gpu"        # Use GPU acceleration
+  dt: 0.01              # Simulation step size
+  show_viewer: true     # Show visualization window
 ```
 
-## 下一步
+## Next Steps
 
-- 了解 [机器人配置](../user_guide/robots.md)
-- 学习如何 [集成自定义算法](../user_guide/algorithms.md)
-- 探索 [评测系统](../user_guide/evaluation.md)
+- Check out [Robot Configuration](../user_guide/robots.md)
+- Learn how to [Integrate Custom Algorithms](../user_guide/algorithms.md)
+- Explore [Evaluation System](../user_guide/evaluation.md)

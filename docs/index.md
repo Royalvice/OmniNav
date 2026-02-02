@@ -2,7 +2,7 @@
 
 ```{toctree}
 :maxdepth: 2
-:caption: 快速开始
+:caption: Getting Started
 
 getting_started/installation
 getting_started/first_simulation
@@ -10,7 +10,7 @@ getting_started/first_simulation
 
 ```{toctree}
 :maxdepth: 2
-:caption: 用户指南
+:caption: User Guide
 
 user_guide/architecture
 user_guide/robots
@@ -23,7 +23,7 @@ user_guide/ros2_integration
 
 ```{toctree}
 :maxdepth: 2
-:caption: API 参考
+:caption: API Reference
 
 api_reference/core
 api_reference/robots
@@ -33,26 +33,26 @@ api_reference/evaluation
 
 ```{toctree}
 :maxdepth: 1
-:caption: 其他
+:caption: Other
 
 contributing
 changelog
 ```
 
-## ✨ 什么是 OmniNav？
+## ✨ What is OmniNav?
 
-OmniNav 是一个基于 [Genesis](https://github.com/Genesis-Embodied-AI/Genesis) 物理引擎的**具身智能仿真平台**，专为机器人导航与避障算法的快速验证而设计。
+OmniNav is an **Embodied AI Simulation Platform** based on the [Genesis](https://github.com/Genesis-Embodied-AI/Genesis) physics engine, designed for rapid verification of robot navigation and obstacle avoidance algorithms.
 
-### 核心特性
+### Core Features
 
-- 🚀 **高性能仿真** - 基于 Genesis 引擎，支持 GPU 加速
-- 🔌 **算法可插拔** - 传统算法、VLA/VLN 等神经网络算法均可快速集成
-- 📊 **内置评测系统** - 预定义导航任务与评价指标 (SPL, Success Rate 等)
-- 🤖 **多机器人支持** - 初版支持宇树 Go2 (四足/轮式)
-- 🌐 **ROS2 兼容** - 可选的 ROS2 桥接，支持 Sim2Real
-- 📦 **场景资产导入** - 支持 USD、GLB、OBJ 等格式
+- 🚀 **High-Performance Simulation** - Based on Genesis engine, supporting GPU acceleration
+- 🔌 **Pluggable Algorithms** - Traditional algorithms, VLA/VLN, and other neural network algorithms can be quickly integrated
+- 📊 **Built-in Evaluation System** - Predefined navigation tasks and evaluation metrics (SPL, Success Rate, etc.)
+- 🤖 **Multi-Robot Support** - Initial version supports Unitree Go2 (Quadruped/Wheeled)
+- 🌐 **ROS2 Compatibility** - Optional ROS2 bridge supporting Sim2Real
+- 📦 **Scene Asset Import** - Supports USD, GLB, OBJ, and other formats
 
-## 🚀 快速开始
+## 🚀 Quick Start
 
 ```python
 from omninav import OmniNavEnv

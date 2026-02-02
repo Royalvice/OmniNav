@@ -1,59 +1,59 @@
-# 贡献指南
+# Contributing Guide
 
-感谢你对 OmniNav 项目的关注！我们欢迎各种形式的贡献。
+Thank you for your interest in OmniNav! We welcome contributions of all forms.
 
-## 如何贡献
+## How to Contribute
 
-### 报告 Bug
+### Reporting Bugs
 
-1. 在 [GitHub Issues](https://github.com/Royalvice/OmniNav/issues) 中搜索是否已有类似问题
-2. 如果没有，创建新 Issue，包含：
-   - 清晰的问题描述
-   - 复现步骤
-   - 预期行为 vs 实际行为
-   - 环境信息 (OS, Python 版本, GPU 等)
+1. Search [GitHub Issues](https://github.com/Royalvice/OmniNav/issues) to see if the issue already exists.
+2. If not, create a new Issue including:
+   - Clear problem description
+   - Steps to reproduce
+   - Expected vs. actual behavior
+   - Environment info (OS, Python version, GPU, etc.)
 
-### 提交代码
+### Submitting Code
 
-1. Fork 本仓库
-2. 创建功能分支: `git checkout -b feature/your-feature`
-3. 提交更改: `git commit -m "feat: add your feature"`
-4. 推送分支: `git push origin feature/your-feature`
-5. 创建 Pull Request
+1. Fork this repository
+2. Create a feature branch: `git checkout -b feature/your-feature`
+3. Commit changes: `git commit -m "feat: add your feature"`
+4. Push branch: `git push origin feature/your-feature`
+5. Create a Pull Request
 
-### 代码规范
+### Code Standards
 
-- 使用 [Black](https://github.com/psf/black) 格式化代码
-- 使用 [isort](https://pycqa.github.io/isort/) 排序 import
-- 遵循 [Google Python Style Guide](https://google.github.io/styleguide/pyguide.html)
-- 为新功能添加单元测试
+- Use [Black](https://github.com/psf/black) to format code
+- Use [isort](https://pycqa.github.io/isort/) to sort imports
+- Follow [Google Python Style Guide](https://google.github.io/styleguide/pyguide.html)
+- Add unit tests for new features
 
-## 开发环境设置
+## Development Setup
 
 ```bash
-# 克隆你的 fork
+# Clone your fork
 git clone https://github.com/YOUR_USERNAME/OmniNav.git
 cd OmniNav
 
-# 安装开发依赖
+# Install dev dependencies
 pip install -e ".[dev]"
 
-# 运行测试
+# Run tests
 pytest tests/
 ```
 
-## 文档贡献
+## Contributing to Documentation
 
-文档使用 MkDocs + Material 主题编写，位于 `docs/` 目录。
+Documentation is written using MkDocs + Material theme and is located in the `docs/` directory.
 
 ```bash
-# 安装文档依赖
+# Install doc dependencies
 pip install mkdocs-material mkdocstrings[python]
 
-# 本地预览
+# Local preview
 mkdocs serve
 ```
 
-## 许可证
+## License
 
-通过贡献代码，你同意你的贡献将按照项目的 Apache-2.0 许可证进行许可。
+By contributing code, you agree that your contributions will be licensed under the project's Apache-2.0 license.

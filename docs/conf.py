@@ -70,4 +70,4 @@ autodoc_member_order = "bysource"
 autodoc_typehints = "description"
 
 # -- Language ----------------------------------------------------------------
-language = "zh_CN"
+language = "en"

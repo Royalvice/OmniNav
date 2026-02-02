@@ -1,4 +1,4 @@
 # Core API
 
-!!! note "待完善"
-    本页面正在编写中。API 文档将通过 mkdocstrings 自动生成。
+!!! note "To Be Done"
+    This page is under construction. API documentation will be automatically generated via mkdocstrings.

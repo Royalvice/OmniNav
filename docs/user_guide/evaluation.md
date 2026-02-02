@@ -1,4 +1,4 @@
-# 评测任务
+# Evaluation Tasks
 
-!!! note "待完善"
-    本页面正在编写中。
+!!! note "To Be Done"
+    This page is under construction.

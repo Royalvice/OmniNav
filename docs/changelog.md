@@ -1,24 +1,24 @@
-# 更新日志
+# Changelog
 
-所有重要更改将记录在此文件中。
+All notable changes to this project will be documented in this file.
 
-格式基于 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.0.0/)，
-版本号遵循 [语义化版本](https://semver.org/lang/zh-CN/)。
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
+and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [未发布]
+## [Unreleased]
 
-### 新增
-- 初始项目结构
-- 核心层：SimulationManager 基类
-- 机器人层：RobotBase, SensorBase 基类
-- 算法层：AlgorithmBase 基类与航点跟随算法
-- 评测层：TaskBase, MetricBase 基类与点导航任务
-- 接口层：OmniNavEnv (Gym-like API)
-- 配置管理：Hydra/OmegaConf 集成
-- 文档：MkDocs + Material 主题
+### Added
+- Initial project structure
+- Core layer: SimulationManager base class
+- Robot layer: RobotBase, SensorBase base classes
+- Algorithm layer: AlgorithmBase base class and Waypoint Following algorithm
+- Evaluation layer: TaskBase, MetricBase base classes and Point Navigation task
+- Interface layer: OmniNavEnv (Gym-like API)
+- Config management: Hydra/OmegaConf integration
+- Documentation: MkDocs + Material theme
 
-### 计划中
-- 运动学控制器实现
-- Go2/Go2w 机器人支持
-- ROS2 桥接模块
-- 更多导航算法示例
+### Planned
+- Kinematic controller implementation
+- Go2/Go2w robot support
+- ROS2 bridge module
+- More navigation algorithm examples

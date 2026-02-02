@@ -1,37 +1,37 @@
-# 架构概览
+# Architecture Overview
 
-OmniNav 采用分层架构设计，确保各模块解耦且可独立扩展。
+OmniNav adopts a layered architecture design to ensure effective decoupling and independent scalability of modules.
 
-## 架构图
+## Architecture Diagram
 
 ```mermaid
 graph TB
-    subgraph "用户层"
-        U1[Python 脚本]
-        U2[ROS2 节点]
+    subgraph "User Layer"
+        U1[Python Scripts]
+        U2[ROS2 Nodes]
     end
 
-    subgraph "接口层"
+    subgraph "Interface Layer"
         I1[OmniNavEnv]
         I2[ROS2Bridge]
     end
 
-    subgraph "应用层"
-        E[评测层<br/>Tasks & Metrics]
-        A[算法层<br/>Navigation & Perception]
+    subgraph "Application Layer"
+        E[Evaluation Layer<br/>Tasks & Metrics]
+        A[Algorithm Layer<br/>Navigation & Perception]
     end
 
-    subgraph "控制层"
-        L[运动层<br/>Locomotion Controller]
+    subgraph "Control Layer"
+        L[Locomotion Layer<br/>Locomotion Controller]
     end
 
-    subgraph "实体层"
-        R[机器人层<br/>Robot & Sensors]
-        S[资产层<br/>Scene Loaders]
+    subgraph "Entity Layer"
+        R[Robot Layer<br/>Robot & Sensors]
+        S[Asset Layer<br/>Scene Loaders]
     end
 
-    subgraph "基础层"
-        C[核心层<br/>SimulationManager]
+    subgraph "Foundation Layer"
+        C[Core Layer<br/>SimulationManager]
         G[Genesis Engine]
     end
 
@@ -47,66 +47,66 @@ graph TB
     C --> G
 ```
 
-## 设计原则
+## Design Principles
 
-### 1. 分层解耦
+### 1. Layered Decoupling
 
-每一层只依赖其下层接口，不直接访问跨层组件：
+Each layer depends only on the interface of the layer below it, without direct access to cross-layer components:
 
-- ✅ 算法层 → 运动层 → 机器人层
-- ❌ 算法层 → 机器人层 (跳过运动层)
+- ✅ Algorithm Layer → Locomotion Layer → Robot Layer
+- ❌ Algorithm Layer → Robot Layer (Skipping Locomotion Layer)
 
-### 2. 接口优先
+### 2. Interface First
 
-所有模块定义抽象基类 (ABC)，具体实现通过注册机制发现：
+All modules define Abstract Base Classes (ABCs), and concrete implementations are discovered via a registry mechanism:
 
 ```python
-# 定义基类
+# Define base class
 class AlgorithmBase(ABC):
     @abstractmethod
     def step(self, observation) -> np.ndarray: ...
 
-# 注册实现
+# Register implementation
 @ALGORITHM_REGISTRY.register("my_algorithm")
 class MyAlgorithm(AlgorithmBase):
     def step(self, observation):
         return np.array([0.1, 0.0, 0.0])
 
-# 通过配置使用
+# Use via config
 # algorithm:
 #   type: my_algorithm
 ```
 
-### 3. 配置驱动
+### 3. Config Driven
 
-使用 Hydra/OmegaConf 统一管理所有配置，支持：
+Use Hydra/OmegaConf to unify management of all configurations, supporting:
 
-- 组合配置 (defaults)
-- 命令行覆盖
-- 多运行 (multirun)
+- Composition (defaults)
+- Command line overrides
+- Multirun
 
-### 4. 可选依赖
+### 4. Optional Dependencies
 
-ROS2 相关功能通过配置开关控制，不影响纯 Python 使用：
+ROS2 related features are controlled by config switches, not affecting pure Python usage:
 
 ```yaml
 ros2:
-  enabled: false  # 设为 true 以启用 ROS2 桥接
+  enabled: false  # Set to true to enable ROS2 bridge
 ```
 
-## 各层职责
+## Layer Responsibilities
 
-| 层级 | 职责 | 关键类/接口 |
+| Layer | Responsibility | Key Class/Interface |
 |------|------|------------|
-| **核心层** | Genesis 封装、场景管理、仿真循环 | `SimulationManager` |
-| **资产层** | 加载 USD/GLB/Mesh 场景资产 | `AssetLoaderBase` |
-| **机器人层** | 机器人实体、传感器管理 | `RobotBase`, `SensorBase` |
-| **运动层** | 将 cmd_vel 转换为关节控制 | `LocomotionControllerBase` |
-| **算法层** | 可插拔的导航/感知算法 | `AlgorithmBase` |
-| **评测层** | 任务定义与指标计算 | `TaskBase`, `MetricBase` |
-| **接口层** | 对外 API (Python/ROS2) | `OmniNavEnv`, `ROS2Bridge` |
+| **Core Layer** | Genesis wrapper, scene management, simulation loop | `SimulationManager` |
+| **Asset Layer** | Load USD/GLB/Mesh scene assets | `AssetLoaderBase` |
+| **Robot Layer** | Robot entity, sensor management | `RobotBase`, `SensorBase` |
+| **Locomotion Layer** | Convert cmd_vel to joint control | `LocomotionControllerBase` |
+| **Algorithm Layer** | Pluggable navigation/perception algorithms | `AlgorithmBase` |
+| **Evaluation Layer** | Task definition and metric calculation | `TaskBase`, `MetricBase` |
+| **Interface Layer** | External API (Python/ROS2) | `OmniNavEnv`, `ROS2Bridge` |
 
-## 数据流
+## Data Flow
 
 ```mermaid
 sequenceDiagram
@@ -122,21 +122,21 @@ sequenceDiagram
     Robot-->>Env: obs
     Env-->>User: obs
 
-    loop 仿真循环
+    loop Simulation Loop
         User->>Env: step(action)
-        Env->>Algo: step(obs) [可选]
+        Env->>Algo: step(obs) [Optional]
         Algo-->>Env: cmd_vel
         Env->>Loco: step(cmd_vel)
-        Loco->>Robot: 关节控制
-        Robot->>Genesis: 物理仿真
-        Genesis-->>Robot: 新状态
+        Loco->>Robot: Joint Control
+        Robot->>Genesis: Physics Simulation
+        Genesis-->>Robot: New State
         Robot-->>Env: obs
         Env-->>User: obs, info
     end
 ```
 
-## 下一步
+## Next Steps
 
-- [机器人配置](robots.md) - 如何配置和扩展机器人
-- [算法集成](algorithms.md) - 如何添加自定义算法
-- [评测任务](evaluation.md) - 如何定义评测任务和指标
+- [Robot Configuration](robots.md) - How to configure and extend robots
+- [Algorithm Integration](algorithms.md) - How to add custom algorithms
+- [Evaluation Tasks](evaluation.md) - How to define evaluation tasks and metrics
