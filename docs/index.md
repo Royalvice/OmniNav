@@ -1,7 +1,7 @@
 # OmniNav
 
 <p align="center">
-  <img src="_static/logo.png" alt="OmniNav" width="300" style="background: transparent;">
+  <img src="_static/logo.png" alt="OmniNav" width="400" style="background: transparent;">
 </p>
 
 <p align="center">
@@ -118,37 +118,10 @@ Understand the layered architecture design of OmniNav.
 ::::
 
 ```{toctree}
-:maxdepth: 2
-:hidden:
-:caption: User Guide
-
-getting_started/installation
-getting_started/first_simulation
-user_guide/architecture
-user_guide/robots
-user_guide/sensors
-user_guide/scenes
-user_guide/algorithms
-user_guide/evaluation
-user_guide/ros2_integration
-contributing
-```
-
-```{toctree}
-:maxdepth: 2
-:hidden:
-:caption: API Reference
-
-api_reference/core
-api_reference/robots
-api_reference/algorithms
-api_reference/evaluation
-```
-
-```{toctree}
 :maxdepth: 1
 :hidden:
-:caption: Changelog
 
+user_guide/index
+api_reference/index
 changelog
 ```
