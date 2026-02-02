@@ -1,0 +1,14 @@
+# 空场景配置 (仅地面)
+# @package _group_
+
+type: empty
+name: empty_scene
+
+# 地面
+ground:
+  type: plane
+  size: [50.0, 50.0]
+  position: [0.0, 0.0, 0.0]
+
+# 无额外物体
+obstacles: []

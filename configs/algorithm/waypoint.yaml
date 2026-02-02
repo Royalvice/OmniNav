@@ -1,0 +1,16 @@
+# 航点跟随算法配置
+# @package _group_
+
+type: waypoint_follower
+name: waypoint_follower
+
+# 到达阈值
+goal_threshold: 0.3  # 米
+
+# 速度参数
+max_linear_vel: 0.5   # m/s
+max_angular_vel: 1.0  # rad/s
+
+# 比例控制增益
+kp_linear: 1.0
+kp_angular: 2.0

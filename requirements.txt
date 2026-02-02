@@ -1,0 +1,27 @@
+# --- Core Framework ---
+hydra-core>=1.3.2
+omegaconf>=2.3.0
+
+# --- Scientific Computing ---
+numpy>=1.26.4
+scipy
+matplotlib
+
+# --- Deep Learning ---
+# Note: Ensure your CUDA version supports this PyTorch version.
+torch>=2.8.0
+
+# --- Genesis Physics Engine (Submodule) ---
+# Installs Genesis from the local submodule in editable mode with dev dependencies.
+-e ./external/Genesis[dev]
+
+# --- Documentation ---
+sphinx>=7.0.0
+sphinx-rtd-theme>=1.3.0
+myst-parser>=2.0.0
+sphinx-copybutton
+
+# --- Development Tools ---
+pytest
+black
+isort

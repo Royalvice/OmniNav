@@ -1,0 +1,88 @@
+site_name: OmniNav
+site_description: 面向具身智能的通用仿真平台
+site_url: https://royalvice.github.io/OmniNav/
+repo_name: Royalvice/OmniNav
+repo_url: https://github.com/Royalvice/OmniNav
+
+theme:
+  name: material
+  language: zh
+  palette:
+    - scheme: default
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-7
+        name: 切换至深色模式
+    - scheme: slate
+      primary: indigo
+      accent: indigo
+      toggle:
+        icon: material/brightness-4
+        name: 切换至浅色模式
+  features:
+    - navigation.instant
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+    - content.tabs.link
+  icon:
+    repo: fontawesome/brands/github
+
+plugins:
+  - search:
+      lang: 
+        - zh
+        - en
+  - mkdocstrings:
+      handlers:
+        python:
+          options:
+            show_source: true
+
+markdown_extensions:
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - admonition
+  - pymdownx.details
+  - attr_list
+  - md_in_html
+  - toc:
+      permalink: true
+
+nav:
+  - 首页: index.md
+  - 快速开始:
+      - 安装: getting_started/installation.md
+      - 第一个仿真: getting_started/first_simulation.md
+  - 用户指南:
+      - 架构概览: user_guide/architecture.md
+      - 机器人配置: user_guide/robots.md
+      - 传感器配置: user_guide/sensors.md
+      - 场景构建: user_guide/scenes.md
+      - 算法集成: user_guide/algorithms.md
+      - 评测任务: user_guide/evaluation.md
+      - ROS2 集成: user_guide/ros2_integration.md
+  - API 参考:
+      - Core: api_reference/core.md
+      - Robots: api_reference/robots.md
+      - Algorithms: api_reference/algorithms.md
+      - Evaluation: api_reference/evaluation.md
+  - 贡献指南: contributing.md
+  - 更新日志: changelog.md
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/Royalvice/OmniNav

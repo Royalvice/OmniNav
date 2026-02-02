@@ -1,0 +1,34 @@
+# --- Python ---
+__pycache__/
+*.pyc
+*.egg-info/
+dist/
+build/
+
+# --- Genesis / Simulation Artifacts ---
+*.usd
+*.usda
+assets/**/*.obj
+assets/**/*.glb
+*.mp4
+*.gif
+render_output/
+
+# --- ROS 2 ---
+install/
+log/
+build/
+
+# --- IDE ---
+.vscode/
+.idea/
+
+# --- Hydra Outputs ---
+outputs/
+multirun/
+
+# --- Development Docs (not for git) ---
+# dev_docs/
+
+# --- MkDocs Build Output ---
+site/

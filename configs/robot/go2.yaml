@@ -1,0 +1,31 @@
+# Go2 四足机器人配置
+# @package _group_
+
+type: unitree_go2
+name: go2
+
+# 模型文件
+morph_type: urdf  # urdf / mjcf
+file: "assets/robots/unitree/go2.urdf"
+
+# 初始位姿
+initial_pos: [0.0, 0.0, 0.5]
+initial_quat: [1.0, 0.0, 0.0, 0.0]  # [w, x, y, z]
+
+# 传感器挂载
+mounts:
+  - sensor: depth_camera
+    link_name: "head_link"
+    position: [0.1, 0.0, 0.05]
+    orientation: [1.0, 0.0, 0.0, 0.0]
+  
+  - sensor: lidar_2d
+    link_name: "base_link"
+    position: [0.0, 0.0, 0.15]
+    orientation: [1.0, 0.0, 0.0, 0.0]
+
+# 控制参数
+control:
+  mode: "velocity"  # position / velocity / force
+  max_linear_vel: 1.0   # m/s
+  max_angular_vel: 2.0  # rad/s

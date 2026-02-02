@@ -1,0 +1,35 @@
+# OmniNav 主配置文件
+# 使用 Hydra 组合配置：https://hydra.cc/docs/patterns/extending_configs/
+
+defaults:
+  - robot: go2
+  - sensor: default
+  - locomotion: kinematic
+  - algorithm: waypoint
+  - task: point_nav
+  - scene: empty
+  - _self_
+
+# 仿真配置
+simulation:
+  backend: "gpu"          # cpu / gpu
+  dt: 0.01                # 仿真步长 (秒)
+  substeps: 4             # 物理子步数
+  show_viewer: true       # 是否显示 Genesis Viewer
+  max_steps: 10000        # 最大仿真步数
+
+# ROS2 配置 (可选)
+ros2:
+  enabled: false          # 是否启用 ROS2 桥接
+  cmd_vel_topic: "/cmd_vel"
+  odom_topic: "/odom"
+  publish_rate: 50        # Hz
+
+# Hydra 配置
+hydra:
+  run:
+    dir: outputs/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  sweep:
+    dir: multirun/${now:%Y-%m-%d}/${now:%H-%M-%S}
+  job:
+    chdir: false
