@@ -64,26 +64,30 @@ OmniNav aims to:
 
 ### Prerequisites
 
-- Python >= 3.10
+- Python > 3.10 (Recommended: 3.13)
 - CUDA-compatible GPU (recommended)
 - PyTorch (see [official instructions](https://pytorch.org/get-started/locally/))
 
 ### Install from Source
 
 ```bash
-# Clone repository with submodules
-git clone --recurse-submodules https://github.com/Royalvice/OmniNav.git
+# Clone repository
+git clone https://github.com/Royalvice/OmniNav.git
 cd OmniNav
+
+# Initialize Genesis submodule (Required)
+git submodule update --init external/Genesis
+
+# Initialize ROS2 submodule (Optional)
+# git submodule update --init external/genesis_ros
 
 # Create virtual environment
 python -m venv .venv
 .venv\Scripts\activate  # Windows
 # source .venv/bin/activate  # Linux/macOS
 
-# Install Genesis
-cd external/Genesis && pip install -e . && cd ../..
-
-# Install OmniNav
+# Install dependencies and OmniNav
+pip install -r requirements.txt
 pip install -e .
 ```
 

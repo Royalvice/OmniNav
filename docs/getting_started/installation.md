@@ -6,7 +6,7 @@ This guide will help you install OmniNav and its dependencies.
 
 | Component | Minimum | Recommended |
 |------|---------|---------|
-| Python | 3.9+ | 3.10 / 3.11 |
+| Python | > 3.10 | 3.13 |
 | CUDA | 11.8+ (GPU mode) | 12.x |
 | Memory | 8 GB | 16 GB+ |
 | GPU | - | NVIDIA RTX Series |
@@ -16,18 +16,25 @@ This guide will help you install OmniNav and its dependencies.
 ### 1. Clone Repository
 
 ```bash
-git clone --recurse-submodules https://github.com/Royalvice/OmniNav.git
+git clone https://github.com/Royalvice/OmniNav.git
 cd OmniNav
 ```
 
-!!! note "Submodules"
-    The `--recurse-submodules` flag automatically pulls Genesis and genesis_ros submodules.
-    If you forgot this flag, you can run later:
-    ```bash
-    git submodule update --init --recursive
-    ```
+### 2. Initialize Submodules
 
-### 2. Create Virtual Environment
+Only initialize the necessary submodules (Genesis is required).
+
+```bash
+git submodule update --init external/Genesis
+```
+
+If you need ROS2 support (Optional):
+
+```bash
+git submodule update --init external/genesis_ros
+```
+
+### 3. Create Virtual Environment
 
 === "Linux / macOS"
     ```bash
@@ -41,20 +48,10 @@ cd OmniNav
     .venv\Scripts\activate
     ```
 
-### 3. Install Genesis
+### 4. Install Dependencies & OmniNav
 
 ```bash
-cd external/Genesis
-pip install -e .
-cd ../..
-```
-
-!!! tip "GPU Support"
-    Genesis supports CPU backend by default. For GPU acceleration, ensure CUDA is installed and PyTorch is configured correctly.
-
-### 4. Install OmniNav
-
-```bash
+pip install -r requirements.txt
 pip install -e .
 ```
 
