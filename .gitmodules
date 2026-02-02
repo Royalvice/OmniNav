@@ -1,0 +1,7 @@
+[submodule "external/Genesis"]
+	path = external/Genesis
+	url = https://github.com/Genesis-Embodied-AI/Genesis.git
+[submodule "external/genesis_ros"]
+	path = external/genesis_ros
+	url = https://github.com/Royalvice/genesis_ros.git
+	branch = humble
