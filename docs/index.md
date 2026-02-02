@@ -1,26 +1,43 @@
 # OmniNav
 
-<p align="center">
-  <img src="assets/logo.png" alt="OmniNav Logo" width="200"/>
-</p>
+```{toctree}
+:maxdepth: 2
+:caption: 快速开始
 
-<p align="center">
-  <strong>面向具身智能的通用仿真平台</strong>
-</p>
+getting_started/installation
+getting_started/first_simulation
+```
 
-<p align="center">
-  <a href="https://github.com/Royalvice/OmniNav">
-    <img src="https://img.shields.io/github/stars/Royalvice/OmniNav?style=social" alt="GitHub stars">
-  </a>
-  <a href="https://github.com/Royalvice/OmniNav/blob/main/LICENSE">
-    <img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License">
-  </a>
-  <a href="https://royalvice.github.io/OmniNav/">
-    <img src="https://img.shields.io/badge/docs-online-green" alt="Documentation">
-  </a>
-</p>
+```{toctree}
+:maxdepth: 2
+:caption: 用户指南
 
----
+user_guide/architecture
+user_guide/robots
+user_guide/sensors
+user_guide/scenes
+user_guide/algorithms
+user_guide/evaluation
+user_guide/ros2_integration
+```
+
+```{toctree}
+:maxdepth: 2
+:caption: API 参考
+
+api_reference/core
+api_reference/robots
+api_reference/algorithms
+api_reference/evaluation
+```
+
+```{toctree}
+:maxdepth: 1
+:caption: 其他
+
+contributing
+changelog
+```
 
 ## ✨ 什么是 OmniNav？
 
@@ -35,85 +52,18 @@ OmniNav 是一个基于 [Genesis](https://github.com/Genesis-Embodied-AI/Genesis
 - 🌐 **ROS2 兼容** - 可选的 ROS2 桥接，支持 Sim2Real
 - 📦 **场景资产导入** - 支持 USD、GLB、OBJ 等格式
 
----
-
 ## 🚀 快速开始
-
-### 安装
-
-```bash
-# 克隆仓库
-git clone --recurse-submodules https://github.com/Royalvice/OmniNav.git
-cd OmniNav
-
-# 创建虚拟环境
-python -m venv .venv
-source .venv/bin/activate  # Linux/macOS
-# 或 .venv\Scripts\activate  # Windows
-
-# 安装依赖
-pip install -e .
-```
-
-### 运行第一个仿真
 
 ```python
 from omninav import OmniNavEnv
 
-# 创建环境
-env = OmniNavEnv(config_path="configs/config.yaml")
-
-# 重置环境
+env = OmniNavEnv(config_path="configs")
 obs = env.reset()
 
-# 运行仿真
 while not env.is_done:
-    action = env.algorithm.step(obs)  # 使用配置的算法
+    action = env.algorithm.step(obs)
     obs, info = env.step(action)
 
-# 获取评测结果
 result = env.get_result()
-print(f"Success: {result.success}, SPL: {result.metrics['spl']:.2f}")
+print(f"Success: {result.success}")
 ```
-
----
-
-## 📖 文档
-
-完整文档请访问: [https://royalvice.github.io/OmniNav/](https://royalvice.github.io/OmniNav/)
-
-- [安装指南](https://royalvice.github.io/OmniNav/getting_started/installation/)
-- [架构概览](https://royalvice.github.io/OmniNav/user_guide/architecture/)
-- [API 参考](https://royalvice.github.io/OmniNav/api_reference/core/)
-
----
-
-## 🏗️ 架构
-
-```
-┌─────────────────────────────────────────────────────────┐
-│                    接口层 (Interface)                    │
-│              Python API / ROS2 Bridge (可选)             │
-├─────────────────────────────────────────────────────────┤
-│  评测层 (Evaluation)  │  算法层 (Algorithm - 可插拔)     │
-├─────────────────────────────────────────────────────────┤
-│              运动层 (Locomotion Controller)              │
-├─────────────────────────────────────────────────────────┤
-│  机器人层 (Robot)     │   资产层 (Asset Loader)          │
-├─────────────────────────────────────────────────────────┤
-│                    核心层 (Genesis Wrapper)              │
-└─────────────────────────────────────────────────────────┘
-```
-
----
-
-## 📝 许可证
-
-本项目采用 [Apache-2.0](LICENSE) 许可证。
-
----
-
-## 🙏 致谢
-
-- [Genesis](https://github.com/Genesis-Embodied-AI/Genesis) - 高性能物理仿真引擎
-- [genesis_ros](https://github.com/Royalvice/genesis_ros) - ROS2 桥接

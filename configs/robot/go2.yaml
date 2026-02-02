@@ -1,27 +1,35 @@
 # Go2 四足机器人配置
 # @package _group_
 
+# 机器人类型标识 (用于 Registry)
 type: unitree_go2
 name: go2
 
-# 模型文件
-morph_type: urdf  # urdf / mjcf
-file: "assets/robots/unitree/go2.urdf"
+# URDF 来源 (genesis_builtin / project)
+# genesis_builtin: 使用 Genesis 内置资产
+# project: 使用项目 assets/ 目录下的资产
+urdf_source: genesis_builtin
+
+# 模型文件路径
+# 根据 urdf_source 自动解析:
+# - genesis_builtin: 相对于 Genesis assets 目录
+# - project: 相对于项目 assets/ 目录
+urdf_path: "urdf/go2/urdf/go2.urdf"
 
 # 初始位姿
-initial_pos: [0.0, 0.0, 0.5]
+initial_pos: [0.0, 0.0, 0.4]
 initial_quat: [1.0, 0.0, 0.0, 0.0]  # [w, x, y, z]
 
 # 传感器挂载
 mounts:
   - sensor: depth_camera
-    link_name: "head_link"
-    position: [0.1, 0.0, 0.05]
+    link_name: "Head_upper"
+    position: [0.05, 0.0, 0.02]
     orientation: [1.0, 0.0, 0.0, 0.0]
   
   - sensor: lidar_2d
-    link_name: "base_link"
-    position: [0.0, 0.0, 0.15]
+    link_name: "base"
+    position: [0.0, 0.0, 0.1]
     orientation: [1.0, 0.0, 0.0, 0.0]
 
 # 控制参数

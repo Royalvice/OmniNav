@@ -1,12 +1,16 @@
 # Go2w 轮式机器人配置
 # @package _group_
 
+# 机器人类型标识 (用于 Registry)
 type: unitree_go2w
 name: go2w
 
-# 模型文件
-morph_type: urdf
-file: "assets/robots/unitree/go2w.urdf"
+# URDF 来源 (genesis_builtin / project)
+# Go2w 不在 Genesis 内置资产中，使用项目资产
+urdf_source: project
+
+# 模型文件路径 (相对于项目 assets/ 目录)
+urdf_path: "robots/unitree/go2w/go2w.urdf"
 
 # 初始位姿
 initial_pos: [0.0, 0.0, 0.3]
@@ -15,17 +19,17 @@ initial_quat: [1.0, 0.0, 0.0, 0.0]
 # 传感器挂载
 mounts:
   - sensor: depth_camera
-    link_name: "head_link"
-    position: [0.1, 0.0, 0.05]
+    link_name: "Head_upper"
+    position: [0.05, 0.0, 0.02]
     orientation: [1.0, 0.0, 0.0, 0.0]
   
   - sensor: lidar_2d
-    link_name: "base_link"
-    position: [0.0, 0.0, 0.12]
+    link_name: "base"
+    position: [0.0, 0.0, 0.08]
     orientation: [1.0, 0.0, 0.0, 0.0]
 
-# 控制参数
+# 控制参数 (轮式版本更快)
 control:
   mode: "velocity"
-  max_linear_vel: 2.0   # m/s (轮式更快)
+  max_linear_vel: 2.0   # m/s
   max_angular_vel: 3.0  # rad/s
