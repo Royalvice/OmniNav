@@ -1,194 +1,67 @@
-# OmniNav Phase 2 Implementation Walkthrough
+# OmniNav 项目进展概览 (Walkthrough)
 
-> Phase 2 核心框架已完成实现并通过全部 32 个测试用例。
+> 本文档记录项目当前状态、已完成的核心功能以及下一步开发计划。
 
----
+## ✅ 已完成功能 (Phase 1 - Phase 2.5)
 
-## 1. Registry 机制 (Core Layer)
+### 1. 核心架构
+*   **分层架构**: Core / Robot / Sensor / Locomotion / Algorithm / Interface 分层清晰。
+*   **注册机制**: 基于 `omninav.core.registry` 实现组件的动态注册与配置加载。
+*   **配置管理**: 使用 Hydra/OmegaConf 管理所有配置 (`configs/`)。
 
-### 文件
-- [registry.py](file:///e:/code/python/OmniNav/omninav/core/registry.py) - 通用组件注册器
+### 2. 机器人与传感器
+*   **基类设计**:
+    *   `RobotBase`: 支持 `spawn()` 和 `mount_sensors()` 生命周期分离。
+    *   `SensorBase`: 统一定义 `attach()` 和 `get_data()` 接口。
+*   **具体实现**:
+    *   **Go2 (四足)**: 基础支持。
+    *   **Go2w (轮式)**: 完整的 Mecanum 轮运动学支持。
+    *   **Lidar2D**: 基于 Genesis Spherical Pattern 实现 2D 激光雷达仿真。
+    *   **Camera**: 基于 Genesis Rasterizer 实现 RGB-D 相机仿真。
 
-### 功能
-```python
-from omninav.core.registry import ROBOT_REGISTRY, SENSOR_REGISTRY
+### 3. 可执行 Demos
+位于 `examples/` 目录下：
+1.  `01_teleop_go2.py`: 四足机器人键盘遥控。
+2.  `02_teleop_go2w.py`: 轮式机器人全向移动遥控。
+3.  `03_lidar_visualization.py`: 2D Lidar 实时数据可视化。
+4.  `04_camera_visualization.py`: RGB-D 相机分屏显示。
+5.  `05_waypoint_navigation.py`: 基础航点导航与避障演示。
 
-# 注册组件
-@SENSOR_REGISTRY.register("lidar_2d")
-class Lidar2DSensor(SensorBase):
-    pass
-
-# 从配置构建
-sensor = SENSOR_REGISTRY.build(cfg, scene=scene, robot=robot)
-```
-
-### 全局注册器
-| Registry | 用途 |
-|----------|------|
-| `ROBOT_REGISTRY` | Go2, Go2w 等机器人 |
-| `SENSOR_REGISTRY` | Lidar, Camera 等传感器 |
-| `LOCOMOTION_REGISTRY` | WheelController, IKController 等 |
-| `ALGORITHM_REGISTRY` | 导航/感知算法 |
-| `TASK_REGISTRY` | 评测任务 |
-| `METRIC_REGISTRY` | 评测指标 |
-
----
-
-## 2. Sensor Layer
-
-### 文件
-| File | Description |
-|------|-------------|
-| [base.py](file:///e:/code/python/OmniNav/omninav/sensors/base.py) | `SensorBase` 抽象基类 |
-| [lidar.py](file:///e:/code/python/OmniNav/omninav/sensors/lidar.py) | `Lidar2DSensor` - 2D 激光雷达 |
-| [camera.py](file:///e:/code/python/OmniNav/omninav/sensors/camera.py) | `CameraSensor` - RGB-D 相机 |
-
-### SensorBase 生命周期
-```
-__init__(cfg, scene, robot)  # 存储配置
-    ↓
-attach(link_name, pos, euler)  # 设置挂载点
-    ↓
-create()  # 创建 Genesis 传感器 (scene.build 前)
-    ↓
-get_data()  # 读取传感器数据 (scene.step 后)
-```
-
-### Lidar2DSensor 实现
-- 使用 `gs.sensors.Lidar` + `SphericalPattern(fov=(360, 0.5), n_points=(720, 1))`
-- 输出: `{'ranges': np.ndarray, 'points': np.ndarray}`
-
-### CameraSensor 实现
-- 使用 `gs.vis.camera.Camera`
-- 输出: `{'rgb': np.ndarray, 'depth': np.ndarray}`
-
-### 配置文件
-- [lidar_2d.yaml](file:///e:/code/python/OmniNav/configs/sensor/lidar_2d.yaml)
-- [camera_rgbd.yaml](file:///e:/code/python/OmniNav/configs/sensor/camera_rgbd.yaml)
+### 4. 文档建设
+*   `dev_docs/requirements.md`: 详细需求规格说明书。
+*   `dev_docs/implementation_plan.md`: 详细实现架构与 API 设计（Batch-First, API 标准化）。
 
 ---
 
-## 3. Locomotion Layer
+## 🚧 下一步计划 (Phase 3: 算法与 API 标准化)
 
-### 文件
-| File | Description |
-|------|-------------|
-| [wheel_controller.py](file:///e:/code/python/OmniNav/omninav/locomotion/wheel_controller.py) | Go2w 轮式控制 |
-| [ik_controller.py](file:///e:/code/python/OmniNav/omninav/locomotion/ik_controller.py) | Go2 IK 步态控制 |
-| [rl_controller.py](file:///e:/code/python/OmniNav/omninav/locomotion/rl_controller.py) | RL 控制 (占位) |
+当前重点是 **API 重构**，为支持大规模并行训练 (RL) 和复杂的 VLA 任务打基础。
 
-### WheelController (Go2w)
-- Mecanum 轮逆运动学: `[vx, vy, wz] → [FL, FR, RL, RR] wheel velocities`
-- 使用 `robot.entity.control_dofs_velocity()`
+### 1. 核心数据结构定义 (`omninav/core/types.py`)
+*   定义 **Batch-First** 的 `TypedDict`:
+    *   `Observation`: 包含 `robot_state`, `sensor_data`, `task_info`。
+    *   `Action`: 标准化 `cmd_vel`。
+    *   `RobotState`: 包含位置、姿态、速度等信息的 Batched Tensor。
 
-### IKController (Go2)
-- Trot 步态: 对角腿同步 (FL+RR, FR+RL)
-- Bezier 曲线生成足端摆动轨迹
-- 使用 Genesis `entity.inverse_kinematics()` API
-- 使用 `robot.entity.control_dofs_position()`
+### 2. 批量化支持 (Batch Support)
+*   升级 `OmniNavEnv` 以处理 `(num_envs, ...)` 数据流。
+*   升级 `RobotBase` 和 `SensorBase` 处理并行环境数据。
 
-### RLController (占位)
-- 接口已定义，调用时抛出 `NotImplementedError`
-- 预留用于集成 RL 策略 (如 Legged Gym)
-
-### 配置文件
-- [wheel.yaml](file:///e:/code/python/OmniNav/configs/locomotion/wheel.yaml)
-- [ik_gait.yaml](file:///e:/code/python/OmniNav/configs/locomotion/ik_gait.yaml)
+### 3. 先进算法接入
+*   实现支持 Batch 输入的 `WaypointFollower`。
+*   设计 VLA (Vision-Language-Action) 接口，在 Observation 中预留语言指令字段。
 
 ---
 
-## 4. ROS2 Interface Layer
+## 📚 常用指令
 
-### 文件
-- [bridge.py](file:///e:/code/python/OmniNav/omninav/interfaces/ros2/bridge.py)
-
-### Ros2Bridge 功能
-| 类型 | Topic | Message Type |
-|------|-------|--------------|
-| Publisher | `/clock` | `rosgraph_msgs/Clock` |
-| Publisher | `/scan` | `sensor_msgs/LaserScan` |
-| Publisher | `/camera/image_raw` | `sensor_msgs/Image` |
-| Publisher | `/camera/depth` | `sensor_msgs/Image` |
-| Publisher | `/odom` | `nav_msgs/Odometry` |
-| Subscriber | `/cmd_vel` | `geometry_msgs/Twist` |
-
-### 使用方式
-```python
-bridge = Ros2Bridge(cfg.ros2, sim_manager)
-bridge.setup(robot)
-
-while running:
-    sim_manager.step()
-    bridge.spin_once()
-    cmd_vel = bridge.get_cmd_vel()
+### 运行 Demo
+```bash
+# 激活环境 (假设已安装 genesis/pynput/opencv)
+python examples/05_waypoint_navigation.py
 ```
 
----
-
-## 5. 测试结构
-
+### 运行测试
+```bash
+pytest tests/
 ```
-tests/
-├── conftest.py              # Mock Genesis 对象 & Pytest fixtures
-├── core/
-│   └── test_registry.py     # 9 tests - Registry 机制
-├── sensors/
-│   └── test_sensors.py      # 8 tests - SensorBase, Lidar, Camera
-├── locomotion/
-│   └── test_locomotion.py   # 9 tests - Wheel, IK, RL controllers
-├── interfaces/
-│   └── test_ros2_bridge.py  # 4 tests - ROS2 Bridge (mock-based)
-└── robots/
-    └── (待添加集成测试)
-```
-
-### 测试结果
-```
-32 passed in 0.28s
-```
-
----
-
-## 6. Genesis API 使用模式
-
-```python
-import genesis as gs
-
-# 1. 初始化
-gs.init(backend=gs.gpu)
-
-# 2. 创建场景
-scene = gs.Scene(sim_options=gs.options.SimOptions(dt=0.01))
-
-# 3. 添加实体
-robot = scene.add_entity(gs.morphs.URDF(file="path/to/robot.urdf"))
-
-# 4. 添加传感器 (build 前)
-lidar = scene.add_sensor(gs.sensors.Lidar(...))
-
-# 5. 构建
-scene.build(n_envs=1)
-
-# 6. 控制循环
-for _ in range(1000):
-    robot.control_dofs_position(targets)
-    scene.step()
-    data = lidar.read()
-```
-
----
-
-## 7. 后续任务
-
-### Phase 2.5 Integration
-- [ ] 更新 `Go2Robot` / `Go2wRobot` 支持 Sensor 挂载
-- [ ] 创建 `tests/robots/test_robot_sensor_integration.py`
-
-### Phase 3 算法与验证
-- [ ] 实现 Waypoint Follower 算法
-- [ ] 实现 Evaluation Layer 框架
-- [ ] 全流程验证 (Sim2Real 预备)
-
-### Phase 4 文档与示例
-- [ ] 编写用户文档 (docs/)
-- [ ] 创建示例脚本 (examples/)

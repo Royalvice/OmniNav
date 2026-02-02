@@ -1,4 +1,4 @@
-# Go2w wheeled robot configuration
+# Go2w wheeled quadruped robot configuration
 # @package _group_
 
 # Robot type identifier (for Registry)
@@ -6,30 +6,47 @@ type: unitree_go2w
 name: go2w
 
 # URDF source (genesis_builtin / project)
-# Go2w is not in Genesis built-in assets, using project assets
+# project: Use assets from the project assets/ directory
 urdf_source: project
 
-# Model file path (relative to project assets/ directory)
+# Model file path (relative to project assets/)
 urdf_path: "robots/unitree/go2w/go2w.urdf"
 
 # Initial pose
-initial_pos: [0.0, 0.0, 0.3]
-initial_quat: [1.0, 0.0, 0.0, 0.0]
+initial_pos: [0.0, 0.0, 0.15]
+initial_quat: [1.0, 0.0, 0.0, 0.0]  # [w, x, y, z]
 
-# Sensor mounts
-mounts:
-  - sensor: depth_camera
-    link_name: "Head_upper"
-    position: [0.05, 0.0, 0.02]
-    orientation: [1.0, 0.0, 0.0, 0.0]
-  
-  - sensor: lidar_2d
-    link_name: "base"
-    position: [0.0, 0.0, 0.08]
-    orientation: [1.0, 0.0, 0.0, 0.0]
+# Wheel parameters for Mecanum IK
+wheel:
+  radius: 0.05   # meters
+  base: 0.4      # wheelbase (front-rear distance)
+  track: 0.3     # track width (left-right distance)
 
-# Control parameters (wheeled version is faster)
+# Sensors - created via mount_sensors()
+sensors:
+  - name: front_lidar
+    type: lidar_2d
+    link_name: base_link
+    position: [0.2, 0.0, 0.1]
+    orientation: [0.0, 0.0, 0.0]
+    horizontal_fov: 270.0
+    num_rays: 540
+    min_range: 0.1
+    max_range: 12.0
+    draw_debug: false
+
+  - name: front_camera
+    type: camera
+    link_name: base_link
+    position: [0.25, 0.0, 0.15]
+    orientation: [0.0, 0.0, 0.0]
+    width: 640
+    height: 480
+    fov: 60.0
+    camera_types: ["rgb", "depth"]
+
+# Control parameters
 control:
-  mode: "velocity"
-  max_linear_vel: 2.0   # m/s
+  mode: velocity
+  max_linear_vel: 1.5   # m/s (faster than legged version)
   max_angular_vel: 3.0  # rad/s

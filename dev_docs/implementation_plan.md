@@ -1,234 +1,276 @@
-# OmniNav 实现计划
+# OmniNav 详细实现计划 (Phase 3+)
 
-> **项目定位**: 面向上游应用的具身智能仿真平台，基于 Genesis 物理引擎，初版聚焦宇树 Go2w (轮式) 导航仿真。
+## 1. 架构设计与核心原则
 
-## 目录
-1. [架构总览](#1-架构总览)
-2. [目录结构](#2-目录结构)
-3. [核心机制 (Registry)](#3-核心机制)
-4. [各层详细设计](#4-各层详细设计)
-5. [配置管理](#5-配置管理)
-6. [验证计划](#6-验证计划)
+本项目采用**多层分层架构**，层与层之间通过标准化 API 交互。所有数据流均支持**Batch-First**维度 `(num_envs, ...)` 以充分利用 Genesis 并行仿真能力。
+
+```mermaid
+graph TD
+    User["User / ROS2"] -->|Config & Start| Env["OmniNavEnv (Gym API)"]
+    Env -->|"Step(cmd_vel)"| Algo["Algorithm Layer"]
+    Algo -->|"cmd_vel (B,3)"| Loco["Locomotion Layer"]
+    Loco -->|"joint_targets (B,N)"| Robot["Robot Layer"]
+    Robot -->|"Apply Control"| Core["Core Layer (Genesis)"]
+    Core -->|"State & Sensor Data"| Robot
+    Robot -->|"Observation (B,Dict)"| Algo
+    Sensor["Sensor Layer"] -->|"Data (B,C,H,W)"| Robot
+    Asset["Asset Layer"] -->|"Scene Gen"| Core
+    Eval["Evaluation Layer"] -->|Result| User
+```
+
+### 1.1 核心设计决策 (Architectural Decisions)
+
+| 决策点         | 方案                               | 原因                                                                             |
+| -------------- | ---------------------------------- | -------------------------------------------------------------------------------- |
+| **数据维度**   | **Batch-First**: `(num_envs, ...)` | 统一单/多环境接口，适配 GPU 端仿真与 RL 训练。单环境也保留 Batch 维。            |
+| **控制接口**   | **仅 `cmd_vel`**: `(B, 3)`         | 明确层级边界。高层规划输出速度，低层 `LocomotionController` 负责关节映射。       |
+| **End-to-End** | **通过 `RLLocomotionController`**  | 若需端到端控制，将 RL 策略封装为 Locomotion Controller，接受其内部 Observation。 |
+| **场景生成**   | **Asset Layer**                    | 场景生成逻辑独立于核心引擎，便于扩展和复用。                                     |
+| **ROS2集成**   | **Nav2 对齐**                      | `/tf` 树结构必须包含 `map -> odom -> base_link` 链条以支持标准导航栈。           |
 
 ---
 
-## 0. 编码规范
+## 2. 详细目录结构 (Directory Structure)
 
-### 语言规范
-
-| 规则 | 说明 |
-|------|------|
-| **源码注释** | **必须使用英文** - 所有 Python 代码中的 docstring 和注释必须使用英文 |
-| **配置文件** | YAML 配置文件中的注释可以使用中文或英文 |
-| **文档** | `docs/` 目录下的用户文档使用中文，`dev_docs/` 使用中文 |
-| **提交信息** | Git commit message 使用英文 |
-
-### 代码风格
-
-- **格式化**: 使用 `black`
-- **导入排序**: 使用 `isort`
-- **类型检查**: 使用 `mypy`
-
-## 1. 架构总览
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│                      用户层 (User Layer)                         │
-│              Python 脚本 / Notebook / ROS2 节点                   │
-└─────────────────────────────────────────────────────────────────┘
-                                │
-┌─────────────────────────────────────────────────────────────────┐
-│                     接口层 (Interface Layer)                      │
-│      Python API (OmniNavEnv)  │  ROS2 Bridge (Adapters)         │
-│                               │  (发布 /scan, /odom, /image)    │
-└─────────────────────────────────────────────────────────────────┘
-                                │
-┌─────────────────────────────────────────────────────────────────┐
-│                算法层 (Algorithm Layer - 可插拔)                   │
-│         导航算法 (Navigation) + 感知算法 (Perception)             │
-└─────────────────────────────────────────────────────────────────┘
-                                │
-┌─────────────────────────────────────────────────────────────────┐
-│                    运动层 (Locomotion Layer)                      │
-│     LocomotionController (cmd_vel -> joint_targets)             │
-│       ├── WheelController (Go2w)                                │
-│       └── GaitController/RL (Go2 - Future)                      │
-└─────────────────────────────────────────────────────────────────┘
-                                │
-┌─────────────────────────────────────────────────────────────────┐
-│                    机器人层 (Robot Layer)                         │
-│           RobotBase (硬件抽象: set_dofs, get_state)              │
-│       ├── Go2wRobot (轮式)                                      │
-│       └── Go2Robot (四足)                                       │
-│           └── Sensors (Lidar, Camera)                           │
-└─────────────────────────────────────────────────────────────────┘
-                                │
-┌─────────────────────────────────────────────────────────────────┐
-│                      核心层 (Core Layer)                          │
-│              SimulationManager + Component Registry               │
-│              Genesis Scene Wrapper (load_scene)                   │
-└─────────────────────────────────────────────────────────────────┘
-```
-
-### 核心设计原则
-
-1.  **Registry 驱动**: 所有可插拔组件 (Robot, Sensor, Algorithm, Task) 通过 `omninav.core.registry` 注册，由 Config `type` 字段动态构建。
-2.  **Locomotion 分离**: `Robot` 只负责底层的关节控制 (Joint Level)，`Locomotion` 负责将高层指令 (`cmd_vel`) 转换为关节指令。
-3.  **ROS2 适配器模式**: 不在 Core 中硬编码 ROS2，而是通过 `Interface Layer` 的 Adapter 将仿真数据转换为 ROS2 消息。逻辑借鉴 `external/genesis_ros` 但不直接使用其主循环。
-
----
-
-## 2. 目录结构
-
-```
+```text
 OmniNav/
-├── external/genesis_ros/           # 参考/借鉴源码
-├── omninav/
-│   ├── core/
-│   │   ├── registry.py             # [NEW] 注册器实现
-│   │   └── simulation_manager.py
-│   ├── assets/                     # 路径解析, USD 加载
-│   ├── robots/                     # Robot 实现
-│   ├── sensors/                    # [NEW] 传感器实现 (Lidar, Camera)
-│   ├── locomotion/                 # 运动控制器
-│   ├── algorithms/                 # 导航算法
-│   └── interfaces/
-│       └── ros2/                   # [NEW] ROS2 Bridge 实现
-│           ├── publishers/         # 借鉴 genesis_ros 的发布逻辑
-│           └── bridge.py           # ROS2 节点封装
-│
-├── configs/                        # Hydra 配置
-│   ├── robot/
-│   │   ├── go2w.yaml               # type: unitree_go2w
-│   │   └── go2.yaml                # type: unitree_go2
-│   ├── sensor/
-│   │   ├── lidar_2d.yaml           # type: lidar_2d
-│   │   └── depth_camera.yaml       # type: camera
-...
+├── configs/                        # Hydra 配置文件层级
+│   ├── algorithm/                  # 导航/规划算法配置
+│   ├── locomotion/                 # 运动控制器配置 (wheel, ik, rl)
+│   ├── robot/                      # 机器人定义 (go2, go2w)
+│   ├── sensor/                     # 传感器配置
+│   ├── scene/                      # 场景与生成器配置
+│   ├── task/                       # 评测任务配置
+│   └── config.yaml                 # 全局入口配置
+├── dev_docs/                       # 开发文档
+│   ├── requirements.md             # 需求规格说明书
+│   └── implementation_plan.md      # 本文档
+├── docs/                           # 用户文档 (Sphinx)
+├── external/                       # Git Submodules (Genesis, Genesis-ROS)
+├── omninav/                        # 核心源码包
+│   ├── algorithms/                 # [层] 算法实现 (A*, RL, VLA)
+│   ├── assets/                     # [层] 资产管理与场景生成
+│   │   ├── generator/              # 程序化场景生成器
+│   │   ├── loader.py               # USD/URDF 加载器
+│   ├── core/                       # [层] 核心引擎与注册机制
+│   │   ├── registry.py             # 全局注册器
+│   │   ├── simulation_manager.py   # Genesis 封装
+│   ├── evaluation/                 # [层] 评测系统
+│   │   ├── tasks/                  # PointNav, ObjectNav
+│   │   ├── metrics/                # SPL, SR, Collision
+│   ├── interfaces/                 # [层] 外部接口
+│   │   ├── python_api.py           # OmniNavEnv (Gym-like)
+│   │   ├── ros2/                   # ROS2 Bridge
+│   ├── locomotion/                 # [层] 运动控制 (cmd_vel -> joint)
+│   ├── robots/                     # [层] 机器人定义
+│   └── sensors/                    # [层] 传感器实现
+├── tests/                          # 单元测试与集成测试
+└── examples/                       # 交互式示例脚本
 ```
 
 ---
 
-## 3. 核心机制 (Registry)
+## 3. 标准化 API 定义 (Standardized APIs)
 
-实现一个分层注册器 `omninav.core.registry`，支持通过配置动态实例化对象。
+所有模块开发必须严格遵守以下 API 签名。
+
+### 3.1 核心数据结构 (Core Data Structures)
+
+所有数据均为 Batch 格式，`B = num_envs`。
 
 ```python
-# omninav/core/registry.py
-class Registry:
-    def register(self, name=None): ...
-    def build(self, cfg, **kwargs): ...
+# omninav/core/types.py
 
-ROBOT_REGISTRY = Registry("robot")
-SENSOR_REGISTRY = Registry("sensor")
-LOCOMOTION_REGISTRY = Registry("locomotion")
-ALGORITHM_REGISTRY = Registry("algorithm")
+class RobotState(TypedDict):
+    position: np.ndarray          # (B, 3) [x, y, z]
+    orientation: np.ndarray       # (B, 4) [w, x, y, z] quaternion
+    linear_velocity: np.ndarray   # (B, 3) world frame
+    angular_velocity: np.ndarray  # (B, 3) world frame
+    joint_positions: np.ndarray   # (B, num_joints)
+    joint_velocities: np.ndarray  # (B, num_joints)
+
+class Observation(TypedDict):
+    # 核心状态
+    robot_state: RobotState
+    sim_time: float               # current time
+    
+    # 传感器数据 (Key 由 config 定义)
+    # e.g., "front_lidar": {"ranges": (B, N), "points": (B, N, 3)}
+    # e.g., "front_camera": {"rgb": (B, H, W, 3), "depth": (B, H, W)}
+    
+    # 任务相关 (Task Context)
+    goal_position: Optional[np.ndarray]   # (B, 3) local/world frame
+    goal_object: Optional[List[str]]      # (B,) target object classes
+    language_instruction: Optional[List[str]] # (B,) text instructions
+
+class Action(TypedDict):
+    cmd_vel: np.ndarray           # (B, 3) [vx, vy, wz]
 ```
 
----
+### 3.2 模块接口规范
 
-## 4. 各层详细设计
-
-### 4.1 机器人与传感器 (Robot & Sensor)
-
-**SensorBase**:
-*   `create(scene)`: 调用 `scene.add_sensor` 或 `scene.add_camera`。
-*   `get_data()`: 返回 NumPy 格式数据 (RGB, Depth, Points)。
-
-**具体实现**:
-1.  **Lidar2D (`type: lidar_2d`)**:
-    *   使用 `gs.sensors.Lidar` + `gs.sensors.SphericalPattern` (设置 flat FOV, e.g., vertical < 1 deg)。
-    *   输出模拟 LaserScan 数据。
-2.  **Camera (`type: camera`)**:
-    *   使用 `gs.sensors.Camera` (或 `vis.camera`)。
-    *   支持 RGB 和 Depth。
-
-### 4.2 运动控制 (Locomotion)
-
-**LocomotionControllerBase**:
+#### Algorithm Layer
 ```python
-class LocomotionControllerBase(ABC):
-    def compute_action(self, cmd_vel: np.ndarray, obs: Dict) -> np.ndarray:
-        """输入速度指令，输出关节目标 (positions/velocities)"""
+class AlgorithmBase(ABC):
+    @abstractmethod
+    def reset(self, task_info: Dict[str, Any]) -> None:
+        """Reset internal state with new task context."""
+        pass
+
+    @abstractmethod
+    def step(self, obs: Observation) -> np.ndarray:
+        """
+        Args: obs (Batch Observation)
+        Returns: cmd_vel (B, 3)
+        """
         pass
 ```
 
-*   **WheelController** (for Go2w): 解析 $v_x, v_y, \omega_z$ 为轮子转速。
-*   **GaitController** (for Go2 - Future): IK 或 RL 策略。
+#### Evaluation Layer
+```python
+class TaskBase(ABC):
+    @abstractmethod
+    def is_terminated(self, obs: Observation) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Returns: 
+            dones (B, bool): 是否结束
+            successes (B, bool): 是否成功
+        """
+        pass
+```
 
-### 4.3 ROS2 接口 (Interface)
-
-**ROS2 Bridge** (`omninav.interfaces.ros2`):
-*   独立于 Genesis 主循环，但在 `step()` 后被调用。
-*   **Adapter Pattern**:
-    *   `LidarPublisher`: `Genesis Lidar Data -> sensor_msgs/LaserScan`
-    *   `CameraPublisher`: `Genesis Image -> sensor_msgs/Image` (使用 `cv_bridge` 或纯 numpy)
-    *   `OdomPublisher`: `Robot State -> nav_msgs/Odometry`
-*   复用 `genesis_ros` 的数据转换逻辑 (如 `raycaster_to_laser_scan_msg`)，但不直接继承其类。
-
----
-
-## 5. 配置管理
-
-**Registry 配合 Config**:
-
-```yaml
-# configs/robot/go2w.yaml
-type: unitree_go2w  # ROBOT_REGISTRY key
-control:
-  controller_type: wheel_controller # LOCOMOTION_REGISTRY key
-
-mounts:
-  - sensor: lidar_2d  # sensor config file name
-    link: base
+#### Asset Layer (Scene Generator)
+```python
+class SceneGeneratorBase(ABC):
+    @abstractmethod
+    def generate(self, manager: SimulationManager, seed: int) -> None:
+        """Procedurally generate scene entities."""
+        pass
 ```
 
 ---
 
-## 6. 验证计划
+## 4. 生命周期时序图 (Lifecycle Sequence)
 
-| 阶段 | 验证内容 | 状态 |
-|------|---------|------|
-| **Step 1** | 实现 Registry 和各类 Base Class | ✅ 已完成 |
-| **Step 2** | 实现 Lidar 和 Camera (在 Viewer 中可视化) | ✅ 已完成 |
-| **Step 3** | 实现 Go2w 的 Locomotion (键盘控制移动) | ✅ 已完成 |
-| **Step 4** | 实现 ROS2 Bridge (发布 /scan, /image) | ✅ 已完成 |
-| **Step 5** | 集成测试: 场景 + 机器人 + 传感器 + ROS2 发布 | 待开始 |
+```mermaid
+sequenceDiagram
+    participant User
+    participant Env as OmniNavEnv
+    participant Asset as SceneGenerator
+    participant Sim as SimulationManager
+    participant Robot
+    participant Sensor
+    participant Algo as Algorithm
+    participant Loco as Locomotion
+    participant Task
+
+    User->>Env: __init__(cfg)
+    
+    rect rgb(240, 248, 255)
+    Note over Env, Sim: Initialization Phase
+    Env->>Sim: initialize(cfg)
+    Env->>Asset: generate(sim)
+    Asset->>Sim: add_entity(obstacles/terrain)
+    Env->>Robot: spawn()
+    Env->>Robot: mount_sensors()
+    Robot->>Sensor: create()
+    Env->>Sim: build() 
+    end
+
+    User->>Env: reset()
+    Env->>Sim: reset()
+    Env->>Task: reset()
+    Env->>Algo: reset(task_info)
+    
+    loop Simulation Loop
+        User->>Env: step(action=None)
+        
+        opt Using Internal Algorithm
+            Env->>Robot: get_observations()
+            Robot->>Sensor: get_data()
+            Env->>Algo: step(obs)
+            Algo-->>Env: cmd_vel
+        end
+        
+        Env->>Loco: step(cmd_vel)
+        Loco->>Robot: apply_command(joint_targets)
+        Env->>Sim: step()
+        
+        Env->>Task: step(obs)
+        Task-->>Env: done, info
+        
+        Env-->>User: obs, info
+    end
+```
 
 ---
 
-## 7. Phase 2 实现摘要
+## 5. 阶段性开发计划
 
-### 新增文件
+### Phase 3: 算法与运动层 (Algorithm & Locomotion)
 
-| 层 | 文件 | 描述 |
-|-----|------|------|
-| Core | `omninav/core/registry.py` | 通用组件注册器 |
-| Sensor | `omninav/sensors/base.py` | SensorBase 抽象基类 |
-| Sensor | `omninav/sensors/lidar.py` | Lidar2DSensor (360°, 720 rays) |
-| Sensor | `omninav/sensors/camera.py` | CameraSensor (RGB-D) |
-| Locomotion | `omninav/locomotion/wheel_controller.py` | Go2w Mecanum 轮控制 |
-| Locomotion | `omninav/locomotion/ik_controller.py` | Go2 IK 步态控制 |
-| Locomotion | `omninav/locomotion/rl_controller.py` | RL 控制器占位 |
-| Interface | `omninav/interfaces/ros2/bridge.py` | ROS2 Bridge |
+**目标**: 实现标准化的算法接口和基础导航算法。
 
-### 配置文件
+| 任务                 | 描述                                                                | 优先级 |
+| -------------------- | ------------------------------------------------------------------- | ------ |
+| **3.1 API 重构**     | 更新 `OmniNavEnv` 和各 Base Class 以支持 Batch-First 数据结构规范。 | High   |
+| **3.2 WaypointAlgo** | 实现 `WaypointFollower` 算法，支持 Batch 输入。                     | High   |
+| **3.3 RLLocomotion** | 实现基于 RL 策略的 LocomotionController 占位符/示例。               | Medium |
+| **3.4 VLA 接口**     | 在 `Observation` 中添加 `language_instruction` 支持。               | Medium |
 
-| 文件 | 描述 |
-|------|------|
-| `configs/sensor/lidar_2d.yaml` | 2D 激光雷达配置 |
-| `configs/sensor/camera_rgbd.yaml` | RGB-D 相机配置 |
-| `configs/locomotion/wheel.yaml` | 轮式控制器配置 |
-| `configs/locomotion/ik_gait.yaml` | IK 步态控制器配置 |
+### Phase 4: 评测系统 (Evaluation System)
 
-### 测试文件
+**目标**: 建立完整的任务评测闭环。
 
-| 文件 | 测试数 |
-|------|--------|
-| `tests/core/test_registry.py` | 9 tests |
-| `tests/sensors/test_sensors.py` | 8 tests |
-| `tests/locomotion/test_locomotion.py` | 9 tests |
-| `tests/interfaces/test_ros2_bridge.py` | 4 tests |
-| `tests/conftest.py` | Mock fixtures |
+| 任务             | 描述                                                            | 优先级 |
+| ---------------- | --------------------------------------------------------------- | ------ |
+| **4.1 任务定义** | 实现 `PointNavTask` 和 `ObjectNavTask`。                        | High   |
+| **4.2 指标实现** | 实现 SR (Success Rate), SPL (Success weighted by Path Length)。 | High   |
+| **4.3 批量支持** | 确保所有 Metric 计算支持并行环境数据聚合。                      | High   |
 
-**测试结果: 32 passed in 0.28s**
+### Phase 5: 资产与场景生成 (Asset & Procedural Gen)
+
+**目标**: 丰富仿真环境的多样性。
+
+| 任务               | 描述                                              | 优先级 |
+| ------------------ | ------------------------------------------------- | ------ |
+| **5.1 生成器基类** | 定义 `SceneGeneratorBase` 接口。                  | High   |
+| **5.2 基础生成器** | 实现 `RandomObstacleGenerator` (随机障碍物布局)。 | High   |
+| **5.3 复杂度评估** | 实现场景复杂度计算工具 (密度, 路径长度)。         | Medium |
+
+### Phase 6: ROS2 深度集成 (Advanced ROS2)
+
+**目标**: 完整的 Nav2 对接支持。
+
+| 任务                  | 描述                                           | 优先级 |
+| --------------------- | ---------------------------------------------- | ------ |
+| **6.1 /tf 树完善**    | 实现 `map -> odom -> base_link` 完整变换广播。 | High   |
+| **6.2 时钟同步**      | 完善 `/clock` 发布，支持 `--use-sim-time`。    | High   |
+| **6.3 Action Server** | (可选) 实现基本的 NavigateToPose Action 接口。 | Low    |
+
+---
+
+## 6. 验证与测试策略
+
+### 单元测试
+*   每个新模块 (Algorithm, Task, Generator) 必须有对应的 `test_*.py`。
+*   重点测试：**Batch 维度兼容性** (测试 `n_envs=1` 和 `n_envs=4` 的情况)。
+
+### 集成测试
+*   **Sim2Real 预备测试**: 验证 ROS2 接口输出的数据能否被 Nav2 正常消费。
+*   **Benchmark 测试**: 运行 100+ 并行环境，评估 FPS 和显存占用。
+
+---
+
+## 7. 核心参考资料 (References)
+
+在开发过程中，必须深入理解并充分参考以下本地子模块源码与文档，以确保 API 使用的正确性和最佳实践：
+
+1.  **Genesis 核心引擎**: `external/Genesis`
+    *   物理引擎实现与核心 API 定义。
+2.  **Genesis 官方示例**: `external/Genesis/examples`
+    *   包含大量场景构建、传感器使用、并行仿真的标准写法。
+3.  **Genesis 官方文档**: `external/Genesis/doc`
+    *   详细的 API 说明与教程。
+4.  **Genesis ROS2 Bridge**: `external/genesis_ros`
+    *   参考其如何高效地将 Genesis 数据转换为 ROS2 消息 (尤其是 `cv_bridge` 和点云处理部分)。

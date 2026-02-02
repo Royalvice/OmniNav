@@ -18,13 +18,15 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING
 from omegaconf import DictConfig
 import numpy as np
 
-from omninav.robots.base import RobotBase, RobotState, SensorMount
+from omninav.robots.base import RobotBase, RobotState
 from omninav.assets import resolve_urdf_path
+from omninav.core.registry import ROBOT_REGISTRY
 
 if TYPE_CHECKING:
     import genesis as gs
 
 
+@ROBOT_REGISTRY.register("unitree_go2")
 class Go2Robot(RobotBase):
     """
     Unitree Go2 Quadruped Robot.
@@ -252,6 +254,4 @@ class Go2Robot(RobotBase):
             )
 
 
-# Register to Registry (to be added later)
-# from omninav.core import ROBOT_REGISTRY
-# ROBOT_REGISTRY.register("unitree_go2")(Go2Robot)
+

@@ -1,16 +1,17 @@
 """
-OmniNav Robots Layer - Robots and Sensors
+OmniNav Robots Layer
 
-Provides abstract interfaces and concrete implementations for robots and sensors.
+Provides abstract interfaces and concrete implementations for robots.
+Sensors are moved to omninav.sensors module.
 """
 
-from omninav.robots.base import RobotBase, SensorBase, RobotState, SensorMount
+from omninav.robots.base import RobotBase, RobotState
 from omninav.robots.go2 import Go2Robot
+from omninav.robots.go2w import Go2wRobot
 
 __all__ = [
     "RobotBase",
-    "SensorBase",
     "RobotState",
-    "SensorMount",
     "Go2Robot",
+    "Go2wRobot",
 ]
