@@ -1,0 +1,17 @@
+/* Custom CSS for OmniNav Documentation */
+
+.logo__image {
+    padding: 10px;
+    max-height: 48px;
+}
+
+/* Landing page hero section tweaks */
+.sd-card {
+    border-radius: 8px;
+    transition: transform 0.2s ease-in-out;
+}
+
+.sd-card:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+}

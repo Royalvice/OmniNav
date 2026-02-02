@@ -1,7 +1,94 @@
 # OmniNav
 
+```{image} _static/logo.png
+:align: center
+:width: 250px
+:class: sd-mb-4
+```
+
+:::{sd-container}
+:className: sd-mt-2
+
+:::{sd-row}
+:::{sd-col}
+:size: 12
+:className: sd-text-center
+
+**Universal Simulation Platform for Embodied AI**
+
+[GitHub](https://github.com/Royalvice/OmniNav) | [PyPI](https://pypi.org/project/omninav/) | [License: Apache 2.0](https://github.com/Royalvice/OmniNav/blob/main/LICENSE)
+
+:::
+:::
+
+:::{sd-row}
+:gutter: 3
+:className: sd-mt-4
+
+:::{sd-col}
+:size: 12
+:size-md: 6
+
+:::{sd-card}
+:header: ✨ What is OmniNav?
+:shadow: md
+
+OmniNav is an **Embodied AI Simulation Platform** based on the [Genesis](https://github.com/Genesis-Embodied-AI/Genesis) physics engine. It is designed for researchers and developers to rapidly verify robot navigation and obstacle avoidance algorithms.
+
+- **High-Performance**: GPU-accelerated physics via Genesis.
+- **Pythonic**: 100% Python API for seamless integration.
+- **Algorithm Agnostic**: From RL to VLA, plug any policy easily.
+:::
+:::
+
+:::{sd-col}
+:size: 12
+:size-md: 6
+
+:::{sd-card}
+:header: 🚀 Key Features
+:shadow: md
+
+- 🎮 **Pluggable Algorithms** - Standard interfaces for VLA, RL, and Traditional controllers.
+- 📊 **Evaluation Engine** - Predefined tasks (SPL, Success Rate) for benchmark testing.
+- 🤖 **Multi-Robot Support** - Out-of-the-box support for Unitree Go2 (Legged/Wheeled).
+- 🔌 **ROS2 Integration** - Seamless bridge for Sim2Real workflows.
+:::
+:::
+:::
+
+:::{sd-row}
+:gutter: 3
+:className: sd-mt-2
+
+:::{sd-col}
+:size: 12
+
+:::{sd-card}
+:header: 🏁 Quick Start
+:shadow: md
+
+```python
+from omninav import OmniNavEnv
+
+env = OmniNavEnv(config_path="configs")
+obs = env.reset()
+
+while not env.is_done:
+    action = env.algorithm.step(obs)
+    obs, info = env.step(action)
+
+print(f"Goal Reached: {env.get_result().success}")
+```
+:::
+:::
+:::
+
+:::
+
 ```{toctree}
 :maxdepth: 2
+:hidden:
 :caption: Getting Started
 
 getting_started/installation
@@ -10,6 +97,7 @@ getting_started/first_simulation
 
 ```{toctree}
 :maxdepth: 2
+:hidden:
 :caption: User Guide
 
 user_guide/architecture
@@ -23,6 +111,7 @@ user_guide/ros2_integration
 
 ```{toctree}
 :maxdepth: 2
+:hidden:
 :caption: API Reference
 
 api_reference/core
@@ -33,37 +122,9 @@ api_reference/evaluation
 
 ```{toctree}
 :maxdepth: 1
+:hidden:
 :caption: Other
 
 contributing
 changelog
-```
-
-## ✨ What is OmniNav?
-
-OmniNav is an **Embodied AI Simulation Platform** based on the [Genesis](https://github.com/Genesis-Embodied-AI/Genesis) physics engine, designed for rapid verification of robot navigation and obstacle avoidance algorithms.
-
-### Core Features
-
-- 🚀 **High-Performance Simulation** - Based on Genesis engine, supporting GPU acceleration
-- 🔌 **Pluggable Algorithms** - Traditional algorithms, VLA/VLN, and other neural network algorithms can be quickly integrated
-- 📊 **Built-in Evaluation System** - Predefined navigation tasks and evaluation metrics (SPL, Success Rate, etc.)
-- 🤖 **Multi-Robot Support** - Initial version supports Unitree Go2 (Quadruped/Wheeled)
-- 🌐 **ROS2 Compatibility** - Optional ROS2 bridge supporting Sim2Real
-- 📦 **Scene Asset Import** - Supports USD, GLB, OBJ, and other formats
-
-## 🚀 Quick Start
-
-```python
-from omninav import OmniNavEnv
-
-env = OmniNavEnv(config_path="configs")
-obs = env.reset()
-
-while not env.is_done:
-    action = env.algorithm.step(obs)
-    obs, info = env.step(action)
-
-result = env.get_result()
-print(f"Success: {result.success}")
 ```

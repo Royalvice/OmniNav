@@ -23,6 +23,7 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinx_copybutton",
     "sphinx_autodoc_typehints",
+    "sphinx_design",
 ]
 
 # MyST settings
@@ -48,16 +49,32 @@ source_suffix = {
 master_doc = "index"
 
 # -- Options for HTML output -------------------------------------------------
-html_theme = "sphinx_rtd_theme"
+html_theme = "pydata_sphinx_theme"
+html_logo = "_static/logo.png"
 html_static_path = ["_static"]
 
 html_theme_options = {
-    "navigation_depth": 4,
-    "collapse_navigation": False,
-    "sticky_navigation": True,
-    "includehidden": True,
-    "titles_only": False,
+    "logo": {
+        "text": "OmniNav",
+        "image_light": "_static/logo.png",
+        "image_dark": "_static/logo.png",
+    },
+    "icon_links": [
+        {
+            "name": "GitHub",
+            "url": "https://github.com/Royalvice/OmniNav",
+            "icon": "fa-brands fa-github",
+        },
+    ],
+    "navbar_align": "left",
+    "show_prev_next": False,
+    "footer_start": ["copyright"],
+    "footer_end": ["sphinx-version", "theme-version"],
 }
+
+html_css_files = [
+    "css/custom.css",
+]
 
 # -- Intersphinx configuration -----------------------------------------------
 intersphinx_mapping = {
