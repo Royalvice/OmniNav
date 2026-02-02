@@ -1,24 +1,47 @@
 # User Guide
 
-This guide provides in-depth information about the architecture, components, and usage of OmniNav.
+Welcome to the OmniNav User Guide. This section covers everything you need to know to use OmniNav effectively.
 
 ## Overview
 
 ```{toctree}
-:maxdepth: 1
+:maxdepth: 2
 
 architecture
+```
+
+## Getting Started
+
+```{toctree}
+:maxdepth: 2
+
+../getting_started/installation
+../getting_started/first_simulation
+```
+
+## Configuration
+
+```{toctree}
+:maxdepth: 2
+
 robots
 sensors
 scenes
 ```
 
-## Advanced Topics
+## Algorithms & Evaluation
 
 ```{toctree}
-:maxdepth: 1
+:maxdepth: 2
 
 algorithms
 evaluation
+```
+
+## ROS2 Integration
+
+```{toctree}
+:maxdepth: 2
+
 ros2_integration
 ```

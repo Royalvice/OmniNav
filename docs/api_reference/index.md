@@ -1,21 +1,19 @@
 # API Reference
 
-Detailed technical documentation for OmniNav's core classes and modules.
-
-## Core API
+Complete API documentation for OmniNav modules.
 
 ```{toctree}
-:maxdepth: 1
+:maxdepth: 2
 
 core
 robots
-```
-
-## Modules
-
-```{toctree}
-:maxdepth: 1
-
 algorithms
 evaluation
 ```
+
+## Quick Links
+
+- {doc}`core` - Core simulation manager and base classes
+- {doc}`robots` - Robot implementations and sensor interfaces
+- {doc}`algorithms` - Navigation algorithm base classes
+- {doc}`evaluation` - Task definitions and metrics

@@ -51,11 +51,11 @@ master_doc = "index"
 # -- Options for HTML output -------------------------------------------------
 html_theme = "pydata_sphinx_theme"
 html_logo = "_static/logo.png"
+html_favicon = "_static/logo.png"
 html_static_path = ["_static"]
 
 html_theme_options = {
     "logo": {
-        "text": "OmniNav",
         "image_light": "_static/logo.png",
         "image_dark": "_static/logo.png",
     },
@@ -66,18 +66,31 @@ html_theme_options = {
             "icon": "fa-brands fa-github",
         },
     ],
-    "navbar_align": "left",
+    # Simplified navbar - only show main sections
+    "navbar_start": ["navbar-logo"],
     "navbar_center": ["navbar-nav"],
-    "navbar_end": ["theme-switcher", "navbar-icon-links"],
-    "show_prev_next": False,
-    "footer_start": ["copyright"],
-    "footer_end": ["sphinx-version", "theme-version"],
+    "navbar_end": ["navbar-icon-links", "theme-switcher"],
+    "navbar_align": "left",
+    # Primary sidebar for navigation
+    "primary_sidebar_end": [],
     "secondary_sidebar_items": ["page-toc", "edit-this-page"],
+    # Footer
+    "show_prev_next": True,
+    "footer_start": ["copyright"],
+    "footer_end": [],
+    # Misc
+    "show_toc_level": 2,
+    "navigation_with_keys": True,
 }
 
 html_css_files = [
     "css/custom.css",
 ]
+
+html_sidebars = {
+    "**": ["sidebar-nav-bs"],
+    "index": [],  # No sidebar on homepage
+}
 
 # -- Intersphinx configuration -----------------------------------------------
 intersphinx_mapping = {

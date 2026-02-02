@@ -1,10 +1,15 @@
 # Getting Started
 
-Welcome to OmniNav! This section will help you get up and running with the simulator.
+Get up and running with OmniNav quickly.
 
 ```{toctree}
-:maxdepth: 1
+:maxdepth: 2
 
 installation
 first_simulation
 ```
+
+## Quick Links
+
+- {doc}`installation` - Install OmniNav and its dependencies
+- {doc}`first_simulation` - Run your first navigation simulation
