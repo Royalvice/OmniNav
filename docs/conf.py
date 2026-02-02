@@ -45,6 +45,8 @@ html_static_path = ["_static"]
 html_theme_options = {
     "show_nav_level": 2,
     "logo": {
+        "text": "OmniNav",
+        "image_light": "_static/logo.png",
         "image_dark": "_static/logo.png",
     },
     "navbar_center": ["navbar-nav"],

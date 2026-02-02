@@ -1,18 +1,24 @@
 /* Custom CSS for OmniNav Documentation */
 
-/* ===== Logo Styling ===== */
+/* ===== Navbar Logo Text with Gradient ===== */
+.navbar-brand .logo__title {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    font-weight: 700;
+    font-size: 1.4rem;
+}
+
+/* ===== Navbar Logo Image ===== */
 .navbar-brand img {
     padding: 5px;
+    max-height: 36px;
 }
 
-/* ===== Figure Styling ===== */
-figure {
-    text-align: center;
-}
-
-figure img {
-    max-width: 100%;
-    height: auto;
+/* ===== Landing Page Logo ===== */
+p[align="center"] img[alt="OmniNav"] {
+    background: transparent !important;
 }
 
 /* ===== Code Block Styling ===== */

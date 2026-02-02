@@ -1,7 +1,8 @@
 # OmniNav
 
-```{figure} _static/logo.png
-```
+<p align="center">
+  <img src="_static/logo.png" alt="OmniNav" width="200">
+</p>
 
 [![GitHub Repo stars](https://img.shields.io/github/stars/Royalvice/OmniNav?style=plastic&logo=GitHub&logoSize=auto)](https://github.com/Royalvice/OmniNav)
 [![License](https://img.shields.io/badge/license-Apache--2.0-blue)](https://github.com/Royalvice/OmniNav/blob/main/LICENSE)
