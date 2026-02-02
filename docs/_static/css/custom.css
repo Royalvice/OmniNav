@@ -1,13 +1,21 @@
-/* Custom CSS for OmniNav Documentation */
-
 /* ===== Logo Fixes ===== */
-/* Remove any background from logo container */
+/* Remove any background from logo container - more aggressive */
 .navbar-brand img,
 .logo__image,
-.navbar-brand .logo__image {
+.navbar-brand .logo__image,
+img[alt="OmniNav"],
+.bd-header img,
+.bd-header-article img {
     background: transparent !important;
+    background-color: transparent !important;
     padding: 5px;
     max-height: 40px;
+}
+
+/* Fix for homepage centered logo */
+p[align="center"] img {
+    background: transparent !important;
+    background-color: transparent !important;
 }
 
 /* ===== Homepage Styling ===== */

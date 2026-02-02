@@ -66,21 +66,20 @@ html_theme_options = {
             "icon": "fa-brands fa-github",
         },
     ],
-    # Simplified navbar - only show main sections
+    # Navbar: only 3 main sections (like Genesis)
     "navbar_start": ["navbar-logo"],
     "navbar_center": ["navbar-nav"],
-    "navbar_end": ["navbar-icon-links", "theme-switcher"],
+    "navbar_end": ["theme-switcher", "navbar-icon-links"],
     "navbar_align": "left",
-    # Primary sidebar for navigation
+    # Left sidebar navigation (Section Navigation)
+    "show_nav_level": 2,
+    "navigation_depth": 3,
     "primary_sidebar_end": [],
-    "secondary_sidebar_items": ["page-toc", "edit-this-page"],
+    "secondary_sidebar_items": ["page-toc"],
     # Footer
     "show_prev_next": True,
     "footer_start": ["copyright"],
     "footer_end": [],
-    # Misc
-    "show_toc_level": 2,
-    "navigation_with_keys": True,
 }
 
 html_css_files = [

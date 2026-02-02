@@ -1,10 +1,8 @@
 # OmniNav
 
-```{image} _static/logo.png
-:align: center
-:width: 300px
-:class: homepage-logo
-```
+<p align="center">
+  <img src="_static/logo.png" alt="OmniNav" width="300" style="background: transparent;">
+</p>
 
 <p align="center">
   <strong>A General-Purpose Navigation Simulation Platform for Embodied AI</strong>
@@ -133,6 +131,7 @@ user_guide/scenes
 user_guide/algorithms
 user_guide/evaluation
 user_guide/ros2_integration
+contributing
 ```
 
 ```{toctree}
@@ -149,8 +148,7 @@ api_reference/evaluation
 ```{toctree}
 :maxdepth: 1
 :hidden:
-:caption: Other
+:caption: Changelog
 
-contributing
 changelog
 ```
