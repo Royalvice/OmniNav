@@ -1,11 +1,8 @@
 # Configuration file for the Sphinx documentation builder.
-# https://www.sphinx-doc.org/en/master/usage/configuration.html
 
 import os
 import sys
 
-# -- Path setup --------------------------------------------------------------
-# Add the project root to the path for autodoc
 sys.path.insert(0, os.path.abspath(".."))
 
 # -- Project information -----------------------------------------------------
@@ -26,26 +23,17 @@ extensions = [
     "sphinx_design",
 ]
 
-# MyST settings
-myst_enable_extensions = [
-    "colon_fence",
-    "deflist",
-    "tasklist",
-    "fieldlist",
-    "html_admonition",
-    "html_image",
-]
+myst_enable_extensions = ["colon_fence", "deflist", "html_image"]
+myst_heading_anchors = 4
 
 templates_path = ["_templates"]
 exclude_patterns = ["_build", "Thumbs.db", ".DS_Store"]
 
-# Source file suffixes
 source_suffix = {
     ".rst": "restructuredtext",
     ".md": "markdown",
 }
 
-# The master toctree document
 master_doc = "index"
 
 # -- Options for HTML output -------------------------------------------------
@@ -55,10 +43,11 @@ html_favicon = "_static/logo.png"
 html_static_path = ["_static"]
 
 html_theme_options = {
+    "show_nav_level": 2,
     "logo": {
-        "image_light": "_static/logo.png",
         "image_dark": "_static/logo.png",
     },
+    "navbar_center": ["navbar-nav"],
     "icon_links": [
         {
             "name": "GitHub",
@@ -66,36 +55,19 @@ html_theme_options = {
             "icon": "fa-brands fa-github",
         },
     ],
-    # Navbar: only 3 main sections (like Genesis)
-    "navbar_start": ["navbar-logo"],
-    "navbar_center": ["navbar-nav"],
-    "navbar_end": ["theme-switcher", "navbar-icon-links"],
-    "navbar_align": "left",
-    # Left sidebar navigation (Section Navigation)
-    "show_nav_level": 2,
-    "navigation_depth": 3,
-    "primary_sidebar_end": [],
-    "secondary_sidebar_items": ["page-toc"],
-    # Footer
-    "show_prev_next": True,
-    "footer_start": ["copyright"],
-    "footer_end": [],
+}
+
+html_context = {
+    "display_github": True,
+    "github_user": "Royalvice",
+    "github_repo": "OmniNav",
+    "github_version": "main",
+    "conf_py_path": "/docs/",
 }
 
 html_css_files = [
     "css/custom.css",
 ]
-
-html_sidebars = {
-    "**": ["sidebar-nav-bs"],
-    "index": [],  # No sidebar on homepage
-}
-
-# -- Intersphinx configuration -----------------------------------------------
-intersphinx_mapping = {
-    "python": ("https://docs.python.org/3", None),
-    "numpy": ("https://numpy.org/doc/stable/", None),
-}
 
 # -- Autodoc configuration ---------------------------------------------------
 autodoc_member_order = "bysource"
@@ -111,5 +83,10 @@ autodoc_mock_imports = [
     "nav_msgs",
 ]
 
-# -- Language ----------------------------------------------------------------
+# -- Intersphinx configuration -----------------------------------------------
+intersphinx_mapping = {
+    "python": ("https://docs.python.org/3", None),
+    "numpy": ("https://numpy.org/doc/stable/", None),
+}
+
 language = "en"

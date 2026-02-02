@@ -1,26 +1,11 @@
 # OmniNav
 
-<p align="center">
-  <img src="_static/logo.png" alt="OmniNav" width="400" style="background: transparent;">
-</p>
+```{figure} _static/logo.png
+```
 
-<p align="center">
-  <strong>A General-Purpose Navigation Simulation Platform for Embodied AI</strong>
-</p>
+[![GitHub Repo stars](https://img.shields.io/github/stars/Royalvice/OmniNav?style=plastic&logo=GitHub&logoSize=auto)](https://github.com/Royalvice/OmniNav)
+[![License](https://img.shields.io/badge/license-Apache--2.0-blue)](https://github.com/Royalvice/OmniNav/blob/main/LICENSE)
 
-<p align="center">
-  <a href="https://github.com/Royalvice/OmniNav">
-    <img src="https://img.shields.io/github/stars/Royalvice/OmniNav?style=social" alt="GitHub stars">
-  </a>
-  <a href="https://github.com/Royalvice/OmniNav/issues">
-    <img src="https://img.shields.io/github/issues/Royalvice/OmniNav" alt="GitHub Issues">
-  </a>
-  <a href="https://github.com/Royalvice/OmniNav/blob/main/LICENSE">
-    <img src="https://img.shields.io/badge/license-Apache--2.0-blue" alt="License">
-  </a>
-</p>
-
----
 
 ## What is OmniNav?
 
@@ -31,11 +16,11 @@ OmniNav is a general-purpose navigation simulation platform built on top of the 
 3. A **robot-agnostic platform** with built-in support for quadruped, wheeled, and humanoid robots.
 4. A **high-fidelity simulation environment** with GPU-accelerated physics and photo-realistic rendering.
 
-OmniNav aims to:
+OmniNav is built with the following **long-term missions**:
 
-- **Simplify navigation research** by providing a ready-to-use benchmark with standardized evaluation metrics.
-- **Bridge the Sim2Real gap** with high-fidelity physics simulation and optional ROS2 integration.
-- **Accelerate algorithm development** with a modular, extensible architecture.
+1. **Simplifying navigation research** by providing a ready-to-use benchmark with standardized evaluation metrics.
+2. **Bridging the Sim2Real gap** with high-fidelity physics simulation and optional ROS2 integration.
+3. **Accelerating algorithm development** with a modular, extensible architecture.
 
 ## Key Features
 
@@ -50,76 +35,53 @@ OmniNav aims to:
 
 ## Quick Start
 
+### Installation
+
+```bash
+pip install omninav
+```
+
+You also need to install **PyTorch** following the [official instructions](https://pytorch.org/get-started/locally/).
+
+### Basic Example
+
 ```python
 from omninav import OmniNavEnv
 
-# Create environment with default configuration
 env = OmniNavEnv(config_path="configs")
 obs = env.reset()
 
-# Run navigation loop
 while not env.is_done:
-    action = env.algorithm.step(obs)  # Or use your own algorithm
+    action = env.algorithm.step(obs)
     obs, info = env.step(action)
 
-# Get evaluation results
 result = env.get_result()
 print(f"Success: {result.success}")
-print(f"SPL: {result.metrics.get('spl', 0):.3f}")
 ```
 
-## Architecture
+### Documentation
+
+Please refer to our [User Guide](user_guide/index) for detailed installation steps, tutorials and API references.
+
+## Contributing
+
+We welcome contributions from the community. Please see our [Contributing Guide](user_guide/contributing) for more information.
+
+## Citation
+
+If you use OmniNav in your research, please consider citing:
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                     Interface Layer                              │
-│              Python API (OmniNavEnv) / ROS2 Bridge               │
-├─────────────────────────────────────────────────────────────────┤
-│       Evaluation Layer        │      Algorithm Layer             │
-│    Tasks & Metrics (SPL...)   │   (Pluggable Algorithms)         │
-├─────────────────────────────────────────────────────────────────┤
-│                     Locomotion Layer                             │
-│           Kinematic Control / RL Policy (Extensible)             │
-├─────────────────────────────────────────────────────────────────┤
-│       Robot Layer             │       Asset Layer                │
-│   Go2 / Go2w / Custom Robots  │   Scene Loaders (USD/GLB/OBJ)    │
-├─────────────────────────────────────────────────────────────────┤
-│                      Core Layer                                  │
-│              Genesis Simulation Manager Wrapper                  │
-└─────────────────────────────────────────────────────────────────┘
+@misc{OmniNav,
+  author = {OmniNav Contributors},
+  title = {OmniNav: A General-Purpose Navigation Simulation Platform for Embodied AI},
+  year = {2025},
+  url = {https://github.com/Royalvice/OmniNav}
+}
 ```
-
-## Getting Started
-
-::::{grid} 1 2 2 3
-:gutter: 3
-
-:::{grid-item-card} 📥 Installation
-:link: getting_started/installation
-:link-type: doc
-
-Get OmniNav up and running on your system.
-:::
-
-:::{grid-item-card} 🚀 First Simulation
-:link: getting_started/first_simulation
-:link-type: doc
-
-Run your first navigation simulation step by step.
-:::
-
-:::{grid-item-card} 🏗️ Architecture
-:link: user_guide/architecture
-:link-type: doc
-
-Understand the layered architecture design of OmniNav.
-:::
-
-::::
 
 ```{toctree}
 :maxdepth: 1
-:hidden:
 
 user_guide/index
 api_reference/index

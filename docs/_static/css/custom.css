@@ -1,50 +1,18 @@
-/* ===== Logo Fixes ===== */
-/* Remove any background from logo container - more aggressive */
-.navbar-brand img,
-.logo__image,
-.navbar-brand .logo__image,
-img[alt="OmniNav"],
-.bd-header img,
-.bd-header-article img {
-    background: transparent !important;
-    background-color: transparent !important;
+/* Custom CSS for OmniNav Documentation */
+
+/* ===== Logo Styling ===== */
+.navbar-brand img {
     padding: 5px;
-    max-height: 40px;
 }
 
-/* Fix for homepage centered logo */
-p[align="center"] img {
-    background: transparent !important;
-    background-color: transparent !important;
-}
-
-/* ===== Homepage Styling ===== */
-.homepage-logo {
-    margin-top: 2rem;
-    margin-bottom: 1rem;
-}
-
-/* Center badges on homepage */
-p[align="center"] {
+/* ===== Figure Styling ===== */
+figure {
     text-align: center;
 }
 
-/* ===== Card Styling ===== */
-.sd-card {
-    border-radius: 8px;
-    transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
-    border: 1px solid var(--pst-color-border);
-}
-
-.sd-card:hover {
-    transform: translateY(-4px);
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
-}
-
-.sd-card .sd-card-header {
-    font-weight: 600;
-    background: var(--pst-color-surface);
-    border-bottom: 1px solid var(--pst-color-border);
+figure img {
+    max-width: 100%;
+    height: auto;
 }
 
 /* ===== Code Block Styling ===== */
@@ -52,35 +20,9 @@ pre {
     border-radius: 6px;
 }
 
-/* Architecture diagram styling */
-.highlight-text pre,
-.highlight-default pre,
-.highlight pre {
-    font-size: 0.85em;
-    line-height: 1.4;
-}
-
 /* ===== Typography ===== */
-h1 {
-    font-weight: 700;
-    margin-bottom: 1.5rem;
-}
-
 h2 {
-    font-weight: 600;
     margin-top: 2rem;
-    margin-bottom: 1rem;
-    border-bottom: 1px solid var(--pst-color-border);
     padding-bottom: 0.5rem;
-}
-
-/* ===== Grid Cards ===== */
-.sd-card-title {
-    font-size: 1.1rem;
-    font-weight: 600;
-}
-
-/* ===== Footer ===== */
-footer {
-    margin-top: 3rem;
+    border-bottom: 1px solid var(--pst-color-border);
 }

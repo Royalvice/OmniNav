@@ -1,7 +1,5 @@
 # API Reference
 
-Complete API documentation for OmniNav modules.
-
 ```{toctree}
 :maxdepth: 2
 

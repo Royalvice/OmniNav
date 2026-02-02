@@ -1,18 +1,36 @@
 # User Guide
 
-Welcome to the OmniNav User Guide. This section covers everything you need to know to use OmniNav effectively.
+```{toctree}
+:caption: Overview
+:maxdepth: 1
+
+overview/what_is_omninav
+overview/installation
+overview/first_simulation
+```
 
 ```{toctree}
-:maxdepth: 2
+:caption: Core Concepts
+:maxdepth: 1
 
-../getting_started/installation
-../getting_started/first_simulation
-architecture
-robots
-sensors
-scenes
-algorithms
-evaluation
-ros2_integration
-../contributing
+core_concepts/architecture
+core_concepts/robots
+core_concepts/sensors
+core_concepts/scenes
+```
+
+```{toctree}
+:caption: Algorithms & Evaluation
+:maxdepth: 1
+
+algorithms/algorithms
+algorithms/evaluation
+```
+
+```{toctree}
+:caption: Advanced Topics
+:maxdepth: 1
+
+advanced/ros2_integration
+advanced/contributing
 ```
