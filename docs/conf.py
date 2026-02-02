@@ -68,6 +68,16 @@ intersphinx_mapping = {
 # -- Autodoc configuration ---------------------------------------------------
 autodoc_member_order = "bysource"
 autodoc_typehints = "description"
+autodoc_mock_imports = [
+    "genesis",
+    "torch",
+    "cv2",
+    "rclpy",
+    "sensor_msgs",
+    "std_msgs",
+    "geometry_msgs",
+    "nav_msgs",
+]
 
 # -- Language ----------------------------------------------------------------
 language = "en"

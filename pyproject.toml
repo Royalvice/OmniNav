@@ -9,7 +9,7 @@ description = "Universal Simulation Platform for Embodied AI"
 readme = "README.md"
 license = {text = "Apache-2.0"}
 authors = [
-    {name = "Royalvice", email = ""}
+    {name = "Royalvice"}
 ]
 keywords = ["robotics", "simulation", "embodied-ai", "navigation", "genesis"]
 classifiers = [
