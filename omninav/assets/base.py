@@ -1,7 +1,7 @@
 """
-资产加载器抽象基类
+Asset Loader Abstract Base Class
 
-定义资产加载的接口规范。
+Defines the interface for asset loading.
 """
 
 from abc import ABC, abstractmethod
@@ -14,12 +14,12 @@ if TYPE_CHECKING:
 
 class AssetLoaderBase(ABC):
     """
-    资产加载器抽象基类。
+    Abstract base class for asset loaders.
     
-    所有资产加载器 (USD, GLB, Mesh 等) 必须继承此类。
+    All asset loaders (USD, GLB, Mesh, etc.) must inherit from this class.
     """
     
-    # 支持的文件扩展名
+    # Supported file extensions
     SUPPORTED_EXTENSIONS: List[str] = []
     
     @abstractmethod
@@ -30,28 +30,28 @@ class AssetLoaderBase(ABC):
         cfg: DictConfig
     ) -> Any:
         """
-        加载资产到 Genesis 场景。
+        Load asset into Genesis scene.
         
         Args:
-            file_path: 资产文件路径
-            scene: Genesis 场景对象
-            cfg: 加载配置 (位置、缩放等)
+            file_path: Asset file path
+            scene: Genesis scene object
+            cfg: Load configuration (position, scale, etc.)
         
         Returns:
-            加载后的 Genesis entity 或 entity 列表
+            Loaded Genesis entity or list of entities
         """
         pass
     
     @classmethod
     def can_load(cls, file_path: str) -> bool:
         """
-        检查是否支持该文件类型。
+        Check if this loader supports the file type.
         
         Args:
-            file_path: 文件路径
+            file_path: File path
             
         Returns:
-            True 如果支持，否则 False
+            True if supported, False otherwise
         """
         return any(
             file_path.lower().endswith(ext) 

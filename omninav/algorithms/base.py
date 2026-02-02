@@ -1,7 +1,7 @@
 """
-算法抽象基类
+Algorithm Abstract Base Class
 
-定义可插拔算法的接口规范。
+Defines the interface for pluggable algorithms.
 """
 
 from abc import ABC, abstractmethod
@@ -12,49 +12,50 @@ from omegaconf import DictConfig
 
 class AlgorithmBase(ABC):
     """
-    可插拔算法抽象基类。
+    Abstract base class for pluggable algorithms.
     
-    所有导航、感知等算法必须继承此类并实现抽象方法。
-    算法通过 ALGORITHM_REGISTRY 注册后可通过配置文件选择。
+    All navigation, perception, and other algorithms must inherit from this class
+    and implement abstract methods. Algorithms registered via ALGORITHM_REGISTRY
+    can be selected through configuration files.
     """
     
-    # 算法类型标识 (用于注册)
+    # Algorithm type identifier (for registration)
     ALGORITHM_TYPE: str = ""
     
     def __init__(self, cfg: DictConfig):
         """
-        初始化算法。
+        Initialize algorithm.
         
         Args:
-            cfg: 算法配置
+            cfg: Algorithm configuration
         """
         self.cfg = cfg
     
     @abstractmethod
     def reset(self, task_info: Dict[str, Any]) -> None:
         """
-        重置算法状态。
+        Reset algorithm state.
         
-        在新任务开始时调用，传入任务信息以初始化算法。
+        Called when a new task starts, with task info for initialization.
         
         Args:
-            task_info: 任务信息，如起点、终点、地图等
+            task_info: Task information like start position, goal position, map, etc.
         """
         pass
     
     @abstractmethod
     def step(self, observation: Dict[str, Any]) -> np.ndarray:
         """
-        根据观测计算动作。
+        Compute action from observation.
         
         Args:
-            observation: 传感器观测 + 机器人状态
-                - 传感器数据 (如 "depth_camera", "lidar_2d")
-                - "robot_state": RobotState 对象
-                - "sim_time": 当前仿真时间
+            observation: Sensor observations + robot state
+                - Sensor data (e.g., "depth_camera", "lidar_2d")
+                - "robot_state": RobotState object
+                - "sim_time": Current simulation time
         
         Returns:
-            cmd_vel: [vx, vy, wz] 速度指令
+            cmd_vel: [vx, vy, wz] velocity command
         """
         pass
     
@@ -62,21 +63,21 @@ class AlgorithmBase(ABC):
     @abstractmethod
     def is_done(self) -> bool:
         """
-        算法是否认为任务完成。
+        Whether algorithm considers task complete.
         
         Returns:
-            True 如果算法判断任务已完成，否则 False
+            True if algorithm determines task is complete, False otherwise
         """
         pass
     
     @property
     def info(self) -> Dict[str, Any]:
         """
-        返回算法内部信息。
+        Return algorithm internal info.
         
-        用于调试、可视化或记录。默认返回空字典。
+        Used for debugging, visualization, or logging. Returns empty dict by default.
         
         Returns:
-            包含算法内部状态的字典
+            Dictionary containing algorithm internal state
         """
         return {}

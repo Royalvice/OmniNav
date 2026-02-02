@@ -1,8 +1,8 @@
 """
-资产路径解析工具
+Asset Path Resolution Utilities
 
-根据配置中的 urdf_source 字段，透明地解析 URDF 文件的实际路径。
-用户只需在配置中指定 robot: go2 或 robot: go2w，无需关心文件来源。
+Transparently resolves URDF file paths based on urdf_source in configuration.
+Users only need to specify robot: go2 or robot: go2w, without worrying about file source.
 """
 
 import os
@@ -10,47 +10,47 @@ from pathlib import Path
 from typing import Union
 from omegaconf import DictConfig
 
-# Genesis 资产目录 (延迟导入)
+# Genesis assets directory (lazy import)
 _GENESIS_ASSETS_DIR: str | None = None
 
 
 def get_genesis_assets_dir() -> str:
-    """获取 Genesis 内置资产目录路径。"""
+    """Get the Genesis built-in assets directory path."""
     global _GENESIS_ASSETS_DIR
     if _GENESIS_ASSETS_DIR is None:
         try:
             import genesis as gs
             _GENESIS_ASSETS_DIR = gs.utils.get_assets_dir()
         except ImportError:
-            # 回退到 external/Genesis 子模块
+            # Fall back to external/Genesis submodule
             project_root = Path(__file__).parent.parent.parent
             _GENESIS_ASSETS_DIR = str(project_root / "external" / "Genesis" / "genesis" / "assets")
     return _GENESIS_ASSETS_DIR
 
 
 def get_project_assets_dir() -> str:
-    """获取项目资产目录路径。"""
+    """Get the project assets directory path."""
     project_root = Path(__file__).parent.parent.parent
     return str(project_root / "assets")
 
 
 def resolve_urdf_path(robot_cfg: DictConfig) -> str:
     """
-    根据机器人配置解析 URDF 文件的完整路径。
+    Resolve full URDF file path based on robot configuration.
     
-    根据 robot_cfg.urdf_source 字段决定资产来源:
-    - "genesis_builtin": 使用 Genesis 内置资产目录
-    - "project": 使用项目 assets/ 目录
+    Determines asset source based on robot_cfg.urdf_source field:
+    - "genesis_builtin": Use Genesis built-in assets directory
+    - "project": Use project assets/ directory
     
     Args:
-        robot_cfg: 机器人配置 (来自 configs/robot/*.yaml)
+        robot_cfg: Robot configuration (from configs/robot/*.yaml)
     
     Returns:
-        URDF 文件的绝对路径
+        Absolute path to URDF file
     
     Raises:
-        FileNotFoundError: 如果 URDF 文件不存在
-        ValueError: 如果 urdf_source 值无效
+        FileNotFoundError: If URDF file does not exist
+        ValueError: If urdf_source value is invalid
     """
     urdf_source = robot_cfg.get("urdf_source", "genesis_builtin")
     urdf_path = robot_cfg.get("urdf_path", "")
@@ -67,8 +67,8 @@ def resolve_urdf_path(robot_cfg: DictConfig) -> str:
     
     full_path = os.path.join(base_dir, urdf_path)
     
-    # 注意: 我们不在这里检查文件存在性
-    # Genesis 会在加载时抛出更详细的错误
+    # Note: We don't check file existence here
+    # Genesis will throw more detailed errors during loading
     return full_path
 
 
@@ -77,14 +77,14 @@ def resolve_asset_path(
     source: str = "project"
 ) -> str:
     """
-    解析通用资产文件路径。
+    Resolve general asset file path.
     
     Args:
-        asset_path: 相对资产路径
-        source: "genesis_builtin" 或 "project"
+        asset_path: Relative asset path
+        source: "genesis_builtin" or "project"
     
     Returns:
-        资产文件的绝对路径
+        Absolute path to asset file
     """
     if source == "genesis_builtin":
         base_dir = get_genesis_assets_dir()

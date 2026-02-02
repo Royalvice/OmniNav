@@ -1,7 +1,7 @@
 """
-OmniNav Interfaces Layer - 对外接口
+OmniNav Interfaces Layer - External Interfaces
 
-提供 Python API 和可选的 ROS2 桥接。
+Provides Python API and optional ROS2 bridge.
 """
 
 from omninav.interfaces.python_api import OmniNavEnv

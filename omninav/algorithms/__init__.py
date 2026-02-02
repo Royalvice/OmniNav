@@ -1,7 +1,7 @@
 """
-OmniNav Algorithms Layer - 可插拔算法
+OmniNav Algorithms Layer - Pluggable Algorithms
 
-提供导航、感知等算法的抽象接口。
+Provides abstract interface for navigation and perception algorithms.
 """
 
 from omninav.algorithms.base import AlgorithmBase

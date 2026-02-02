@@ -1,7 +1,7 @@
 """
-仿真管理器抽象基类
+Simulation Manager Abstract Base Class
 
-定义仿真核心的接口规范。
+Defines the interface for simulation core management.
 """
 
 from abc import ABC, abstractmethod
@@ -14,79 +14,79 @@ if TYPE_CHECKING:
 
 class SimulationManagerBase(ABC):
     """
-    仿真管理器抽象基类。
+    Abstract base class for simulation manager.
     
-    负责:
-    - Genesis 引擎初始化
-    - 场景管理
-    - 仿真循环控制
-    - 机器人和资产的添加
+    Responsibilities:
+    - Genesis engine initialization
+    - Scene management
+    - Simulation loop control
+    - Robot and asset management
     """
     
     @abstractmethod
     def initialize(self, cfg: DictConfig) -> None:
         """
-        初始化仿真环境。
+        Initialize the simulation environment.
         
         Args:
-            cfg: 仿真配置 (来自 Hydra)
+            cfg: Simulation configuration (from Hydra)
         """
         pass
     
     @abstractmethod
     def build(self) -> None:
         """
-        构建场景。
+        Build the scene.
         
-        在所有实体添加完成后调用，触发 Genesis scene.build()。
+        Called after all entities are added, triggers Genesis scene.build().
         """
         pass
     
     @abstractmethod
     def step(self) -> None:
         """
-        推进一步物理仿真。
+        Advance one physics simulation step.
         
-        调用 Genesis scene.step()，执行一个仿真步长。
+        Calls Genesis scene.step() to execute one simulation timestep.
         """
         pass
     
     @abstractmethod
     def reset(self) -> None:
         """
-        重置仿真状态。
+        Reset simulation state.
         
-        将所有实体恢复到初始状态。
+        Restores all entities to their initial state.
         """
         pass
     
     @abstractmethod
     def get_sim_time(self) -> float:
         """
-        获取当前仿真时间。
+        Get current simulation time.
         
         Returns:
-            仿真时间 (秒)
+            Simulation time in seconds
         """
         pass
     
     @abstractmethod
     def add_robot(self, robot: "RobotBase") -> None:
         """
-        添加机器人到场景。
+        Add a robot to the scene.
         
         Args:
-            robot: 机器人实例
+            robot: Robot instance
         """
         pass
     
     @abstractmethod
     def load_scene(self, scene_cfg: DictConfig) -> None:
         """
-        加载场景资产。
+        Load scene assets.
         
         Args:
-            scene_cfg: 场景配置
+            scene_cfg: Scene configuration
         """
         pass
     
@@ -94,9 +94,9 @@ class SimulationManagerBase(ABC):
     @abstractmethod
     def scene(self) -> Any:
         """
-        获取 Genesis 场景对象。
+        Get the Genesis scene object.
         
         Returns:
-            Genesis scene 对象
+            Genesis scene object
         """
         pass

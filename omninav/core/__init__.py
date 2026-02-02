@@ -1,27 +1,15 @@
 """
-OmniNav Core Layer - 仿真核心管理
+OmniNav Core Layer - Simulation Core
 
-提供 Genesis 引擎的封装、场景管理、仿真循环控制。
+Provides simulation manager and component registry.
 """
 
 from omninav.core.base import SimulationManagerBase
-from omninav.core.registry import (
-    ROBOT_REGISTRY,
-    SENSOR_REGISTRY,
-    LOCOMOTION_REGISTRY,
-    ALGORITHM_REGISTRY,
-    TASK_REGISTRY,
-    METRIC_REGISTRY,
-    ASSET_LOADER_REGISTRY,
-)
+from omninav.core.simulation_manager import GenesisSimulationManager
+from omninav.core.registry import Registry
 
 __all__ = [
     "SimulationManagerBase",
-    "ROBOT_REGISTRY",
-    "SENSOR_REGISTRY",
-    "LOCOMOTION_REGISTRY",
-    "ALGORITHM_REGISTRY",
-    "TASK_REGISTRY",
-    "METRIC_REGISTRY",
-    "ASSET_LOADER_REGISTRY",
+    "GenesisSimulationManager",
+    "Registry",
 ]

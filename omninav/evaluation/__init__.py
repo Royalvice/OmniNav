@@ -1,7 +1,7 @@
 """
-OmniNav Evaluation Layer - 评测系统
+OmniNav Evaluation Layer - Evaluation System
 
-提供任务定义和评价指标的抽象接口。
+Provides abstract interfaces for task definitions and evaluation metrics.
 """
 
 from omninav.evaluation.base import TaskBase, MetricBase, TaskResult

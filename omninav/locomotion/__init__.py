@@ -1,7 +1,7 @@
 """
-OmniNav Locomotion Layer - 运动控制
+OmniNav Locomotion Layer - Motion Control
 
-提供将高层速度指令转换为关节控制的抽象接口。
+Provides abstract interface for converting high-level velocity commands to joint control.
 """
 
 from omninav.locomotion.base import LocomotionControllerBase

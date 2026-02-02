@@ -1,14 +1,14 @@
 """
-通用注册表 - 用于注册和发现各类模块
+Generic Registry - For registering and discovering various modules
 
-支持的注册表:
-- ROBOT_REGISTRY: 机器人类型
-- SENSOR_REGISTRY: 传感器类型
-- LOCOMOTION_REGISTRY: 运动控制器
-- ALGORITHM_REGISTRY: 算法
-- TASK_REGISTRY: 评测任务
-- METRIC_REGISTRY: 评价指标
-- ASSET_LOADER_REGISTRY: 资产加载器
+Supported registries:
+- ROBOT_REGISTRY: Robot types
+- SENSOR_REGISTRY: Sensor types
+- LOCOMOTION_REGISTRY: Locomotion controllers
+- ALGORITHM_REGISTRY: Algorithms
+- TASK_REGISTRY: Evaluation tasks
+- METRIC_REGISTRY: Evaluation metrics
+- ASSET_LOADER_REGISTRY: Asset loaders
 """
 
 from typing import Dict, Type, TypeVar, Callable, Optional
@@ -18,9 +18,9 @@ T = TypeVar("T")
 
 class Registry:
     """
-    通用注册表，用于注册和发现各类模块。
+    Generic registry for registering and discovering various modules.
     
-    使用示例:
+    Usage example:
         >>> @ROBOT_REGISTRY.register("my_robot")
         ... class MyRobot(RobotBase):
         ...     pass
@@ -31,26 +31,26 @@ class Registry:
     
     def __init__(self, name: str):
         """
-        初始化注册表。
+        Initialize registry.
         
         Args:
-            name: 注册表名称，用于错误信息
+            name: Registry name, used in error messages
         """
         self.name = name
         self._registry: Dict[str, Type[T]] = {}
     
     def register(self, name: str) -> Callable[[Type[T]], Type[T]]:
         """
-        装饰器：注册一个类。
+        Decorator: Register a class.
         
         Args:
-            name: 注册名称
+            name: Registration name
             
         Returns:
-            装饰器函数
+            Decorator function
             
         Raises:
-            ValueError: 如果名称已被注册
+            ValueError: If name is already registered
         """
         def decorator(cls: Type[T]) -> Type[T]:
             if name in self._registry:
@@ -64,16 +64,16 @@ class Registry:
     
     def get(self, name: str) -> Type[T]:
         """
-        根据名称获取已注册的类。
+        Get registered class by name.
         
         Args:
-            name: 注册名称
+            name: Registration name
             
         Returns:
-            已注册的类
+            Registered class
             
         Raises:
-            KeyError: 如果名称未注册
+            KeyError: If name is not registered
         """
         if name not in self._registry:
             raise KeyError(
@@ -84,31 +84,31 @@ class Registry:
     
     def build(self, name: str, **kwargs) -> T:
         """
-        根据名称创建实例。
+        Create instance by name.
         
         Args:
-            name: 注册名称
-            **kwargs: 传递给构造函数的参数
+            name: Registration name
+            **kwargs: Arguments passed to constructor
             
         Returns:
-            创建的实例
+            Created instance
         """
         cls = self.get(name)
         return cls(**kwargs)
     
     def list(self) -> list:
-        """列出所有已注册的名称。"""
+        """List all registered names."""
         return list(self._registry.keys())
     
     def __contains__(self, name: str) -> bool:
-        """检查名称是否已注册。"""
+        """Check if name is registered."""
         return name in self._registry
     
     def __repr__(self) -> str:
         return f"Registry(name='{self.name}', items={list(self._registry.keys())})"
 
 
-# 全局注册表实例
+# Global registry instances
 ROBOT_REGISTRY = Registry("robots")
 SENSOR_REGISTRY = Registry("sensors")
 LOCOMOTION_REGISTRY = Registry("locomotion")

@@ -1,7 +1,7 @@
 """
-OmniNav Python API - 主接口类
+OmniNav Python API - Main Interface Class
 
-提供类 Gym 风格的仿真环境接口。
+Provides Gym-style simulation environment interface.
 """
 
 from typing import Dict, Any, Optional, Tuple
@@ -17,21 +17,21 @@ from omninav.evaluation.base import TaskBase, TaskResult
 
 class OmniNavEnv:
     """
-    OmniNav 主接口类 (类 Gym 风格)。
+    OmniNav Main Interface Class (Gym-style).
     
-    提供简洁的 API 用于:
-    - 创建仿真环境
-    - 控制机器人
-    - 运行评测任务
+    Provides clean API for:
+    - Creating simulation environment
+    - Controlling robots
+    - Running evaluation tasks
     
-    使用示例:
+    Usage example:
         >>> from omninav import OmniNavEnv
         >>> 
         >>> env = OmniNavEnv(config_path="configs")
         >>> obs = env.reset()
         >>> 
         >>> while not env.is_done:
-        ...     action = env.algorithm.step(obs)  # 或自定义算法
+        ...     action = env.algorithm.step(obs)  # or custom algorithm
         ...     obs, info = env.step(action)
         >>> 
         >>> result = env.get_result()
@@ -45,16 +45,16 @@ class OmniNavEnv:
         config_name: str = "config",
     ):
         """
-        初始化 OmniNav 环境。
+        Initialize OmniNav environment.
         
         Args:
-            cfg: 直接传入的配置对象 (优先级最高)
-            config_path: Hydra 配置目录路径
-            config_name: 配置文件名 (不含扩展名)
+            cfg: Configuration object passed directly (highest priority)
+            config_path: Path to Hydra configuration directory
+            config_name: Configuration file name (without extension)
         """
         self.cfg = self._load_config(cfg, config_path, config_name)
         
-        # 组件引用 (延迟初始化)
+        # Component references (lazy initialization)
         self.sim = None  # SimulationManager
         self.robot: Optional[RobotBase] = None
         self.locomotion: Optional[LocomotionControllerBase] = None
@@ -70,17 +70,17 @@ class OmniNavEnv:
         config_path: Optional[str],
         config_name: str,
     ) -> DictConfig:
-        """加载配置。"""
+        """Load configuration."""
         if cfg is not None:
             return cfg
         
         if config_path is not None:
-            # 使用 Hydra 组合配置
+            # Use Hydra to compose configuration
             try:
                 from hydra import compose, initialize_config_dir
                 from hydra.core.global_hydra import GlobalHydra
                 
-                # 清理可能存在的 Hydra 实例
+                # Clear any existing Hydra instance
                 if GlobalHydra.instance().is_initialized():
                     GlobalHydra.instance().clear()
                 
@@ -89,62 +89,62 @@ class OmniNavEnv:
                     cfg = compose(config_name=config_name)
                 return cfg
             except ImportError:
-                # 回退到直接加载 YAML
+                # Fall back to direct YAML loading
                 import yaml
                 config_file = Path(config_path) / f"{config_name}.yaml"
                 with open(config_file) as f:
                     return OmegaConf.create(yaml.safe_load(f))
         
-        # 默认空配置
+        # Default empty configuration
         return OmegaConf.create({})
     
     def _initialize(self) -> None:
         """
-        根据配置初始化所有组件。
+        Initialize all components based on configuration.
         
-        延迟初始化，在第一次 reset() 时调用。
+        Lazy initialization, called on first reset().
         """
         if self._initialized:
             return
         
-        # TODO: 实现各组件的初始化
-        # 1. 初始化 SimulationManager
-        # 2. 加载场景
-        # 3. 创建机器人
-        # 4. 挂载传感器
-        # 5. 创建运动控制器
-        # 6. 创建算法 (可选)
-        # 7. 创建评测任务 (可选)
-        # 8. 构建场景
+        # TODO: Implement component initialization
+        # 1. Initialize SimulationManager
+        # 2. Load scene
+        # 3. Create robot
+        # 4. Mount sensors
+        # 5. Create locomotion controller
+        # 6. Create algorithm (optional)
+        # 7. Create evaluation task (optional)
+        # 8. Build scene
         
         self._initialized = True
     
     def reset(self) -> Dict[str, Any]:
         """
-        重置环境。
+        Reset environment.
         
         Returns:
-            初始观测
+            Initial observation
         """
         if not self._initialized:
             self._initialize()
         
         self._step_count = 0
         
-        # 重置仿真
+        # Reset simulation
         if self.sim is not None:
             self.sim.reset()
         
-        # 重置运动控制器
+        # Reset locomotion controller
         if self.locomotion is not None:
             self.locomotion.reset()
         
-        # 重置任务并获取任务信息
+        # Reset task and get task info
         task_info = {}
         if self.task is not None:
             task_info = self.task.reset()
         
-        # 重置算法
+        # Reset algorithm
         if self.algorithm is not None:
             self.algorithm.reset(task_info)
         
@@ -152,16 +152,16 @@ class OmniNavEnv:
     
     def step(self, action: Optional[np.ndarray] = None) -> Tuple[Dict[str, Any], Dict]:
         """
-        执行一步仿真。
+        Execute one simulation step.
         
         Args:
-            action: cmd_vel [vx, vy, wz]，如果为 None 则使用内置算法
+            action: cmd_vel [vx, vy, wz], if None uses built-in algorithm
         
         Returns:
-            obs: 新的观测
-            info: 额外信息
+            obs: New observation
+            info: Additional information
         """
-        # 如果没有传入 action，使用内置算法
+        # If no action provided, use built-in algorithm
         if action is None and self.algorithm is not None:
             obs = self._get_observation()
             action = self.algorithm.step(obs)
@@ -169,17 +169,17 @@ class OmniNavEnv:
         if action is None:
             action = np.zeros(3)
         
-        # 运动控制
+        # Locomotion control
         if self.locomotion is not None:
             self.locomotion.step(action)
         
-        # 物理仿真
+        # Physics simulation
         if self.sim is not None:
             self.sim.step()
         
         self._step_count += 1
         
-        # 记录任务数据
+        # Record task data
         if self.task is not None and self.robot is not None:
             robot_state = self.robot.get_state()
             self.task.step(robot_state, action)
@@ -190,7 +190,7 @@ class OmniNavEnv:
         return obs, info
     
     def _get_observation(self) -> Dict[str, Any]:
-        """获取当前观测。"""
+        """Get current observation."""
         obs = {}
         
         if self.robot is not None:
@@ -204,7 +204,7 @@ class OmniNavEnv:
     
     @property
     def is_done(self) -> bool:
-        """任务是否结束。"""
+        """Whether task is finished."""
         if self.task is not None and self.robot is not None:
             return self.task.is_terminated(self.robot.get_state())
         if self.algorithm is not None:
@@ -212,13 +212,13 @@ class OmniNavEnv:
         return False
     
     def get_result(self) -> Optional[TaskResult]:
-        """获取任务结果。"""
+        """Get task result."""
         if self.task is not None:
             return self.task.compute_result()
         return None
     
     def close(self) -> None:
-        """关闭环境，释放资源。"""
+        """Close environment and release resources."""
         if self.sim is not None:
             # self.sim.scene.destroy()
             pass

@@ -1,7 +1,7 @@
 """
-OmniNav Assets Layer - 资产管理
+OmniNav Assets Layer - Asset Management
 
-提供场景资产加载器的抽象接口和路径解析工具。
+Provides abstract interface for scene asset loaders and path resolution utilities.
 """
 
 from omninav.assets.base import AssetLoaderBase

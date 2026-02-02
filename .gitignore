@@ -1,34 +1,115 @@
-# --- Python ---
+# ==============================================================================
+# Python
+# ==============================================================================
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+*.so
+*.egg
 *.egg-info/
 dist/
 build/
+eggs/
+wheels/
+*.manifest
+*.spec
+pip-log.txt
+pip-delete-this-directory.txt
+.Python
+develop-eggs/
+.installed.cfg
+lib/
+lib64/
+.eggs/
+MANIFEST
 
-# --- Genesis / Simulation Artifacts ---
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# ==============================================================================
+# Genesis / Simulation Artifacts (generated during runtime)
+# ==============================================================================
 *.usd
 *.usda
-assets/**/*.obj
-assets/**/*.glb
 *.mp4
 *.gif
+*.avi
+*.webm
 render_output/
+recordings/
 
-# --- ROS 2 ---
+# ==============================================================================
+# ROS 2 (colcon build artifacts)
+# ==============================================================================
 install/
 log/
-build/
 
-# --- IDE ---
+# ==============================================================================
+# IDE & Editors
+# ==============================================================================
 .vscode/
 .idea/
+*.swp
+*.swo
+*~
+.project
+.pydevproject
+.settings/
+*.sublime-workspace
+*.sublime-project
 
-# --- Hydra Outputs ---
+# ==============================================================================
+# Hydra / OmegaConf Outputs
+# ==============================================================================
 outputs/
 multirun/
+.hydra/
 
-# --- Development Docs (not for git) ---
-# dev_docs/
+# ==============================================================================
+# Sphinx Documentation Build
+# ==============================================================================
+docs/_build/
+docs/_static/.gitkeep
+docs/_templates/.gitkeep
 
-# --- MkDocs Build Output ---
-site/
+# ==============================================================================
+# Testing & Coverage
+# ==============================================================================
+.tox/
+.nox/
+.coverage
+.coverage.*
+htmlcov/
+.pytest_cache/
+nosetests.xml
+coverage.xml
+*.cover
+.hypothesis/
+
+# ==============================================================================
+# Jupyter Notebooks
+# ==============================================================================
+.ipynb_checkpoints/
+*.ipynb
+
+# ==============================================================================
+# System Files
+# ==============================================================================
+.DS_Store
+Thumbs.db
+*.bak
+*.tmp
+*.temp
+*.log
+
+# ==============================================================================
+# Model Weights & Checkpoints (should use Git LFS)
+# Keep these commented - they should be tracked via LFS, not ignored
+# ==============================================================================
+# *.pt
+# *.pth
+# *.onnx
+# *.ckpt

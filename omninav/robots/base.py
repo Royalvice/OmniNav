@@ -1,7 +1,7 @@
 """
-机器人和传感器抽象基类
+Robot and Sensor Abstract Base Classes
 
-定义机器人和传感器的接口规范。
+Defines the interface specifications for robots and sensors.
 """
 
 from abc import ABC, abstractmethod
@@ -17,15 +17,15 @@ if TYPE_CHECKING:
 @dataclass
 class RobotState:
     """
-    机器人状态数据类。
+    Robot state data class.
     
     Attributes:
-        position: [x, y, z] 世界坐标位置
-        orientation: [qw, qx, qy, qz] 四元数姿态
-        linear_velocity: [vx, vy, vz] 线速度
-        angular_velocity: [wx, wy, wz] 角速度
-        joint_positions: 关节位置数组
-        joint_velocities: 关节速度数组
+        position: [x, y, z] world coordinate position
+        orientation: [qw, qx, qy, qz] quaternion orientation
+        linear_velocity: [vx, vy, vz] linear velocity
+        angular_velocity: [wx, wy, wz] angular velocity
+        joint_positions: Joint position array
+        joint_velocities: Joint velocity array
     """
     position: np.ndarray
     orientation: np.ndarray
@@ -38,13 +38,13 @@ class RobotState:
 @dataclass
 class SensorMount:
     """
-    传感器挂载配置。
+    Sensor mount configuration.
     
     Attributes:
-        sensor_name: 传感器配置名 (对应 configs/sensor/*.yaml 中定义的传感器)
-        link_name: 挂载的 link 名称
-        position: 相对于 link 的位置 [x, y, z]
-        orientation: 相对于 link 的姿态 [qw, qx, qy, qz]
+        sensor_name: Sensor config name (corresponds to configs/sensor/*.yaml)
+        link_name: Name of the link to mount on
+        position: Position relative to link [x, y, z]
+        orientation: Orientation relative to link [qw, qx, qy, qz]
     """
     sensor_name: str
     link_name: str
@@ -54,44 +54,44 @@ class SensorMount:
 
 class SensorBase(ABC):
     """
-    传感器抽象基类。
+    Abstract base class for sensors.
     
-    所有传感器实现必须继承此类并实现抽象方法。
+    All sensor implementations must inherit from this class and implement abstract methods.
     """
     
-    # 传感器类型标识 (用于注册)
+    # Sensor type identifier (for registration)
     SENSOR_TYPE: str = ""
     
     def __init__(self, cfg: DictConfig):
         """
-        初始化传感器。
+        Initialize sensor.
         
         Args:
-            cfg: 传感器配置
+            cfg: Sensor configuration
         """
         self.cfg = cfg
         self._attached_robot: Optional["RobotBase"] = None
-        self._gs_sensor: Optional[Any] = None  # Genesis 传感器对象
+        self._gs_sensor: Optional[Any] = None  # Genesis sensor object
     
     @abstractmethod
     def create(self, scene: "gs.Scene") -> None:
         """
-        在场景中创建传感器。
+        Create sensor in the scene.
         
-        根据传感器类型调用相应的 Genesis API (如 scene.add_camera)。
+        Calls appropriate Genesis API based on sensor type (e.g., scene.add_camera).
         
         Args:
-            scene: Genesis 场景对象
+            scene: Genesis scene object
         """
         pass
     
     @abstractmethod
     def get_data(self) -> Any:
         """
-        获取传感器数据。
+        Get sensor data.
         
         Returns:
-            传感器数据 (类型取决于传感器类型)
+            Sensor data (type depends on sensor type)
         """
         pass
     
@@ -103,39 +103,39 @@ class SensorBase(ABC):
         orientation: List[float]
     ) -> None:
         """
-        将传感器挂载到机器人的指定 link。
+        Attach sensor to a specific robot link.
         
         Args:
-            robot: 机器人实例
-            link_name: 挂载的 link 名称
-            position: 相对位置 [x, y, z]
-            orientation: 相对姿态 [qw, qx, qy, qz]
+            robot: Robot instance
+            link_name: Name of the link to attach to
+            position: Relative position [x, y, z]
+            orientation: Relative orientation [qw, qx, qy, qz]
         """
         self._attached_robot = robot
-        # 具体实现中需要调用 Genesis API 设置传感器的 parent link
+        # Concrete implementations should call Genesis API to set sensor parent link
 
 
 class RobotBase(ABC):
     """
-    机器人抽象基类。
+    Abstract base class for robots.
     
-    所有机器人实现必须继承此类并实现抽象方法。
+    All robot implementations must inherit from this class and implement abstract methods.
     """
     
-    # 机器人类型标识 (用于注册)
+    # Robot type identifier (for registration)
     ROBOT_TYPE: str = ""
     
     def __init__(self, cfg: DictConfig, scene: "gs.Scene"):
         """
-        初始化机器人。
+        Initialize robot.
         
         Args:
-            cfg: 机器人配置
-            scene: Genesis 场景对象
+            cfg: Robot configuration
+            scene: Genesis scene object
         """
         self.cfg = cfg
         self.scene = scene
-        self.entity: Optional[Any] = None  # Genesis entity 对象
+        self.entity: Optional[Any] = None  # Genesis entity object
         self.sensors: Dict[str, SensorBase] = {}
         self._sensor_mounts: List[SensorMount] = []
         self._initial_pos: Optional[np.ndarray] = None
@@ -144,41 +144,41 @@ class RobotBase(ABC):
     @abstractmethod
     def spawn(self) -> None:
         """
-        在场景中生成机器人。
+        Spawn robot in the scene.
         
-        加载机器人模型并添加到 Genesis 场景。
+        Loads robot model and adds to Genesis scene.
         """
         pass
     
     @abstractmethod
     def get_state(self) -> RobotState:
         """
-        获取机器人当前状态。
+        Get current robot state.
         
         Returns:
-            RobotState: 包含位置、姿态、速度、关节状态的数据
+            RobotState: Contains position, orientation, velocity, joint state
         """
         pass
     
     @abstractmethod
     def apply_command(self, cmd_vel: np.ndarray) -> None:
         """
-        应用速度指令。
+        Apply velocity command.
         
-        高层接口，由 LocomotionController 调用以控制机器人运动。
+        High-level interface called by LocomotionController to control robot motion.
         
         Args:
-            cmd_vel: [vx, vy, wz] 线速度 (m/s) + 角速度 (rad/s)
+            cmd_vel: [vx, vy, wz] linear velocity (m/s) + angular velocity (rad/s)
         """
         pass
     
     def mount_sensor(self, mount: SensorMount, sensor: SensorBase) -> None:
         """
-        挂载传感器到机器人。
+        Mount sensor to robot.
         
         Args:
-            mount: 挂载配置
-            sensor: 传感器实例
+            mount: Mount configuration
+            sensor: Sensor instance
         """
         sensor.attach_to_robot(
             self, 
@@ -191,10 +191,10 @@ class RobotBase(ABC):
     
     def get_observations(self) -> Dict[str, Any]:
         """
-        获取所有传感器观测。
+        Get all sensor observations.
         
         Returns:
-            字典，键为传感器名称，值为传感器数据
+            Dictionary with sensor names as keys and sensor data as values
         """
         obs = {}
         for name, sensor in self.sensors.items():
@@ -203,7 +203,7 @@ class RobotBase(ABC):
     
     def reset(self) -> None:
         """
-        重置机器人到初始状态。
+        Reset robot to initial state.
         """
         if self.entity is not None and self._initial_pos is not None:
             self.entity.set_pos(self._initial_pos)

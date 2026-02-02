@@ -12,15 +12,21 @@ defaults:
 
 # 仿真配置
 simulation:
-  backend: "gpu"          # cpu / gpu
-  dt: 0.01                # 仿真步长 (秒)
-  substeps: 4             # 物理子步数
-  show_viewer: true       # 是否显示 Genesis Viewer
-  max_steps: 10000        # 最大仿真步数
+  dt: 0.01           # 仿真时间步长 (秒)
+  substeps: 2        # 物理子步数
+  backend: "gpu"     # "gpu" 或 "cpu"
+  n_envs: 1          # 并行环境数量
+  show_viewer: true  # 是否显示可视化窗口
+  enable_self_collision: false
+  camera_pos: [2.0, 0.0, 2.5]
+  camera_lookat: [0.0, 0.0, 0.0]
+  camera_fov: 40
+  env_spacing: [1.0, 1.0]  # 并行环境间距
 
-# ROS2 配置 (可选)
+# ROS2 集成
 ros2:
-  enabled: false          # 是否启用 ROS2 桥接
+  enabled: false
+  node_name: "omninav"
   cmd_vel_topic: "/cmd_vel"
   odom_topic: "/odom"
   publish_rate: 50        # Hz

@@ -1,9 +1,8 @@
 """
-OmniNav - 面向具身智能的通用仿真平台
+OmniNav - Universal Simulation Platform for Embodied Intelligence
 """
 
 __version__ = "0.1.0"
-__author__ = "Royalvice"
 
 from omninav.interfaces.python_api import OmniNavEnv
 

@@ -1,7 +1,7 @@
 """
-评测任务与指标抽象基类
+Evaluation Task and Metric Abstract Base Classes
 
-定义任务和评价指标的接口规范。
+Defines the interface for tasks and evaluation metrics.
 """
 
 from abc import ABC, abstractmethod
@@ -14,12 +14,12 @@ from omegaconf import DictConfig
 @dataclass
 class TaskResult:
     """
-    任务执行结果。
+    Task execution result.
     
     Attributes:
-        success: 任务是否成功
-        metrics: 各项评价指标值
-        info: 额外信息 (如轨迹、步数等)
+        success: Whether task succeeded
+        metrics: Evaluation metric values
+        info: Additional info (e.g., trajectory, step count)
     """
     success: bool
     metrics: Dict[str, float] = field(default_factory=dict)
@@ -28,69 +28,69 @@ class TaskResult:
 
 class MetricBase(ABC):
     """
-    评价指标抽象基类。
+    Abstract base class for evaluation metrics.
     
-    所有评价指标必须继承此类并实现抽象方法。
+    All evaluation metrics must inherit from this class and implement abstract methods.
     """
     
-    # 指标名称 (用于注册和结果字典键)
+    # Metric name (used for registration and result dictionary keys)
     METRIC_NAME: str = ""
     
     def __init__(self):
-        """初始化指标。"""
+        """Initialize metric."""
         pass
     
     @abstractmethod
     def reset(self) -> None:
         """
-        重置指标状态。
+        Reset metric state.
         
-        在新任务开始时调用。
+        Called when a new task starts.
         """
         pass
     
     @abstractmethod
     def update(self, **kwargs) -> None:
         """
-        更新指标。
+        Update metric.
         
-        在每个仿真步后调用，传入相关数据。
+        Called after each simulation step with relevant data.
         
         Args:
-            **kwargs: 更新所需的数据，如 robot_position, goal_position 等
+            **kwargs: Data needed for update, e.g., robot_position, goal_position
         """
         pass
     
     @abstractmethod
     def compute(self) -> float:
         """
-        计算最终指标值。
+        Compute final metric value.
         
-        在任务结束时调用。
+        Called when task ends.
         
         Returns:
-            指标值
+            Metric value
         """
         pass
 
 
 class TaskBase(ABC):
     """
-    评测任务抽象基类。
+    Abstract base class for evaluation tasks.
     
-    所有评测任务必须继承此类并实现抽象方法。
-    任务定义了评测的目标、终止条件和评价指标。
+    All evaluation tasks must inherit from this class and implement abstract methods.
+    Tasks define evaluation objectives, termination conditions, and metrics.
     """
     
-    # 任务类型标识 (用于注册)
+    # Task type identifier (for registration)
     TASK_TYPE: str = ""
     
     def __init__(self, cfg: DictConfig):
         """
-        初始化任务。
+        Initialize task.
         
         Args:
-            cfg: 任务配置
+            cfg: Task configuration
         """
         self.cfg = cfg
         self.metrics: List[MetricBase] = []
@@ -98,50 +98,50 @@ class TaskBase(ABC):
     @abstractmethod
     def reset(self) -> Dict[str, Any]:
         """
-        重置任务状态。
+        Reset task state.
         
         Returns:
-            task_info: 任务信息，传递给算法用于初始化
-                - 应包含 "start_position", "goal_position" 等
+            task_info: Task information passed to algorithm for initialization
+                - Should include "start_position", "goal_position", etc.
         """
         pass
     
     @abstractmethod
     def step(self, robot_state: Any, action: np.ndarray) -> None:
         """
-        记录每步信息。
+        Record information at each step.
         
-        用于计算累积指标 (如路径长度、碰撞次数等)。
+        Used for computing cumulative metrics (e.g., path length, collision count).
         
         Args:
-            robot_state: RobotState 对象
-            action: 当前步的动作
+            robot_state: RobotState object
+            action: Action taken at current step
         """
         pass
     
     @abstractmethod
     def is_terminated(self, robot_state: Any) -> bool:
         """
-        判断任务是否终止。
+        Determine if task is terminated.
         
-        可能因为成功、失败或超时而终止。
+        May terminate due to success, failure, or timeout.
         
         Args:
-            robot_state: RobotState 对象
+            robot_state: RobotState object
             
         Returns:
-            True 如果任务应该终止，否则 False
+            True if task should terminate, False otherwise
         """
         pass
     
     @abstractmethod
     def compute_result(self) -> TaskResult:
         """
-        计算最终任务结果。
+        Compute final task result.
         
-        综合所有指标计算最终结果。
+        Aggregates all metrics to compute final result.
         
         Returns:
-            TaskResult: 包含成功标志、各项指标和额外信息
+            TaskResult: Contains success flag, metric values, and additional info
         """
         pass
