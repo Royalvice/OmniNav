@@ -2,8 +2,8 @@
 
 ```{image} _static/logo.png
 :align: center
-:width: 250px
-:class: sd-mb-4
+:width: 200px
+:class: sd-mb-4 sd-no-bg
 ```
 
 :::{sd-container}
@@ -16,7 +16,9 @@
 
 **Universal Simulation Platform for Embodied AI**
 
-[GitHub](https://github.com/Royalvice/OmniNav) | [PyPI](https://pypi.org/project/omninav/) | [License: Apache 2.0](https://github.com/Royalvice/OmniNav/blob/main/LICENSE)
+[![GitHub Repo stars](https://img.shields.io/github/stars/Royalvice/OmniNav?style=plastic&logo=GitHub&logoSize=auto)](https://github.com/Royalvice/OmniNav)
+[![PyPI version](https://badge.fury.io/py/omninav.svg?icon=si%3Apython)](https://pypi.org/project/omninav/)
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://github.com/Royalvice/OmniNav/blob/main/LICENSE)
 
 :::
 :::
@@ -33,11 +35,9 @@
 :header: ✨ What is OmniNav?
 :shadow: md
 
-OmniNav is an **Embodied AI Simulation Platform** based on the [Genesis](https://github.com/Genesis-Embodied-AI/Genesis) physics engine. It is designed for researchers and developers to rapidly verify robot navigation and obstacle avoidance algorithms.
+OmniNav is a physics-based simulation platform designed for the rapid development and evaluation of **Embodied AI** navigation algorithms. Powered by the [Genesis](https://github.com/Genesis-Embodied-AI/Genesis) physics engine, it provides a high-fidelity environment for testing everything from traditional PID controllers to modern **VLA (Vision-Language-Action)** and **VLN (Vision-Language Navigation)** models.
 
-- **High-Performance**: GPU-accelerated physics via Genesis.
-- **Pythonic**: 100% Python API for seamless integration.
-- **Algorithm Agnostic**: From RL to VLA, plug any policy easily.
+Our goal is to bridge the gap between abstract algorithm design and real-world robotics by providing a fast, scalable, and user-friendly simulation bridge.
 :::
 :::
 
@@ -46,13 +46,12 @@ OmniNav is an **Embodied AI Simulation Platform** based on the [Genesis](https:/
 :size-md: 6
 
 :::{sd-card}
-:header: 🚀 Key Features
+:header: 🚀 Key Missions
 :shadow: md
 
-- 🎮 **Pluggable Algorithms** - Standard interfaces for VLA, RL, and Traditional controllers.
-- 📊 **Evaluation Engine** - Predefined tasks (SPL, Success Rate) for benchmark testing.
-- 🤖 **Multi-Robot Support** - Out-of-the-box support for Unitree Go2 (Legged/Wheeled).
-- 🔌 **ROS2 Integration** - Seamless bridge for Sim2Real workflows.
+- **Scale to Thousands**: Leverage GPU-accelerated physics to run massive parallel simulations for RL training.
+- **Sim-to-Real Ready**: Built-in ROS2 integration ensures that policies developed in OmniNav can be deployed to physical robots like the Unitree Go2 with minimal friction.
+- **Open standard**: Support for standard formats like USD, GLB, and URDF to allow easy integration of assets from various sources.
 :::
 :::
 :::
@@ -69,16 +68,18 @@ OmniNav is an **Embodied AI Simulation Platform** based on the [Genesis](https:/
 :shadow: md
 
 ```python
-from omninav import OmniNavEnv
+import omninav as on
 
-env = OmniNavEnv(config_path="configs")
+# Initialize simulation with your config
+env = on.OmniNavEnv(config_path="configs/navigation.yaml")
 obs = env.reset()
 
-while not env.is_done:
-    action = env.algorithm.step(obs)
-    obs, info = env.step(action)
+# Single loop for navigation task
+while not env.done:
+    action = env.policy.predict(obs)
+    obs, reward, done, info = env.step(action)
 
-print(f"Goal Reached: {env.get_result().success}")
+print(f"Goal Reached! SPL Score: {info['spl']:.2f}")
 ```
 :::
 :::
@@ -89,42 +90,10 @@ print(f"Goal Reached: {env.get_result().success}")
 ```{toctree}
 :maxdepth: 2
 :hidden:
-:caption: Getting Started
 
-getting_started/installation
-getting_started/first_simulation
-```
-
-```{toctree}
-:maxdepth: 2
-:hidden:
-:caption: User Guide
-
-user_guide/architecture
-user_guide/robots
-user_guide/sensors
-user_guide/scenes
-user_guide/algorithms
-user_guide/evaluation
-user_guide/ros2_integration
-```
-
-```{toctree}
-:maxdepth: 2
-:hidden:
-:caption: API Reference
-
-api_reference/core
-api_reference/robots
-api_reference/algorithms
-api_reference/evaluation
-```
-
-```{toctree}
-:maxdepth: 1
-:hidden:
-:caption: Other
-
-contributing
+getting_started/index
+user_guide/index
+api_reference/index
 changelog
+contributing
 ```

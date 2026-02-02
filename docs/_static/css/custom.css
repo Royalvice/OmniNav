@@ -1,17 +1,39 @@
 /* Custom CSS for OmniNav Documentation */
 
+/* Fix logo background/alpha issue */
+.logo__image,
+img.sd-no-bg {
+    background-color: transparent !important;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+}
+
 .logo__image {
-    padding: 10px;
-    max-height: 48px;
+    padding: 5px;
+    max-height: 40px;
 }
 
 /* Landing page hero section tweaks */
 .sd-card {
-    border-radius: 8px;
-    transition: transform 0.2s ease-in-out;
+    border-radius: 12px;
+    transition: all 0.3s ease;
+    border: 1px solid rgba(0, 0, 0, 0.05);
 }
 
 .sd-card:hover {
     transform: translateY(-5px);
-    box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+}
+
+/* Typography refinements */
+h1 {
+    font-weight: 800;
+    margin-bottom: 1.5rem;
+}
+
+.sd-card-header {
+    font-weight: 700;
+    font-size: 1.1rem;
+    background-color: transparent !important;
 }

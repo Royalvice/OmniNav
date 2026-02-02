@@ -67,9 +67,12 @@ html_theme_options = {
         },
     ],
     "navbar_align": "left",
+    "navbar_center": ["navbar-nav"],
+    "navbar_end": ["theme-switcher", "navbar-icon-links"],
     "show_prev_next": False,
     "footer_start": ["copyright"],
     "footer_end": ["sphinx-version", "theme-version"],
+    "secondary_sidebar_items": ["page-toc", "edit-this-page"],
 }
 
 html_css_files = [
