@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/_static/logo.png" alt="OmniNav Logo" width="400">
+  <img src="docs/_static/logo.png" alt="OmniNav" width="400">
 </p>
 
 <h1 align="center">OmniNav</h1>
