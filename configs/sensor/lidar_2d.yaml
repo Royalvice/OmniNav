@@ -1,0 +1,17 @@
+# 2D Lidar Sensor Configuration
+#
+# Simulates a planar laser scanner for obstacle detection and SLAM.
+
+type: lidar_2d
+
+# Scan parameters
+horizontal_fov: 360.0    # Horizontal field of view in degrees
+vertical_fov: 0.5        # Small value for 2D scanning
+num_rays: 720            # Number of rays (angular resolution = fov / num_rays)
+
+# Range parameters
+min_range: 0.1           # Minimum detection range in meters
+max_range: 30.0          # Maximum detection range in meters
+
+# Visualization
+draw_debug: false        # Draw debug rays in viewer

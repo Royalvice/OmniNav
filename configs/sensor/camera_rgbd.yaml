@@ -1,0 +1,19 @@
+# RGB Camera Sensor Configuration
+#
+# Provides RGB and optionally depth images.
+
+type: camera
+
+# Resolution
+width: 640
+height: 480
+
+# Camera intrinsics
+fov: 60.0                # Field of view in degrees
+near: 0.1                # Near clipping plane in meters
+far: 100.0               # Far clipping plane in meters
+
+# Output types (can include: rgb, depth, segmentation, normal)
+camera_types:
+  - rgb
+  - depth

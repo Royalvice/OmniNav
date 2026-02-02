@@ -1,32 +1,29 @@
 """
-Generic Registry - For registering and discovering various modules
+Component Registry for OmniNav
 
-Supported registries:
-- ROBOT_REGISTRY: Robot types
-- SENSOR_REGISTRY: Sensor types
-- LOCOMOTION_REGISTRY: Locomotion controllers
-- ALGORITHM_REGISTRY: Algorithms
-- TASK_REGISTRY: Evaluation tasks
-- METRIC_REGISTRY: Evaluation metrics
-- ASSET_LOADER_REGISTRY: Asset loaders
+Provides a generic registration mechanism for pluggable components.
+Components are registered by name and can be instantiated from configuration.
 """
 
-from typing import Dict, Type, TypeVar, Callable, Optional
+from typing import Type, Dict, Any, Optional, Callable, TypeVar
+from omegaconf import DictConfig
 
 T = TypeVar("T")
 
 
 class Registry:
     """
-    Generic registry for registering and discovering various modules.
+    Generic registry for pluggable components.
     
-    Usage example:
-        >>> @ROBOT_REGISTRY.register("my_robot")
-        ... class MyRobot(RobotBase):
+    Allows registration of classes by name and dynamic instantiation
+    from OmegaConf configuration dictionaries.
+    
+    Example:
+        >>> ROBOT_REGISTRY = Registry("robot")
+        >>> @ROBOT_REGISTRY.register("unitree_go2")
+        ... class Go2Robot(RobotBase):
         ...     pass
-        
-        >>> robot_cls = ROBOT_REGISTRY.get("my_robot")
-        >>> robot = ROBOT_REGISTRY.build("my_robot", cfg=cfg, scene=scene)
+        >>> robot = ROBOT_REGISTRY.build(cfg, scene=scene)
     """
     
     def __init__(self, name: str):
@@ -34,85 +31,118 @@ class Registry:
         Initialize registry.
         
         Args:
-            name: Registry name, used in error messages
+            name: Registry name (for error messages)
         """
-        self.name = name
-        self._registry: Dict[str, Type[T]] = {}
+        self._name = name
+        self._module_dict: Dict[str, Type] = {}
     
-    def register(self, name: str) -> Callable[[Type[T]], Type[T]]:
+    @property
+    def name(self) -> str:
+        """Get registry name."""
+        return self._name
+    
+    @property
+    def registered_names(self) -> list:
+        """Get list of registered component names."""
+        return list(self._module_dict.keys())
+    
+    def register(self, name: Optional[str] = None) -> Callable[[Type[T]], Type[T]]:
         """
-        Decorator: Register a class.
+        Decorator to register a class.
         
         Args:
-            name: Registration name
-            
+            name: Registration name. If None, uses class name.
+        
         Returns:
             Decorator function
-            
-        Raises:
-            ValueError: If name is already registered
+        
+        Example:
+            >>> @ROBOT_REGISTRY.register("my_robot")
+            ... class MyRobot(RobotBase):
+            ...     pass
         """
         def decorator(cls: Type[T]) -> Type[T]:
-            if name in self._registry:
-                raise ValueError(
-                    f"'{name}' already registered in {self.name}. "
-                    f"Existing: {self._registry[name]}, New: {cls}"
+            key = name if name is not None else cls.__name__
+            if key in self._module_dict:
+                raise KeyError(
+                    f"'{key}' is already registered in {self._name} registry. "
+                    f"Existing: {self._module_dict[key]}, New: {cls}"
                 )
-            self._registry[name] = cls
+            self._module_dict[key] = cls
             return cls
         return decorator
     
-    def get(self, name: str) -> Type[T]:
+    def get(self, name: str) -> Type:
         """
-        Get registered class by name.
+        Get a registered class by name.
         
         Args:
-            name: Registration name
-            
+            name: Registered name
+        
         Returns:
             Registered class
-            
+        
         Raises:
             KeyError: If name is not registered
         """
-        if name not in self._registry:
+        if name not in self._module_dict:
             raise KeyError(
-                f"'{name}' not found in {self.name}. "
-                f"Available: {list(self._registry.keys())}"
+                f"'{name}' is not registered in {self._name} registry. "
+                f"Available: {list(self._module_dict.keys())}"
             )
-        return self._registry[name]
+        return self._module_dict[name]
     
-    def build(self, name: str, **kwargs) -> T:
+    def build(self, cfg: DictConfig, **kwargs) -> Any:
         """
-        Create instance by name.
+        Instantiate a class from configuration.
+        
+        The configuration must contain a 'type' field that specifies
+        the registered name of the class to instantiate.
         
         Args:
-            name: Registration name
-            **kwargs: Arguments passed to constructor
-            
+            cfg: Configuration with 'type' field
+            **kwargs: Additional arguments passed to constructor
+        
         Returns:
-            Created instance
+            Instantiated object
+        
+        Raises:
+            KeyError: If 'type' not in config or not registered
         """
-        cls = self.get(name)
-        return cls(**kwargs)
-    
-    def list(self) -> list:
-        """List all registered names."""
-        return list(self._registry.keys())
+        if "type" not in cfg:
+            raise KeyError(
+                f"Config must contain 'type' field to build from {self._name} registry. "
+                f"Got keys: {list(cfg.keys())}"
+            )
+        cls = self.get(cfg.type)
+        return cls(cfg, **kwargs)
     
     def __contains__(self, name: str) -> bool:
         """Check if name is registered."""
-        return name in self._registry
+        return name in self._module_dict
     
     def __repr__(self) -> str:
-        return f"Registry(name='{self.name}', items={list(self._registry.keys())})"
+        return f"Registry(name={self._name}, items={list(self._module_dict.keys())})"
 
 
-# Global registry instances
-ROBOT_REGISTRY = Registry("robots")
-SENSOR_REGISTRY = Registry("sensors")
+# =============================================================================
+# Global Registry Instances
+# =============================================================================
+
+ROBOT_REGISTRY = Registry("robot")
+"""Registry for robot implementations (Go2, Go2w, etc.)"""
+
+SENSOR_REGISTRY = Registry("sensor")
+"""Registry for sensor implementations (Lidar, Camera, etc.)"""
+
 LOCOMOTION_REGISTRY = Registry("locomotion")
-ALGORITHM_REGISTRY = Registry("algorithms")
-TASK_REGISTRY = Registry("tasks")
-METRIC_REGISTRY = Registry("metrics")
-ASSET_LOADER_REGISTRY = Registry("asset_loaders")
+"""Registry for locomotion controllers (WheelController, IKController, etc.)"""
+
+ALGORITHM_REGISTRY = Registry("algorithm")
+"""Registry for navigation/perception algorithms"""
+
+TASK_REGISTRY = Registry("task")
+"""Registry for evaluation tasks"""
+
+METRIC_REGISTRY = Registry("metric")
+"""Registry for evaluation metrics"""

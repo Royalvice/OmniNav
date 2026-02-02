@@ -1,0 +1,22 @@
+# IK Gait Controller Configuration (Go2)
+#
+# For quadruped locomotion using inverse kinematics.
+
+type: ik_controller
+
+# Gait parameters
+gait_type: trot          # Gait pattern (trot, walk, crawl)
+step_height: 0.05        # Maximum foot lift height (m)
+step_length: 0.15        # Maximum step length (m)
+gait_frequency: 2.0      # Gait cycle frequency (Hz)
+body_height: 0.35        # Nominal body height (m)
+
+# Timing
+dt: 0.01                 # Control timestep (s)
+
+# Foot link names (must match URDF)
+foot_links:
+  - FL_foot
+  - FR_foot
+  - RL_foot
+  - RR_foot

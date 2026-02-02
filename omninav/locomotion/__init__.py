@@ -5,5 +5,13 @@ Provides abstract interface for converting high-level velocity commands to joint
 """
 
 from omninav.locomotion.base import LocomotionControllerBase
+from omninav.locomotion.wheel_controller import WheelController
+from omninav.locomotion.ik_controller import IKController
+from omninav.locomotion.rl_controller import RLController
 
-__all__ = ["LocomotionControllerBase"]
+__all__ = [
+    "LocomotionControllerBase",
+    "WheelController",
+    "IKController",
+    "RLController",
+]

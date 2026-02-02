@@ -1,25 +1,25 @@
-# 点到点导航任务配置
+# Point-to-point navigation task configuration
 # @package _group_
 
 type: point_navigation
 name: point_nav
 
-# 起点和终点
+# Start and goal positions
 start_position: [0.0, 0.0, 0.5]
 goal_position: [5.0, 3.0, 0.5]
 
-# 成功判定
-success_threshold: 0.5  # 米
+# Success criteria
+success_threshold: 0.5  # meters
 
-# 终止条件
+# Termination conditions
 max_steps: 2000
-timeout: 120.0  # 秒
+timeout: 120.0  # seconds
 
-# 碰撞检测
+# Collision detection
 collision_penalty: true
-collision_threshold: 0.1  # 碰撞力阈值
+collision_threshold: 0.1  # Collision force threshold
 
-# 评价指标
+# Evaluation metrics
 metrics:
   - success_rate
   - spl

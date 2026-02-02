@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "omninav"
 version = "0.1.0"
-description = "面向具身智能的通用仿真平台 / Universal Simulation Platform for Embodied AI"
+description = "Universal Simulation Platform for Embodied AI"
 readme = "README.md"
 license = {text = "Apache-2.0"}
 authors = [
