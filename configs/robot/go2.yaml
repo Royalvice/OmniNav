@@ -16,8 +16,8 @@ urdf_source: genesis_builtin
 # - project: relative to project assets/ directory
 urdf_path: "urdf/go2/urdf/go2.urdf"
 
-# Initial pose
-initial_pos: [0.0, 0.0, 0.4]
+# Initial pose (height 0.42m from Genesis go2_train.py)
+initial_pos: [0.0, 0.0, 0.42]
 initial_quat: [1.0, 0.0, 0.0, 0.0]  # [w, x, y, z]
 
 # Sensors - created via mount_sensors()
@@ -43,8 +43,10 @@ sensors:
     fov: 60.0
     camera_types: ["rgb", "depth"]
 
-# Control parameters
+# Control parameters (from Genesis go2_train.py)
 control:
   mode: velocity  # position / velocity / force
+  kp: 20.0        # PD position gain
+  kd: 0.5         # PD velocity/damping gain
   max_linear_vel: 1.0   # m/s
   max_angular_vel: 2.0  # rad/s

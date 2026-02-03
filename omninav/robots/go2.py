@@ -233,6 +233,29 @@ class Go2Robot(RobotBase):
         self._init_joint_indices()
         self.entity.control_dofs_velocity(target_velocities, self._motors_dof_idx)
     
+    def post_build(self) -> None:
+        """
+        Called after scene.build() to initialize joints.
+        
+        Sets up:
+        - Joint DOF indices
+        - PD control gains
+        - Initial joint positions for standing pose
+        """
+        self._init_joint_indices()
+        # Set initial joint positions for proper standing pose
+        self.entity.set_dofs_position(self._default_dof_pos, self._motors_dof_idx)
+    
+    @property
+    def motors_dof_idx(self) -> np.ndarray:
+        """Get motor DOF indices (available after post_build)."""
+        return self._motors_dof_idx
+    
+    @property
+    def default_dof_pos(self) -> np.ndarray:
+        """Get default joint positions."""
+        return self._default_dof_pos
+    
     def reset(self) -> None:
         """
         Reset robot to initial state.

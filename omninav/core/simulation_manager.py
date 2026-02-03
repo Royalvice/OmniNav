@@ -104,6 +104,7 @@ class GenesisSimulationManager(SimulationManagerBase):
                 camera_lookat=tuple(sim_cfg.get("camera_lookat", [0.0, 0.0, 0.0])),
                 camera_fov=sim_cfg.get("camera_fov", 40),
                 max_FPS=int(1.0 / dt),
+                disable_keyboard_shortcuts=sim_cfg.get("disable_keyboard_shortcuts", False),
             ),
             show_viewer=show_viewer,
         )
@@ -127,6 +128,10 @@ class GenesisSimulationManager(SimulationManagerBase):
         # Build scene (with parallel environments)
         self._scene.build(n_envs=self._n_envs, env_spacing=env_spacing)
         self._is_built = True
+        
+        # Post-build initialization for all robots (joint indices, PD gains, initial pose)
+        for robot in self._robots:
+            robot.post_build()
     
     def step(self) -> None:
         """

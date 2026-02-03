@@ -105,6 +105,20 @@ class RobotBase(ABC):
         """
         pass
 
+    def post_build(self) -> None:
+        """
+        Called after scene.build().
+
+        Override this method to perform robot-specific initialization that
+        requires the scene to be built, such as:
+        - Getting joint DOF indices
+        - Setting PD control gains
+        - Setting initial joint positions
+
+        Must be called by SimulationManager after scene.build().
+        """
+        pass
+
     def mount_sensors(self, sensor_cfgs: List[DictConfig]) -> None:
         """
         Mount sensors from configuration after robot spawn.

@@ -1,0 +1,14 @@
+# Simple Gait Controller Configuration
+
+# For Go2 quadruped locomotion demo
+type: simple_gait
+
+# Gait parameters
+gait_frequency: 1.5     # Hz - oscillation frequency
+thigh_swing_amplitude: 0.35  # rad - thigh joint swing
+hip_swing_amplitude: 0.15    # rad - hip abduction swing
+dt: 0.01
+
+# PD control gains
+kp: 40.0
+kd: 1.0
