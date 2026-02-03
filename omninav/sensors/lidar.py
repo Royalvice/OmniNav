@@ -106,11 +106,11 @@ class Lidar2DSensor(SensorBase):
                 "points": np.zeros((self._num_rays, 3), dtype=np.float32),
             }
 
-        # Read from Genesis sensor - returns NamedTuple with hit_pos, hit_dist
+        # Read from Genesis sensor - returns NamedTuple with points, distances
         data = self._gs_sensor.read()
 
         # Extract hit positions
-        hit_pos = data.hit_pos
+        hit_pos = data.points
         if hasattr(hit_pos, "cpu"):
             hit_pos = hit_pos.cpu().numpy()
         else:
@@ -124,11 +124,18 @@ class Lidar2DSensor(SensorBase):
         if hit_pos.ndim == 3 and hit_pos.shape[1] == 1:
             hit_pos = hit_pos.squeeze(1)
 
-        # Compute ranges from hit positions
-        ranges = np.linalg.norm(hit_pos, axis=-1).astype(np.float32)
+        # Extract distances/ranges
+        ranges = data.distances
+        if hasattr(ranges, "cpu"):
+            ranges = ranges.cpu().numpy()
+        else:
+            ranges = np.array(ranges)
 
-        # Clip to valid range
-        ranges = np.clip(ranges, self._min_range, self._max_range)
+        if ranges.ndim == 2: # (n_envs, n_rays)
+            ranges = ranges[0]
+        
+        if ranges.ndim == 2 and ranges.shape[1] == 1:
+            ranges = ranges.squeeze(1)
 
         return {
             "ranges": ranges.flatten(),

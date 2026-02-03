@@ -1,14 +1,24 @@
-# Simple Gait Controller Configuration
+# Simple Gait Controller Configuration (Kinematic Mode)
+# @package _group_
 
-# For Go2 quadruped locomotion demo
 type: simple_gait
+name: simple_gait_controller
 
-# Gait parameters
-gait_frequency: 1.5     # Hz - oscillation frequency
-thigh_swing_amplitude: 0.35  # rad - thigh joint swing
-hip_swing_amplitude: 0.15    # rad - hip abduction swing
+# Control Mode
+mode: kinematic
+
+# Gait Parameters
+gait_frequency: 2.0  # Hz
+thigh_swing_amplitude: 0.35  # rad
+hip_swing_amplitude: 0.15  # rad
+
+# Physics/Collision
+check_collision: true
+collision_margin: 0.1
+robot_radius: 0.3
+
+# Simulation
 dt: 0.01
 
-# PD control gains
-kp: 40.0
-kd: 1.0
+# Debugging
+debug: false

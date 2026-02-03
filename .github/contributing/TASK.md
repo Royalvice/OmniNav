@@ -1,57 +1,55 @@
-# OmniNav 开发任务
+# Locomotion Dual Mode Implementation
 
-## 阶段一：架构设计与规划
-- [x] 确认需求与架构决策 <!-- id: arch-decisions -->
-- [x] 撰写详细需求文档 (`dev_docs/requirements.md`) <!-- id: requirements-doc -->
-- [x] 撰写详细实现计划 (`dev_docs/implementation_plan.md`) <!-- id: impl-plan -->
-- [x] 用户审核与反馈 <!-- id: user-review -->
+## Phase A: SimpleGaitController
+- [x] Add `gravity_compensation` support in `SimpleGaitController`
+- [x] Implement `_apply_kinematic_motion` for direct base control
+- [x] Implement sinusoidal leg animation (decoration)
+- [x] Create/Update `configs/locomotion/simple_gait.yaml`
+- [x] Verify with `examples/06_teleop_simple_gait.py`
 
-## 阶段二：核心框架搭建 (Phase 2 & 2.5 Complete)
+## Phase B: IKController
+- [x] Restore physics-based PD control
+- [x] Implement `_raycast_terrain` for ground detection
+- [x] Adjust IK foot targets based on terrain height
+- [x] Tune PD gains for stable physical walking
+- [x] Create/Update `configs/locomotion/ik_gait.yaml`
+- [x] Verify terrain adaptation on stairs/slopes
 
-### 2.1 Registry & Core
-- [x] 实现 `omninav/core/registry.py` <!-- id: registry-impl -->
-- [x] 创建 `tests/core/test_registry.py` <!-- id: core-test -->
+## Phase C: Demo Enhancements (Lidar & Camera)
+- [x] Enhance Demo 03 and Demo 04 following Genesis pattern
+    - [x] Fix ground plane rendering in both demos
+    - [x] Integrate Go2 locomotion control (WASD/QE) from Demo 01
+    - [x] Update Demo 03 to use Raycaster Depth Camera (Depth pattern)
+    - [x] Add Obstacle Ring for sensor verification
 
-### 2.2 Robot & Sensor Layer
-- [x] Robot/Sensor Base Refactoring (del duplicate SensorBase, add `mount_sensors`) <!-- id: base-refactor -->
-- [x] `Lidar2DSensor` & `CameraSensor` 实现 (Genesis API 适配) <!-- id: sensor-impl -->
-- [x] `Go2Robot` & `Go2wRobot` 实现 <!-- id: robot-impl -->
-- [x] Configs: `go2.yaml`, `go2w.yaml`, `sensor/*.yaml` <!-- id: config-files -->
+## Phase D: Documentation & Standardization
+- [x] Update `WALKTHROUGH.md` with new modes
+- [x] Synchronization with docs
 
-### 2.3 Locomotion Layer
-- [x] `WheelController` (Mecanum IK) <!-- id: wheel-impl -->
-- [x] `IKController` (Go2 Gait) <!-- id: ik-impl -->
-- [x] `configs/locomotion/*.yaml` <!-- id: loco-config -->
+## Phase E: Redesign IK Locomotion (Jitter Fix)
+- [x] Analyze and Redesign Controller Strategy
+    - [x] Identify root cause (Body-relative target feedback loop)
+    - [x] Propose "World-Frame Target Locking" state machine
+    - [x] Implement `LocomotionStateMachine` (Walk/Stand)
+    - [x] Implement smooth transitions (interpolation)
+    - [x] Verify stability in Demo 01 and Demo 07
 
-### 2.4 ROS2 Interface (Basic)
-- [x] `Ros2Bridge` Basic Impl (`/scan`, `/odom`, `/image`) <!-- id: ros2-basic -->
+## Phase F: Migrate Demos to Go2w
+- [x] Analyze `02_teleop_go2w.py` for control logic
+- [x] Migrate `03_lidar_visualization.py` to Go2w
+- [x] Migrate `04_camera_visualization.py` to Go2w
+- [x] Migrate `05_waypoint_navigation.py` to Go2w
+- [x] Verify all migrated demos
 
-### 2.5 集成与Demo
-- [x] 5 Interactive Examples (`examples/`) <!-- id: demos -->
+## Phase G: Enhanced Navigation Demo
+- [ ] Create `implementation_plan.md` (Done)
+- [x] Implement `MinimapVisualizer` class with trajectory drawing
+- [x] Implement `NavigationStateMachine` (Stop-Turn-Go logic)
+- [x] Update `05_waypoint_navigation.py` to integrate new features
+- [x] Verify strict control and click-to-nav functionality
 
-## 阶段三：算法与API标准化 (Phase 3 - Current)
-
-### 3.1 API 重构 (Batch-First & TypedDict)
-- [ ] 定义 Core Types (`omninav/core/types.py`) <!-- id: types-def -->
-  - `Observation`, `Action`, `RobotState` (Batch-First)
-- [ ] 更新 `OmniNavEnv` 支持 Batch 维度 <!-- id: env-batch -->
-- [ ] 重构 `RobotBase` / `SensorBase` 数据接口 <!-- id: component-batch -->
-
-### 3.2 导航算法实现
-- [ ] 实现 `WaypointFollower` (支持 Batch 输入) <!-- id: waypoint-algo -->
-- [ ] 定义 VLA 接口规范 (Observation with language) <!-- id: vla-interface -->
-
-### 3.3 运动层适配
-- [ ] `LocomotionController` 适配 Batch 输入 <!-- id: loco-batch -->
-- [ ] `RLLocomotionController` 占位实现 (End-to-End 支持) <!-- id: rl-loco -->
-
-## 阶段四：评测系统 (Evaluation)
-- [ ] 评测任务基类 (`TaskBase`) 升级 <!-- id: task-base -->
-- [ ] 实现 `PointNavTask` (SR, SPL) <!-- id: pointnav -->
-- [ ] 实现 `ObjectNavTask` <!-- id: objectnav -->
-
-## 阶段五：资产与高级特性
-- [ ] 场景生成器基类 (`SceneGeneratorBase`) <!-- id: scene-gen-base -->
-- [ ] 随机障碍物生成器 (`RandomObstacleGenerator`) <!-- id: rand-obstacle -->
-- [ ] 完善 ROS2 `/tf` 树 (map->odom->base) <!-- id: ros2-adv -->
-- [ ] 场景重建与轨迹重放 (P2优先级) <!-- id: sim2real-adv -->
+## Phase H: Lidar Visualization Refinement
+- [x] Modify `03_lidar_visualization.py`
+    - [x] Update `RaycasterDepthSensor` config: bigger size (256x256), no debug.
+    - [x] Add `gs.sensors.Lidar` for sparse red line visualization.
+- [x] Verify visualization and performance

@@ -84,8 +84,7 @@ def main():
     global running, _listener
     
     print("=" * 60)
-    print("  OmniNav Demo 01: Go2 Teleop (SimpleGait)")
-    print("  OmniNav Demo 01: Go2 Teleop (IKGait)")
+    print("  OmniNav Demo 01: Go2 Teleop (IK Controller)")
     print("=" * 60)
     print("Controls: WASD=move, Q/E=rotate, Space=stop, Esc=exit")
     print("=" * 60)
@@ -153,13 +152,29 @@ def main():
     print("\nSimulation started. Focus on viewer window and use WASD/QE.\n")
     
     # -------------------------------------------------------------------------
-    # 8. Main Simulation Loop
+    # 8. Initial Stabilization (let robot settle into standing pose)
+    # -------------------------------------------------------------------------
+    print("Stabilizing robot standing pose...")
+    for _ in range(100):
+        # Keep controlling to default pose during stabilization
+        controller.step(np.zeros(3))
+        sim.step()
+    print("Stabilization complete. Ready for teleop.\n")
+    
+    # -------------------------------------------------------------------------
+    # 9. Main Simulation Loop
     # -------------------------------------------------------------------------
     step_count = 0
+    last_cmd = np.zeros(3)
     try:
         while running:
             if _USE_POLLING:
                 poll_keyboard()
+            
+            # Debug: Print when command changes
+            if not np.allclose(current_cmd, last_cmd):
+                print(f"[DEBUG] cmd_vel = [{current_cmd[0]:.2f}, {current_cmd[1]:.2f}, {current_cmd[2]:.2f}]")
+                last_cmd = current_cmd.copy()
             
             # Step locomotion controller
             controller.step(current_cmd)
@@ -167,14 +182,21 @@ def main():
             # Step simulation
             sim.step()
             
-            # Status output
+            # Status output (every 100 steps for more frequent feedback)
             step_count += 1
-            if step_count % 500 == 0:
+            if step_count % 100 == 0:
                 state = robot.get_state()
                 pos = state.position
                 if pos.ndim > 1:
                     pos = pos[0]
-                print(f"Step {step_count}: Pos=[{pos[0]:.2f}, {pos[1]:.2f}]")
+                # Also print Z to see if robot is standing
+                # Debug: Print first 3 joint angles to check for jitter
+                qpos = robot.entity.get_qpos()
+                if hasattr(qpos, 'cpu'): qpos = qpos.cpu().numpy()
+                if qpos.ndim > 1: qpos = qpos[0]
+                joints = qpos[7:10] # FL Leg joints
+                
+                print(f"Step {step_count}: Pos=[{pos[0]:.4f}, {pos[1]:.4f}, {pos[2]:.4f}] | FL_Joints={np.array2string(joints, precision=4)}")
     
     except KeyboardInterrupt:
         pass

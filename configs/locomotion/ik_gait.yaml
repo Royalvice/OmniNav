@@ -2,12 +2,13 @@
 # For Go2 quadruped locomotion demo (IK-based)
 
 type: ik_controller
+mode: physics
 gait_type: trot
 
 # Gait parameters
-step_height: 0.10     # Meters (foot lift height)
-step_length: 0.20     # Meters (stride length)
-gait_frequency: 2.0   # Hz
+step_height: 0.08     # Meters (foot lift height during swing)
+step_length: 0.25     # Meters (stride length - larger = faster movement)
+gait_frequency: 2.5   # Hz (faster gait cycle)
 body_height: 0.28     # Meters (standing height from ground)
 
 # Simulation parameters
@@ -23,3 +24,6 @@ foot_links:
 # Offset from Calf origin to Foot center (from URDF)
 # FL_foot_joint origin is 0 0 -0.213
 foot_offset: [0.0, 0.0, -0.213]
+
+# Debug
+debug: false

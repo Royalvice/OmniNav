@@ -111,14 +111,27 @@ class Go2Robot(RobotBase):
         self._initial_pos = np.array(initial_pos)
         self._initial_quat = np.array(initial_quat)
         
-        # Add robot entity (following Genesis examples)
-        self.entity = self.scene.add_entity(
-            gs.morphs.URDF(
-                file=urdf_path,
-                pos=initial_pos,
-                quat=initial_quat,
+        # Gravity compensation (1.0 = fully compensated = kinematic/animation-style control)
+        gravity_compensation = float(self.cfg.get("gravity_compensation", 0.0))
+        
+        # Add robot entity with optional gravity compensation for kinematic control
+        if gravity_compensation > 0:
+            self.entity = self.scene.add_entity(
+                gs.morphs.URDF(
+                    file=urdf_path,
+                    pos=initial_pos,
+                    quat=initial_quat,
+                ),
+                material=gs.materials.Rigid(gravity_compensation=gravity_compensation),
             )
-        )
+        else:
+            self.entity = self.scene.add_entity(
+                gs.morphs.URDF(
+                    file=urdf_path,
+                    pos=initial_pos,
+                    quat=initial_quat,
+                )
+            )
         
         # Note: Joint indices can only be obtained after scene.build()
         # Here we just record joint names for deferred initialization
@@ -135,17 +148,32 @@ class Go2Robot(RobotBase):
             return  # Already initialized
         
         # Get joint DOF indices (reference: go2_env.py)
+        # Note: Go2 URDF has a floating base (6 DoFs) + 12 motor joints
         self._motors_dof_idx = np.array([
             self.entity.get_joint(name).dof_start 
             for name in self.JOINT_NAMES
         ], dtype=np.int32)
         
-        # Default joint positions
+        # Default joint positions (indexed by JOINT_NAMES order for control)
         self._default_dof_pos = np.array([
             self.DEFAULT_JOINT_ANGLES[name] for name in self.JOINT_NAMES
         ], dtype=np.float32)
         
-        # Set PD control gains
+        # Build full initial qpos: [pos(3), quat(4), joints(12)] = 19 elements
+        # IMPORTANT: qpos joint order must match URDF order (robot.joints[1:]),
+        # NOT our JOINT_NAMES order! Reference: go2_env.py line 97-101
+        init_dof_pos_urdf_order = np.array([
+            self.DEFAULT_JOINT_ANGLES[joint.name] 
+            for joint in self.entity.joints[1:]  # Skip floating base (joints[0])
+        ], dtype=np.float32)
+        
+        self._init_qpos = np.concatenate([
+            self._initial_pos,         # 3: base position
+            self._initial_quat,        # 4: base quaternion (wxyz)
+            init_dof_pos_urdf_order    # 12: joints in URDF order
+        ]).astype(np.float32)
+        
+        # Set PD control gains (higher values for quadruped stability)
         n_joints = len(self.JOINT_NAMES)
         self.entity.set_dofs_kp(
             [self._kp] * n_joints, 
@@ -239,12 +267,20 @@ class Go2Robot(RobotBase):
         
         Sets up:
         - Joint DOF indices
-        - PD control gains
-        - Initial joint positions for standing pose
+        - PD control gains  
+        - Initial robot state (full qpos including base position/orientation)
+        - Initial PD control target for standing
         """
         self._init_joint_indices()
-        # Set initial joint positions for proper standing pose
-        self.entity.set_dofs_position(self._default_dof_pos, self._motors_dof_idx)
+        
+        # Set full initial state using set_qpos (position + quaternion + joints)
+        # This properly initializes both base pose and joint positions
+        # zero_velocity=True clears all velocities
+        self.entity.set_qpos(self._init_qpos, zero_velocity=True)
+        
+        # Set PD control target to maintain standing pose
+        # This tells the PD controller what position to hold
+        self.entity.control_dofs_position(self._default_dof_pos, self._motors_dof_idx)
     
     @property
     def motors_dof_idx(self) -> np.ndarray:

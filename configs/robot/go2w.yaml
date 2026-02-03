@@ -13,7 +13,7 @@ urdf_source: project
 urdf_path: "robots/unitree/go2w/go2w.urdf"
 
 # Initial pose
-initial_pos: [0.0, 0.0, 0.45]
+initial_pos: [0.0, 0.0, 0.35]
 initial_quat: [1.0, 0.0, 0.0, 0.0]  # [w, x, y, z]
 
 # Default joint positions (Standing pose)
