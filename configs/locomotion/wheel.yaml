@@ -14,7 +14,7 @@ max_wheel_speed: 20.0    # Maximum wheel angular velocity (rad/s)
 
 # Wheel joint names (must match URDF)
 wheel_joints:
-  - FL_wheel_joint
-  - FR_wheel_joint
-  - RL_wheel_joint
-  - RR_wheel_joint
+  - FL_foot_joint
+  - FR_foot_joint
+  - RL_foot_joint
+  - RR_foot_joint

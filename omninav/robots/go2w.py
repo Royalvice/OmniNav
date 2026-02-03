@@ -36,10 +36,10 @@ class Go2wRobot(RobotBase):
 
     # Wheel joint names (should match URDF)
     WHEEL_JOINT_NAMES = [
-        "FL_wheel_joint",
-        "FR_wheel_joint",
-        "RL_wheel_joint",
-        "RR_wheel_joint",
+        "FL_foot_joint",
+        "FR_foot_joint",
+        "RL_foot_joint",
+        "RR_foot_joint",
     ]
 
     def __init__(self, cfg: DictConfig, scene: "gs.Scene"):
@@ -87,6 +87,8 @@ class Go2wRobot(RobotBase):
             )
         )
 
+        # Initial joint positions - moved to reset() to avoid "RigidEntity not built" warning
+
     def _init_wheel_indices(self) -> None:
         """
         Initialize wheel DOF indices.
@@ -99,7 +101,7 @@ class Go2wRobot(RobotBase):
         # Get wheel joint DOF indices
         self._wheel_dof_idx = np.array(
             [
-                self.entity.get_joint(name).dof_idx_local
+                self.entity.get_joint(name).dofs_idx_local[0]
                 for name in self.WHEEL_JOINT_NAMES
             ],
             dtype=np.int32,
@@ -193,3 +195,22 @@ class Go2wRobot(RobotBase):
             self.entity.control_dofs_velocity(
                 np.zeros(4, dtype=np.float32), self._wheel_dof_idx
             )
+            
+        # Reset joint positions
+        default_dof_pos = self.cfg.get("default_dof_pos", None)
+        if default_dof_pos:
+             try:
+                dof_indices = []
+                dof_pos = []
+                for name, pos in default_dof_pos.items():
+                    joint = self.entity.get_joint(name)
+                    if joint:
+                        dof_indices.append(joint.dofs_idx_local[0])
+                        dof_pos.append(pos)
+                if dof_indices:
+                    self.entity.set_dofs_position(
+                        np.array(dof_pos, dtype=np.float32), 
+                        np.array(dof_indices, dtype=np.int32)
+                    )
+             except Exception as e:
+                 print(f"Warning: Failed to reset joint positions: {e}")

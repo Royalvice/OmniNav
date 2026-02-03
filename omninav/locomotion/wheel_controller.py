@@ -66,11 +66,52 @@ class WheelController(LocomotionControllerBase):
         
         # Cached joint indices (set after robot spawns)
         self._wheel_joint_indices: np.ndarray = None
+        self._leg_indices: np.ndarray = None
+        self._leg_targets: np.ndarray = None
     
     def reset(self) -> None:
         """Reset controller state."""
         self._wheel_joint_indices = None
+        self._leg_indices = None
     
+    def _init_leg_control(self) -> None:
+        """Initialize indices and targets for leg holding."""
+        if self._leg_indices is not None:
+            return
+
+        default_dof_pos = self.robot.cfg.get("default_dof_pos", None)
+        if not default_dof_pos:
+            return
+
+        indices = []
+        targets = []
+        
+        # Collect all joints in default_dof_pos that are NOT wheels
+        for name, pos in default_dof_pos.items():
+            if name not in self._wheel_joint_names:
+                try:
+                    joint = self.robot.entity.get_joint(name)
+                    if joint:
+                        indices.append(joint.dofs_idx_local[0])
+                        targets.append(pos)
+                except Exception:
+                    pass
+        
+        if indices:
+            self._leg_indices = np.array(indices, dtype=np.int32)
+            self._leg_targets = np.array(targets, dtype=np.float32)
+
+    def force_snap_legs_to_default(self) -> None:
+        """Force reset leg joints to default positions (teleport)."""
+        if self._leg_indices is None:
+            self._init_leg_control()
+        
+        if self._leg_indices is not None and len(self._leg_indices) > 0:
+            self.robot.entity.set_dofs_position(
+                self._leg_targets,
+                self._leg_indices,
+            )
+
     def _get_wheel_indices(self) -> np.ndarray:
         """
         Get joint indices for wheel joints.
@@ -83,15 +124,15 @@ class WheelController(LocomotionControllerBase):
         
         # Find wheel joint indices from robot
         indices = []
-        joint_names = self.robot.entity.joint_names
         for wheel_name in self._wheel_joint_names:
-            if wheel_name in joint_names:
-                idx = joint_names.index(wheel_name)
-                indices.append(idx)
-            else:
+            try:
+                joint = self.robot.entity.get_joint(wheel_name)
+                if joint is None:
+                     raise ValueError(f"Joint {wheel_name} not found")
+                indices.append(joint.dofs_idx_local[0])
+            except Exception as e:
                 raise ValueError(
-                    f"Wheel joint '{wheel_name}' not found in robot. "
-                    f"Available joints: {joint_names}"
+                    f"Wheel joint '{wheel_name}' not found in robot. Error: {e}"
                 )
         
         self._wheel_joint_indices = np.array(indices, dtype=np.int32)
@@ -145,8 +186,19 @@ class WheelController(LocomotionControllerBase):
         wheel_velocities = self.compute_action(cmd_vel)
         indices = self._get_wheel_indices()
         
+        # Initialize leg control if needed
+        if self._leg_indices is None:
+            self._init_leg_control()
+            
+        # Apply leg holding (position control)
+        if self._leg_indices is not None and len(self._leg_indices) > 0:
+            self.robot.entity.control_dofs_position(
+                self._leg_targets,
+                self._leg_indices,
+            )
+        
         # Apply wheel velocities using velocity control
         self.robot.entity.control_dofs_velocity(
             wheel_velocities,
-            dof_indices=indices,
+            indices,
         )

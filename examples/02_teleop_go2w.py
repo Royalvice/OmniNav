@@ -8,6 +8,11 @@ This demo showcases:
 """
 
 import sys
+import warnings
+
+# Suppress annoying pygltflib warnings
+warnings.filterwarnings("ignore", category=UserWarning, module="pygltflib")
+
 import numpy as np
 from omegaconf import OmegaConf
 
@@ -20,10 +25,10 @@ from omninav.locomotion import WheelController
 current_cmd = np.zeros(3)  # [vx, vy, wz]
 running = True
 
-# Movement speeds (higher for wheeled robot)
-LINEAR_VEL = 1.0   # m/s
-LATERAL_VEL = 0.5  # m/s
-ANGULAR_VEL = 1.5  # rad/s
+# Movement speeds (reduced for stability)
+LINEAR_VEL = 0.5   # m/s
+# LATERAL_VEL removed (not using omni-directional)
+ANGULAR_VEL = 0.5  # rad/s
 
 # -----------------------------------------------------------------------------
 # Keyboard Input Handling
@@ -34,13 +39,16 @@ if _USE_POLLING:
     import ctypes
     _user32 = ctypes.windll.user32
     _VK = {
-        "w": 0x57, "a": 0x41, "s": 0x53, "d": 0x44,
+        "w": 0x57, "s": 0x53,
         "q": 0x51, "e": 0x45,
         "space": 0x20, "escape": 0x1B,
     }
 
-    def poll_keyboard():
-        global current_cmd, running
+    # State tracking for edge detection
+    _was_turning = False
+
+    def poll_keyboard(controller_ref):
+        global current_cmd, running, _was_turning
         def down(name):
             return (_user32.GetAsyncKeyState(_VK[name]) & 0x8000) != 0
         if down("escape"):
@@ -49,20 +57,30 @@ if _USE_POLLING:
         if down("space"):
             current_cmd[:] = 0
             return
+            
         current_cmd[0] = LINEAR_VEL if down("w") else (-LINEAR_VEL if down("s") else 0.0)
-        current_cmd[1] = LATERAL_VEL if down("a") else (-LATERAL_VEL if down("d") else 0.0)
+        # current_cmd[1] unused (lateral)
+        
+        is_turning = down("q") or down("e")
         current_cmd[2] = ANGULAR_VEL if down("q") else (-ANGULAR_VEL if down("e") else 0.0)
+        
+        if _was_turning and not is_turning:
+            # Released q or e
+            if controller_ref:
+                controller_ref.force_snap_legs_to_default()
+        
+        _was_turning = is_turning
+
 else:
     from pynput import keyboard
     _listener = None
+    _controller_ref = None # Hack to access controller in callback
     
     def on_press(key):
         global current_cmd, running
         try:
             if key.char == "w": current_cmd[0] = LINEAR_VEL
             elif key.char == "s": current_cmd[0] = -LINEAR_VEL
-            elif key.char == "a": current_cmd[1] = LATERAL_VEL
-            elif key.char == "d": current_cmd[1] = -LATERAL_VEL
             elif key.char == "q": current_cmd[2] = ANGULAR_VEL
             elif key.char == "e": current_cmd[2] = -ANGULAR_VEL
         except AttributeError:
@@ -73,8 +91,10 @@ else:
         global current_cmd
         try:
             if key.char in ["w", "s"]: current_cmd[0] = 0.0
-            elif key.char in ["a", "d"]: current_cmd[1] = 0.0
-            elif key.char in ["q", "e"]: current_cmd[2] = 0.0
+            elif key.char in ["q", "e"]: 
+                current_cmd[2] = 0.0
+                if _controller_ref:
+                    _controller_ref.force_snap_legs_to_default()
         except AttributeError: pass
 
 
@@ -92,6 +112,7 @@ def main():
             "show_viewer": True,
             "camera_pos": [2.0, 2.0, 1.5],
             "camera_lookat": [0.0, 0.0, 0.3],
+            "disable_keyboard_shortcuts": True,
         },
         "scene": {
             "ground_plane": {"enabled": True},
@@ -112,12 +133,19 @@ def main():
     sim.load_scene(cfg.scene)
     sim.build()
     
+    # Reset robot to apply initial standing pose
+    robot.reset()
+    
     # 5. Setup Wheel Controller
     controller = WheelController(cfg.control, robot)
     controller.reset()
 
     # 6. Start Input
     if not _USE_POLLING:
+        # Pass controller to pynput callbacks
+        global _controller_ref
+        _controller_ref = controller
+        
         _listener = keyboard.Listener(on_press=on_press, on_release=on_release)
         _listener.start()
 
@@ -127,7 +155,7 @@ def main():
     try:
         while running:
             if _USE_POLLING:
-                poll_keyboard()
+                poll_keyboard(controller)
 
             controller.step(current_cmd)
             sim.step()
