@@ -196,7 +196,7 @@ class IKController(LocomotionControllerBase):
     
     def compute_action(self, cmd_vel: np.ndarray) -> np.ndarray:
         """
-        Compute joint positions from cmd_vel using IK.
+        Compute joint positions from cmd_vel using Multilink IK.
         
         Args:
             cmd_vel: [vx, vy, wz] velocity command
@@ -204,47 +204,78 @@ class IKController(LocomotionControllerBase):
         Returns:
             Joint positions array (12 joints for 4 legs x 3 joints each)
         """
-        # Compute foot targets
+        import genesis as gs
+        
+        # 1. Compute foot targets (Cartesian)
+        dist_x = cmd_vel[0] * self._dt
+        dist_y = cmd_vel[1] * self._dt
+        ang_z = cmd_vel[2] * self._dt
+        
         foot_targets = self._compute_foot_targets(cmd_vel)
         
-        # Get current joint positions as initial guess
-        current_qpos = self.robot.entity.get_dofs_position().cpu().numpy()
-        if current_qpos.ndim > 1:
-            current_qpos = current_qpos[0]
+        # 2. Prepare for IK
+        target_links = []
+        target_pos_list = []
+        target_quat_list = []
         
-        joint_positions = current_qpos.copy()
+        # Default foot orientation
+        default_quat = np.array([1.0, 0.0, 0.0, 0.0])
         
-        # Solve IK for each leg
+        # Offset from Calf to Foot (approximate)
+        # We want Foot at foot_target, so Calf should be at foot_target - offset
+        # detailed: P_foot = P_calf + R * offset. Assuming R roughly identity (vertical leg) -> P_calf = P_foot - offset
+        # This is an approximation. A better way requires full kinematic chain logic or Genesis feature.
+        foot_offset = np.array(self.cfg.get("foot_offset", [0.0, 0.0, -0.213]), dtype=np.float32)
+        
         for leg_idx in range(4):
             foot_link_name = self._foot_link_names[leg_idx]
             foot_link = self.robot.entity.get_link(foot_link_name)
             
             if foot_link is None:
+                # Try to fallback to original name if config update failed/cached? 
+                # Or just skip
                 continue
-            
-            # Call Genesis IK solver
-            try:
-                result = self.robot.entity.inverse_kinematics(
-                    link=foot_link,
-                    pos=foot_targets[leg_idx],
-                    quat=None,  # No orientation constraint
-                    init_qpos=current_qpos,
-                    max_iterations=50,
-                    return_error=False,
-                )
                 
-                # Extract leg joint positions (3 joints per leg)
-                # Assuming joint order: hip, thigh, calf for each leg
-                leg_joint_start = leg_idx * 3
-                joint_positions[leg_joint_start:leg_joint_start + 3] = (
-                    result[leg_joint_start:leg_joint_start + 3]
-                )
-            except Exception:
-                # Keep current positions if IK fails
-                pass
-        
-        return joint_positions.astype(np.float32)
-    
+            target_links.append(foot_link)
+            
+            # Apply offset: Target Calf Pos = Foot Target - Foot Offset
+            # Assuming standing orientation (vertical leg, offset is local Z)
+            # Since offset is [0, 0, -0.213], minus offset means adding 0.213 to Z.
+            target_pos = foot_targets[leg_idx] - foot_offset
+            
+            target_pos_list.append(target_pos)
+            target_quat_list.append(default_quat)
+            
+        if not target_links:
+            return self.robot.entity.get_dofs_position().cpu().numpy()
+
+        # 3. Call Genesis Multilink IK
+        # rot_mask=[False, False, False] means we don't strictly enforce orientation 
+        # (allowing feet to tilt slightly avoids singularities), but we pass quat anyway
+        try:
+            # Current Q as initialization
+            current_q = self.robot.entity.get_dofs_position()
+            if hasattr(current_q, 'cpu'):
+                current_q = current_q.cpu().numpy()
+            if current_q.ndim > 1:
+                current_q = current_q[0]
+
+            q_sol = self.robot.entity.inverse_kinematics_multilink(
+                links=target_links,
+                poss=target_pos_list,
+                quats=target_quat_list,
+                rot_mask=[False] * len(target_links), # Relax orientation constraint
+                init_qpos=current_q,
+                max_iterations=20,
+                lr=0.5,
+            )
+            
+            return q_sol
+            
+        except Exception as e:
+            # Fallback on failure
+            return current_q
+            
     def step(self, cmd_vel: np.ndarray) -> None:
         """
         Execute one locomotion control step.
@@ -255,8 +286,9 @@ class IKController(LocomotionControllerBase):
         # Update gait phase
         self._phase = (self._phase + self._dt * self._gait_frequency) % 1.0
         
-        # Compute and apply joint positions
+        # Compute IK solution
         joint_positions = self.compute_action(cmd_vel)
         
         # Apply position control
-        self.robot.entity.control_dofs_position(joint_positions)
+        self.robot.control_joints_position(joint_positions)
+

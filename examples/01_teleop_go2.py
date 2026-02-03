@@ -20,7 +20,7 @@ from omegaconf import OmegaConf
 
 from omninav.core import GenesisSimulationManager
 from omninav.robots import Go2Robot
-from omninav.locomotion import SimpleGaitController
+from omninav.locomotion import SimpleGaitController, IKController
 
 # =============================================================================
 # Keyboard Input
@@ -85,6 +85,7 @@ def main():
     
     print("=" * 60)
     print("  OmniNav Demo 01: Go2 Teleop (SimpleGait)")
+    print("  OmniNav Demo 01: Go2 Teleop (IKGait)")
     print("=" * 60)
     print("Controls: WASD=move, Q/E=rotate, Space=stop, Esc=exit")
     print("=" * 60)
@@ -111,8 +112,8 @@ def main():
     # Load robot config from file
     robot_cfg = OmegaConf.load("configs/robot/go2.yaml")
     
-    # Load locomotion config
-    loco_cfg = OmegaConf.load("configs/locomotion/simple_gait.yaml")
+    # Load locomotion config (Use IK config)
+    loco_cfg = OmegaConf.load("configs/locomotion/ik_gait.yaml")
     
     # -------------------------------------------------------------------------
     # 2. Initialize Simulation (OmniNav SimulationManager)
@@ -137,9 +138,9 @@ def main():
     sim.build()
     
     # -------------------------------------------------------------------------
-    # 6. Create Locomotion Controller (OmniNav SimpleGaitController)
+    # 6. Create Locomotion Controller (OmniNav IKController)
     # -------------------------------------------------------------------------
-    controller = SimpleGaitController(loco_cfg, robot)
+    controller = IKController(loco_cfg, robot)
     controller.reset()
     
     # -------------------------------------------------------------------------
