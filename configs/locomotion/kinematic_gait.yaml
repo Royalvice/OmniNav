@@ -5,13 +5,53 @@ type: kinematic_gait
 name: kinematic_gait_controller
 
 # Gait Parameters
-gait_frequency: 2.0     # Hz (simple constant frequency)
+gait_frequency: 2.0     # Hz (legacy, now overridden by base_freq + freq_gain)
 body_height: 0.28       # m (nominal height above ground)
 
 # Terrain Adaptation & Collision Detection
-max_climb_height: 0.21        # m (max stair height = 3/4 of body_height)
-forward_raycast_dist: 0.3     # m (look-ahead distance for obstacle detection)
-collision_check_dist: 0.25    # m (close-range collision detection distance)
+max_climb_height: 0.21        # m (used to cap extra climb on stairs)
+forward_block_dist: 0.4       # m (legacy base distance, kept for compatibility)
+front_stop_dist: 0.02         # m (distance to stop forward motion)
+front_backoff_dist: 0.01      # m (distance within which we start gentle backoff)
+
+# Front Speed Bands (gradual slowdown)
+front_slow_far: 0.5           # m (distance beyond which no slowdown)
+front_slow_mid: 0.3           # m (distance threshold for medium slowdown)
+front_slow_scale_1: 0.7       # speed scaling factor for medium slowdown
+front_slow_scale_2: 0.4       # speed scaling factor for close slowdown
+
+# Side Collision Detection
+side_sensor_x: 0.0            # m (x offset of side sensors from base origin)
+side_sensor_y: 0.15           # m (lateral offset of side sensors, tuned for Go2 body width)
+side_sensor_z: 0.2            # m (height of side sensors above base link)
+side_stop_dist: 0.25          # m (distance to stop lateral motion)
+
+# Foot sensor layout (approximate offsets in base frame)
+front_foot_x: 0.25            # m (x offset of front feet from base origin)
+rear_foot_x: -0.25            # m (x offset of rear feet from base origin)
+foot_y: 0.12                  # m (lateral offset of feet from center line)
+foot_sensor_z: 0.35           # m (height of foot ray origin above base link)
+
+# Posture Control
+roll_gain: 0.6                # gain for roll angle (0-1, lower = less roll)
+robot_width: null             # m (robot width for roll calculation, null = auto from foot_y)
+
+# Gait Tempo (speed-adaptive rhythm)
+base_freq: 1.5                # Hz (base gait frequency when stopped)
+freq_gain: 1.0                # Hz/(m/s) (frequency increase per m/s speed)
+max_gait_speed: 1.0           # m/s (max speed for gait frequency calculation)
+gait_start_threshold: 0.05    # m/s (speed threshold to start gait)
+gait_stop_threshold: 0.02     # m/s (speed threshold to stop gait)
+phase_transition_alpha: 0.1   # smoothing factor for phase transitions
+
+# Foot Locking (visual-style)
+foot_lock_support_start: 0.25 # phase value where support phase starts (0-1)
+foot_lock_support_end: 0.75   # phase value where support phase ends (0-1)
+foot_lock_stair_threshold: 0.05 # m (front-rear height difference to disable foot lock during stair climbing)
+stair_lift_multiplier: 2.5   # multiplier for front leg lift amplitude when climbing stairs
+
+# Initial Height Adjustment
+foot_clearance: 0.02          # m (extra clearance above ground for feet at startup)
 
 # Smoothing
 velocity_alpha: 0.15    # Smooth cmd_vel input

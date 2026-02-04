@@ -169,13 +169,27 @@ def main():
     # 4. Build Scene with Stairs and Obstacles
     # -------------------------------------------------------------------------
     build_scene(sim)
-    sim.load_scene(cfg.scene)
-    sim.build()
-    
+    sim.load_scene(cfg.scene) # Restore ground plane
     # -------------------------------------------------------------------------
-    # 5. Create Locomotion Controller
+    # 5. Create Locomotion Controller (Before build to add sensors)
     # -------------------------------------------------------------------------
     controller = KinematicController(loco_cfg, robot)
+    
+    # NEW: Add controller-specific sensors (Raycasters for terrain)
+    # This must be done before sim.build()!
+    if hasattr(controller, "recover_cursor_lock"): # Dummy check, real method is add_sensors
+        pass 
+    try:
+        controller.add_sensors(sim.scene)
+    except AttributeError:
+        # Fallback if method not defined yet (during refactor)
+        print("Controller does not support add_sensors yet.")
+
+    # -------------------------------------------------------------------------
+    # 6. Build Scene
+    # -------------------------------------------------------------------------
+    sim.build()
+    
     controller.reset()
     
     # -------------------------------------------------------------------------
