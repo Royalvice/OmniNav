@@ -1,0 +1,23 @@
+# Kinematic Gait Controller Configuration (Ultra-Simple Game-Style)
+# Pure kinematic control with sine wave leg animation
+
+type: kinematic_gait
+name: kinematic_gait_controller
+
+# Gait Parameters
+gait_frequency: 2.0     # Hz (simple constant frequency)
+body_height: 0.28       # m (nominal height above ground)
+
+# Terrain Adaptation & Collision Detection
+max_climb_height: 0.21        # m (max stair height = 3/4 of body_height)
+forward_raycast_dist: 0.3     # m (look-ahead distance for obstacle detection)
+collision_check_dist: 0.25    # m (close-range collision detection distance)
+
+# Smoothing
+velocity_alpha: 0.15    # Smooth cmd_vel input
+
+# Simulation
+dt: 0.01
+
+# Debug
+debug: false

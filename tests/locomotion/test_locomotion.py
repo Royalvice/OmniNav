@@ -102,63 +102,91 @@ class TestWheelController:
         assert np.all(np.abs(wheel_velocities) <= max_speed)
 
 
-class TestIKController:
-    """Test suite for IKController."""
+class TestKinematicController:
+    """Test suite for KinematicController."""
     
-    def test_phase_update(self, mock_robot):
-        """Test that phase updates correctly."""
-        from omninav.locomotion.ik_controller import IKController
+    def test_phase_update_walking(self, mock_robot):
+        """Test that phase updates when walking."""
+        from omninav.locomotion.kinematic_controller import KinematicController
         
         cfg = OmegaConf.create({
-            "type": "ik_controller",
+            "type": "kinematic_gait",
             "gait_frequency": 2.0,
             "dt": 0.01,
-            "foot_links": ["FL_foot", "FR_foot", "RL_foot", "RR_foot"],
+            "foot_links": ["FL_calf", "FR_calf", "RL_calf", "RR_calf"],
+            "use_terrain_sensing": False,
         })
         
-        controller = IKController(cfg, mock_robot)
+        controller = KinematicController(cfg, mock_robot)
         
         initial_phase = controller._phase
-        controller.step(np.zeros(3))
+        # Walking command
+        controller._update_phase(np.array([0.5, 0.0, 0.0]))
         
         # Phase should have increased
-        expected_phase = (initial_phase + 0.01 * 2.0) % 1.0
-        assert abs(controller._phase - expected_phase) < 1e-6
+        assert controller._phase > initial_phase
     
-    def test_reset_clears_phase(self, mock_robot):
-        """Test that reset clears the phase."""
-        from omninav.locomotion.ik_controller import IKController
+    def test_phase_stops_at_rest(self, mock_robot):
+        """Test that phase settles to 0 or 0.5 when stopped."""
+        from omninav.locomotion.kinematic_controller import KinematicController
         
         cfg = OmegaConf.create({
-            "type": "ik_controller",
+            "type": "kinematic_gait",
             "gait_frequency": 2.0,
             "dt": 0.01,
-            "foot_links": ["FL_foot", "FR_foot", "RL_foot", "RR_foot"],
+            "foot_links": ["FL_calf", "FR_calf", "RL_calf", "RR_calf"],
+            "use_terrain_sensing": False,
         })
         
-        controller = IKController(cfg, mock_robot)
-        controller._phase = 0.5
+        controller = KinematicController(cfg, mock_robot)
+        controller._phase = 0.1  # Near 0
+        
+        # Stop command, run multiple updates
+        for _ in range(100):
+            controller._update_phase(np.array([0.0, 0.0, 0.0]))
+        
+        # Phase should settle to 0 or 0.5
+        assert controller._phase == 0.0 or controller._phase == 0.5
+    
+    def test_reset_clears_state(self, mock_robot):
+        """Test that reset clears the phase and state."""
+        from omninav.locomotion.kinematic_controller import KinematicController
+        
+        cfg = OmegaConf.create({
+            "type": "kinematic_gait",
+            "gait_frequency": 2.0,
+            "dt": 0.01,
+            "foot_links": ["FL_calf", "FR_calf", "RL_calf", "RR_calf"],
+            "use_terrain_sensing": False,
+        })
+        
+        controller = KinematicController(cfg, mock_robot)
+        controller._phase = 0.7
+        controller._state = 1
         controller.reset()
         
         assert controller._phase == 0.0
+        assert controller._state == controller.STATE_STAND
     
-    def test_compute_foot_targets_shape(self, mock_robot):
-        """Test foot targets have correct shape."""
-        from omninav.locomotion.ik_controller import IKController
+    def test_leg_phase_trot(self, mock_robot):
+        """Test trot gait: FL+RR same phase, FR+RL opposite."""
+        from omninav.locomotion.kinematic_controller import KinematicController
         
         cfg = OmegaConf.create({
-            "type": "ik_controller",
-            "step_height": 0.05,
-            "step_length": 0.15,
-            "foot_links": ["FL_foot", "FR_foot", "RL_foot", "RR_foot"],
+            "type": "kinematic_gait",
+            "foot_links": ["FL_calf", "FR_calf", "RL_calf", "RR_calf"],
+            "use_terrain_sensing": False,
         })
         
-        controller = IKController(cfg, mock_robot)
+        controller = KinematicController(cfg, mock_robot)
+        controller._phase = 0.3
         
-        cmd_vel = np.array([0.5, 0.0, 0.0])
-        foot_targets = controller._compute_foot_targets(cmd_vel)
-        
-        assert foot_targets.shape == (4, 3), "Should have 4 feet with 3D positions"
+        # FL and RR should have same phase
+        assert controller._get_leg_phase(0) == controller._get_leg_phase(3)
+        # FR and RL should have same phase
+        assert controller._get_leg_phase(1) == controller._get_leg_phase(2)
+        # The two groups should be 0.5 apart
+        assert abs(controller._get_leg_phase(0) - controller._get_leg_phase(1)) == pytest.approx(0.5, abs=0.01)
 
 
 class TestRLController:

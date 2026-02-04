@@ -1,93 +1,67 @@
-# Go2 quadruped robot configuration
+# Go2 Quadruped Robot Configuration
 # @package _group_
 
-# Robot type identifier (for Registry)
 type: unitree_go2
 name: go2
 
 # URDF source (genesis_builtin / project)
-# genesis_builtin: Use Genesis built-in assets
-# project: Use assets from the project assets/ directory
 urdf_source: genesis_builtin
-
-# Model file path
-# Automatically resolved based on urdf_source:
-# - genesis_builtin: relative to Genesis assets directory
-# - project: relative to project assets/ directory
 urdf_path: "urdf/go2/urdf/go2.urdf"
 
-# Initial pose (height 0.42m from Genesis go2_train.py)
-initial_pos: [0.0, 0.0, 0.42]
+# Initial pose (standing position)
+initial_pos: [0.0, 0.0, 0.4]
 initial_quat: [1.0, 0.0, 0.0, 0.0]  # [w, x, y, z]
 
-# Gravity compensation (0.0=physics, 1.0=kinematic/animation-style control)
-# Set to 0.5 for stable physics walking with traction (Phase B)
-gravity_compensation: 0.5
+# Default joint positions (standing pose matching Genesis go2_env.py)
+default_dof_pos:
+  FL_hip_joint: 0.0
+  FL_thigh_joint: 0.8
+  FL_calf_joint: -1.5
+  FR_hip_joint: 0.0
+  FR_thigh_joint: 0.8
+  FR_calf_joint: -1.5
+  RL_hip_joint: 0.0
+  RL_thigh_joint: 1.0
+  RL_calf_joint: -1.5
+  RR_hip_joint: 0.0
+  RR_thigh_joint: 1.0
+  RR_calf_joint: -1.5
 
-# Sensors - created via mount_sensors()
-sensors:
-  - name: front_lidar
-    type: lidar_2d
-    link_name: base
-    position: [0.3, 0.0, 0.1]
-    orientation: [0.0, 0.0, 0.0]  # roll, pitch, yaw (degrees)
-    horizontal_fov: 270.0
-    num_rays: 540
-    min_range: 0.1
-    max_range: 12.0
-    draw_debug: false
+# CRITICAL: URDF Joint Order Documentation
+# Genesis URDF joint order is DIFFERENT from logical leg-by-leg order!
+# This is the ACTUAL order in robot.joints[1:] (verified 2024-02-04):
+#
+# URDF Order (for set_qpos):
+#   [0-3]:   FL_hip, FR_hip, RL_hip, RR_hip      (all hips)
+#   [4-7]:   FL_thigh, FR_thigh, RL_thigh, RR_thigh  (all thighs)
+#   [8-11]:  FL_calf, FR_calf, RL_calf, RR_calf     (all calfs)
+#
+# Control Order (JOINT_NAMES, for control_dofs_position):
+#   [0-2]:   FL_hip, FL_thigh, FL_calf    (FL leg)
+#   [3-5]:   FR_hip, FR_thigh, FR_calf    (FR leg)
+#   [6-8]:   RL_hip, RL_thigh, RL_calf    (RL leg)
+#   [9-11]:  RR_hip, RR_thigh, RR_calf    (RR leg)
+#
+# IMPORTANT: 
+# - Use robot.default_dof_pos_urdf for set_qpos (URDF order)
+# - Use robot.default_dof_pos for control_dofs_position (JOINT_NAMES order)
+# - Kinematic controllers using set_qpos MUST use URDF order!
+#
+# Joint Index Mapping (URDF order):
+#   For leg_idx in [0=FL, 1=FR, 2=RL, 3=RR]:
+#     hip_idx = leg_idx          (0-3)
+#     thigh_idx = leg_idx + 4    (4-7)
+#     calf_idx = leg_idx + 8     (8-11)
 
-  - name: front_camera
-    type: camera
-    link_name: base
-    position: [0.3, 0.0, 0.1]
-    orientation: [0.0, 0.0, 0.0]
-    width: 640
-    height: 480
-    fov: 60.0
-    camera_types: ["rgb", "depth"]
-
-  # Locomotion Foot Raycasters (for terrain adaptation)
-  - name: FL_foot_sensor
-    type: lidar_2d
-    link_name: FL_calf
-    position: [0.0, 0.0, -0.2]
-    orientation: [0.0, 90.0, 0.0]  # Point down
-    num_rays: 1
-    max_range: 1.0
-    draw_debug: false
-
-  - name: FR_foot_sensor
-    type: lidar_2d
-    link_name: FR_calf
-    position: [0.0, 0.0, -0.2]
-    orientation: [0.0, 90.0, 0.0]  # Point down
-    num_rays: 1
-    max_range: 1.0
-    draw_debug: false
-
-  - name: RL_foot_sensor
-    type: lidar_2d
-    link_name: RL_calf
-    position: [0.0, 0.0, -0.2]
-    orientation: [0.0, 90.0, 0.0]  # Point down
-    num_rays: 1
-    max_range: 1.0
-    draw_debug: false
-
-  - name: RR_foot_sensor
-    type: lidar_2d
-    link_name: RR_calf
-    position: [0.0, 0.0, -0.2]
-    orientation: [0.0, 90.0, 0.0]  # Point down
-    num_rays: 1
-    max_range: 1.0
-    draw_debug: false
-
-# Control parameters (from Genesis go2_train.py)
+# Control parameters
 control:
-  mode: position  # position / velocity / force
-  kp: 150.0       # PD position gain (tuned for physics mode)
-  kd: 3.0         # PD damping gain
+  mode: position
+  kp: 20.0
+  kd: 0.5
   max_linear_vel: 1.0   # m/s
   max_angular_vel: 2.0  # rad/s
+
+# Gravity compensation for pure kinematic control (game-style)
+# 1.0 = full compensation (robot won't fall, pure kinematic, no physics)
+# 0.0 = no compensation (full physics, may fall)
+gravity_compensation: 1.0

@@ -167,6 +167,9 @@ class Go2Robot(RobotBase):
             for joint in self.entity.joints[1:]  # Skip floating base (joints[0])
         ], dtype=np.float32)
         
+        # Store URDF-ordered default positions for set_qpos
+        self._default_dof_pos_urdf = init_dof_pos_urdf_order.copy()
+        
         self._init_qpos = np.concatenate([
             self._initial_pos,         # 3: base position
             self._initial_quat,        # 4: base quaternion (wxyz)
@@ -289,8 +292,13 @@ class Go2Robot(RobotBase):
     
     @property
     def default_dof_pos(self) -> np.ndarray:
-        """Get default joint positions."""
+        """Get default joint positions (in JOINT_NAMES order, for control)."""
         return self._default_dof_pos
+    
+    @property
+    def default_dof_pos_urdf(self) -> np.ndarray:
+        """Get default joint positions in URDF order (for set_qpos)."""
+        return self._default_dof_pos_urdf
     
     def reset(self) -> None:
         """

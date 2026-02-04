@@ -1,11 +1,17 @@
 #!/usr/bin/env python3
 """
-Demo 01: Go2 Quadruped Keyboard Teleoperation (OmniNav Framework)
+Demo 01: Go2 Quadruped Teleoperation (Kinematic Controller)
 
-Demonstrates OmniNav framework usage:
-- GenesisSimulationManager for simulation
-- Go2Robot for robot
-- SimpleGaitController for locomotion
+A game-quality demonstration of quadruped locomotion:
+- Pure kinematic control (won't fall)
+- Procedural animation with foot locking
+- Terrain adaptation (stairs)
+- Obstacle avoidance
+
+Scene includes:
+- Ground plane
+- 3-step staircase
+- Obstacle cube
 
 Controls:
     WASD  - Move forward/backward/left/right
@@ -20,7 +26,7 @@ from omegaconf import OmegaConf
 
 from omninav.core import GenesisSimulationManager
 from omninav.robots import Go2Robot
-from omninav.locomotion import SimpleGaitController, IKController
+from omninav.locomotion import KinematicController
 
 # =============================================================================
 # Keyboard Input
@@ -78,19 +84,55 @@ else:
 
 
 # =============================================================================
+# Scene Building
+# =============================================================================
+def build_scene(sim):
+    """Add stairs and obstacle to scene."""
+    import genesis as gs
+    
+    # Staircase: 3 steps, ascending height
+    step_depths = [0.4, 0.4, 0.4]
+    step_heights = [0.05, 0.10, 0.15]
+    stair_start_x = 1.5
+    stair_width = 1.2
+    
+    for i, (depth, height) in enumerate(zip(step_depths, step_heights)):
+        x = stair_start_x + i * depth
+        sim.scene.add_entity(
+            morph=gs.morphs.Box(
+                pos=(x, 0.0, height / 2),
+                size=(depth, stair_width, height),
+                fixed=True,
+            ),
+            surface=gs.surfaces.Default(color=(0.6, 0.6, 0.6, 1.0)),
+        )
+    
+    # Obstacle cube
+    sim.scene.add_entity(
+        morph=gs.morphs.Box(
+            pos=(-1.0, 1.5, 0.25),
+            size=(0.5, 0.5, 0.5),
+            fixed=True,
+        ),
+        surface=gs.surfaces.Default(color=(0.8, 0.2, 0.2, 1.0)),
+    )
+
+
+# =============================================================================
 # Main
 # =============================================================================
 def main():
     global running, _listener
     
     print("=" * 60)
-    print("  OmniNav Demo 01: Go2 Teleop (IK Controller)")
+    print("  OmniNav Demo 01: Go2 Teleop (Kinematic Controller)")
     print("=" * 60)
+    print("Features: Procedural animation, foot locking, stair climbing")
     print("Controls: WASD=move, Q/E=rotate, Space=stop, Esc=exit")
     print("=" * 60)
     
     # -------------------------------------------------------------------------
-    # 1. Configuration (using OmegaConf)
+    # 1. Configuration
     # -------------------------------------------------------------------------
     cfg = OmegaConf.create({
         "simulation": {
@@ -98,105 +140,82 @@ def main():
             "substeps": 2,
             "backend": "gpu",
             "show_viewer": True,
-            "camera_pos": [2.5, 2.5, 2.0],
-            "camera_lookat": [0.0, 0.0, 0.3],
+            "camera_pos": [3.0, 3.0, 2.0],
+            "camera_lookat": [1.0, 0.0, 0.3],
             "camera_fov": 40,
-            "disable_keyboard_shortcuts": True,  # Allow WASD for teleop
+            "disable_keyboard_shortcuts": True,
         },
         "scene": {
             "ground_plane": {"enabled": True},
         },
     })
     
-    # Load robot config from file
     robot_cfg = OmegaConf.load("configs/robot/go2.yaml")
-    
-    # Load locomotion config (Use IK config)
-    loco_cfg = OmegaConf.load("configs/locomotion/ik_gait.yaml")
+    loco_cfg = OmegaConf.load("configs/locomotion/kinematic_gait.yaml")
     
     # -------------------------------------------------------------------------
-    # 2. Initialize Simulation (OmniNav SimulationManager)
+    # 2. Initialize Simulation
     # -------------------------------------------------------------------------
     sim = GenesisSimulationManager()
     sim.initialize(cfg)
     
     # -------------------------------------------------------------------------
-    # 3. Create and Add Robot (OmniNav Go2Robot)
+    # 3. Create and Add Robot
     # -------------------------------------------------------------------------
     robot = Go2Robot(robot_cfg, sim.scene)
     sim.add_robot(robot)
     
     # -------------------------------------------------------------------------
-    # 4. Load Scene Assets
+    # 4. Build Scene with Stairs and Obstacles
     # -------------------------------------------------------------------------
+    build_scene(sim)
     sim.load_scene(cfg.scene)
-    
-    # -------------------------------------------------------------------------
-    # 5. Build Scene (triggers robot.post_build for joint initialization)
-    # -------------------------------------------------------------------------
     sim.build()
     
     # -------------------------------------------------------------------------
-    # 6. Create Locomotion Controller (OmniNav IKController)
+    # 5. Create Locomotion Controller
     # -------------------------------------------------------------------------
-    controller = IKController(loco_cfg, robot)
+    controller = KinematicController(loco_cfg, robot)
     controller.reset()
     
     # -------------------------------------------------------------------------
-    # 7. Start Keyboard Listener
+    # 6. Start Keyboard Listener
     # -------------------------------------------------------------------------
     if not _USE_POLLING:
         _listener = keyboard.Listener(on_press=on_press, on_release=on_release)
         _listener.start()
     
-    print("\nSimulation started. Focus on viewer window and use WASD/QE.\n")
+    print("\nSimulation started. Walk towards the stairs at X=1.5.")
+    print("The robot should climb them without falling.\n")
     
     # -------------------------------------------------------------------------
-    # 8. Initial Stabilization (let robot settle into standing pose)
+    # 7. Initial Stabilization
     # -------------------------------------------------------------------------
-    print("Stabilizing robot standing pose...")
-    for _ in range(100):
-        # Keep controlling to default pose during stabilization
+    print("Stabilizing...")
+    for _ in range(50):
         controller.step(np.zeros(3))
         sim.step()
-    print("Stabilization complete. Ready for teleop.\n")
+    print("Ready!\n")
     
     # -------------------------------------------------------------------------
-    # 9. Main Simulation Loop
+    # 8. Main Simulation Loop
     # -------------------------------------------------------------------------
     step_count = 0
-    last_cmd = np.zeros(3)
     try:
         while running:
             if _USE_POLLING:
                 poll_keyboard()
             
-            # Debug: Print when command changes
-            if not np.allclose(current_cmd, last_cmd):
-                print(f"[DEBUG] cmd_vel = [{current_cmd[0]:.2f}, {current_cmd[1]:.2f}, {current_cmd[2]:.2f}]")
-                last_cmd = current_cmd.copy()
-            
-            # Step locomotion controller
             controller.step(current_cmd)
-            
-            # Step simulation
             sim.step()
             
-            # Status output (every 100 steps for more frequent feedback)
             step_count += 1
-            if step_count % 100 == 0:
+            if step_count % 200 == 0:
                 state = robot.get_state()
                 pos = state.position
                 if pos.ndim > 1:
                     pos = pos[0]
-                # Also print Z to see if robot is standing
-                # Debug: Print first 3 joint angles to check for jitter
-                qpos = robot.entity.get_qpos()
-                if hasattr(qpos, 'cpu'): qpos = qpos.cpu().numpy()
-                if qpos.ndim > 1: qpos = qpos[0]
-                joints = qpos[7:10] # FL Leg joints
-                
-                print(f"Step {step_count}: Pos=[{pos[0]:.4f}, {pos[1]:.4f}, {pos[2]:.4f}] | FL_Joints={np.array2string(joints, precision=4)}")
+                print(f"Step {step_count}: Pos=[{pos[0]:.2f}, {pos[1]:.2f}], Height={pos[2]:.3f}")
     
     except KeyboardInterrupt:
         pass
