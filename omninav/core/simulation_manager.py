@@ -123,7 +123,17 @@ class GenesisSimulationManager(SimulationManagerBase):
             raise RuntimeError("Scene already built. Cannot build twice.")
         
         # Get environment spacing configuration
-        env_spacing = self.cfg.get("simulation", {}).get("env_spacing", (1.0, 1.0))
+        ensure_tuple = lambda x: tuple(x) if isinstance(x, (list, pd.Series, np.ndarray, ListConfig)) else x
+        try:
+             from omegaconf import ListConfig
+        except ImportError:
+             ListConfig = list
+
+        env_spacing_cfg = self.cfg.get("simulation", {}).get("env_spacing", (1.0, 1.0))
+        if hasattr(env_spacing_cfg, "__iter__") and not isinstance(env_spacing_cfg, (str, bytes)):
+            env_spacing = tuple(float(x) for x in env_spacing_cfg)
+        else:
+            env_spacing = (1.0, 1.0)
         
         # Build scene (with parallel environments)
         self._scene.build(n_envs=self._n_envs, env_spacing=env_spacing)

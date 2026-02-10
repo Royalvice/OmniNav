@@ -1,75 +1,93 @@
-# Locomotion Implementation
+# OmniNav 开发任务清单 (Task List)
 
-## Phase A: Pure Game-Style Kinematic Controller (✅ 完成 - 顽皮狗级别)
-- [x] **Core Implementation (Pure Kinematic)**:
-    - [x] 预烘焙动画系统（Pre-Baked Animation）
-    - [x] 手动Base控制（Manual base position/orientation）
-    - [x] 快速插值查找（Cubic Interpolation）
-    - [x] 速度自适应 Phase 更新
-    - [x] 输入平滑（Velocity Smoothing）
-    - [x] 性能优化：90+ FPS（原 10-20 FPS）
-- [x] **Game-Style Features**:
-    - [x] 完全重力补偿（gravity_compensation: 1.0）
-    - [x] 纯运动学Base控制（手动更新位置/朝向）
-    - [x] 使用set_qpos（绕过物理，游戏风格）
-    - [x] 保持恒定高度（0.28m，无下沉）
-    - [x] 完美稳定性（永不摔倒）
-- [x] **Stability & Performance**:
-    - [x] 消除每帧 IK 解算导致的卡顿
-    - [x] 修复动画-物理冲突导致的鬼畜
-    - [x] 优化 Standing Mode（无需 IK）
-    - [x] 平滑 Phase 过渡（无突变）
-    - [x] 90+ FPS 稳定运行
-- [x] **Configuration & Validation**:
-    - [x] 更新 `configs/robot/go2.yaml`（添加gravity_compensation）
-    - [x] 更新 `configs/locomotion/kinematic_gait.yaml`
-    - [x] 验证流畅控制（WASD 无卡顿）
-    - [x] 验证高度稳定（0.28m恒定）
-    - [x] 验证前进/旋转（平滑自然）
+本文件追踪 OmniNav 项目的开发进度。
 
-**技术亮点**：
-- 参考游戏行业最佳实践（Unreal Engine, Naughty Dog）
-- IK 只在初始化时执行一次（~300ms）
-- 运行时使用快速插值（~0.1ms/帧）
-- 纯游戏风格：手动控制Base + 预烘焙腿部动画
-- 完美适配OmniNav目标：导航算法验证加速器
-- 保证稳定性：永不摔倒，行为可预测
+## Core v0.1.0 重构与实现 (Active Phases) ✅
 
-## Phase C: Demo Enhancements (Lidar & Camera)
-- [x] Enhance Demo 03 and Demo 04 following Genesis pattern
-    - [x] Fix ground plane rendering in both demos
-    - [x] Integrate Go2 locomotion control (WASD/QE) from Demo 01
-    - [x] Update Demo 03 to use Raycaster Depth Camera (Depth pattern)
-    - [x] Add Obstacle Ring for sensor verification
+### Phase 1: Foundation — 数据契约与基础设施 ✅
+- [x] 1.1 创建 `omninav/core/types.py` — 所有 TypedDict 数据契约
+- [x] 1.2 创建 `omninav/core/hooks.py` — Event/Hook 系统
+- [x] 1.3 创建 `omninav/core/lifecycle.py` — 组件生命周期状态机
+- [x] 1.4 重构 `omninav/core/registry.py` — 添加 BuildContext
+- [x] 1.5 测试: `tests/core/test_types.py`, `tests/core/test_hooks.py`, `test_lifecycle.py`
 
-## Phase D: Documentation & Standardization
-- [x] Update `WALKTHROUGH.md` with new modes
-- [x] Synchronization with docs
+### Phase 2: Robot 层重构 ✅
+- [x] 2.1 重构 `omninav/robots/base.py` — 删除 apply_command, 添加生命周期
+- [x] 2.2 更新 `omninav/robots/go2.py`
+- [x] 2.3 更新 `omninav/robots/go2w.py`
+- [x] 2.4 测试: `tests/robots/test_robot_base.py`
 
-## Phase E: Redesign IK Locomotion (Jitter Fix)
-- [x] Analyze and Redesign Controller Strategy
-    - [x] Identify root cause (Body-relative target feedback loop)
-    - [x] Propose "World-Frame Target Locking" state machine
-    - [x] Implement `LocomotionStateMachine` (Walk/Stand)
-    - [x] Implement smooth transitions (interpolation)
-    - [x] Verify stability in Demo 01 and Demo 07
+### Phase 3: Sensor 层解耦 ✅
+- [x] 3.1 重构 `omninav/sensors/base.py` — 解耦 scene/robot
+- [x] 3.2 更新 `omninav/sensors/lidar.py`
+- [x] 3.3 更新 `omninav/sensors/camera.py`
+- [x] 3.4 更新 `omninav/sensors/raycaster_depth.py`
+- [x] 3.5 测试: `tests/sensors/test_sensors.py`
 
-## Phase F: Migrate Demos to Go2w
-- [x] Analyze `02_teleop_go2w.py` for control logic
-- [x] Migrate `03_lidar_visualization.py` to Go2w
-- [x] Migrate `04_camera_visualization.py` to Go2w
-- [x] Migrate `05_waypoint_navigation.py` to Go2w
-- [x] Verify all migrated demos
+### Phase 4: Locomotion 层净化 ✅
+- [x] 4.1 重构 `omninav/locomotion/base.py` — 添加 bind_sensors, step(cmd_vel, obs=None)
+- [x] 4.2 重构 `omninav/locomotion/kinematic_controller.py` — 移除直接 import genesis
+- [x] 4.3 更新 `omninav/locomotion/wheel_controller.py`
+- [x] 4.4 重构 `omninav/locomotion/rl_controller.py`
+- [x] 4.5 测试: `tests/locomotion/test_locomotion.py`
 
-## Phase G: Enhanced Navigation Demo
-- [ ] Create `implementation_plan.md` (Done)
-- [x] Implement `MinimapVisualizer` class with trajectory drawing
-- [x] Implement `NavigationStateMachine` (Stop-Turn-Go logic)
-- [x] Update `05_waypoint_navigation.py` to integrate new features
-- [x] Verify strict control and click-to-nav functionality
+### Phase 5: Algorithm 层增强 ✅
+- [x] 5.1 重构 `omninav/algorithms/base.py` — 使用 Observation TypedDict
+- [x] 5.2 创建 `omninav/algorithms/pipeline.py` — AlgorithmPipeline
+- [x] 5.3 创建 `omninav/algorithms/local_planner.py` — LocalPlannerBase + DWA
+- [x] 5.4 创建 `omninav/algorithms/inspection_planner.py` — InspectionPlanner
+- [x] 5.5 测试: `tests/algorithms/test_pipeline.py`
 
-## Phase H: Lidar Visualization Refinement
-- [x] Modify `03_lidar_visualization.py`
-    - [x] Update `RaycasterDepthSensor` config: bigger size (256x256), no debug.
-    - [x] Add `gs.sensors.Lidar` for sparse red line visualization.
-- [x] Verify visualization and performance
+### Phase 6: Evaluation 层 — 巡检特化 ✅
+- [x] 6.1 更新 `omninav/evaluation/base.py` — 使用 Observation TypedDict
+- [x] 6.2 创建 `omninav/evaluation/tasks/inspection_task.py`
+- [x] 6.3 创建 `omninav/evaluation/metrics/inspection_metrics.py`
+- [x] 6.4 测试: `tests/evaluation/test_inspection.py`
+
+### Phase 7: Interface 层重构 ✅
+- [x] 7.1 创建 `omninav/core/runtime.py` — SimulationRuntime 编排器
+- [x] 7.2 重构 `omninav/interfaces/python_api.py` — 轻量 OmniNavEnv
+- [x] 7.3 创建 `omninav/interfaces/gym_wrapper.py` — OmniNavGymWrapper
+- [x] 7.4 重构 `omninav/interfaces/ros2/bridge.py` — 双向通信桥接
+- [x] 7.5 测试: `tests/interfaces/test_env.py`
+
+### Phase 8: 配置与示例 ✅
+- [x] 8.1 适配 `configs/config.yaml` — 迁移至分层 Hydra 系统
+- [x] 8.2 创建 `examples/run_inspection.py` — 全流程巡检演示
+- [x] 8.3 验证: 运行示例并确认指标输出
+
+### Phase 9: 验证与文档沉淀 🔄
+- [x] 9.1 集成测试: `tests/integration/test_full_pipeline.py`
+- [x] 9.2 全面更新 `.github/contributing/` 文档库
+- [ ] 9.3 完善 `docs/` 用户手册
+- [ ] 9.4 全流程回顾与代码冻结
+
+---
+
+## 历史阶段 (Foundational Work & Demos) ✅
+
+### Phase A: Pure Game-Style Kinematic Controller
+- [x] 核心实现：预烘焙动画系统、100Hz 插值
+- [x] 性能优化：耗时从 10ms 降至 0.1ms
+- [x] 验证：Go2 稳定行走上楼梯
+
+### Phase C: Demo Enhancements
+- [x] 修复地面渲染与障碍物环
+- [x] Lidar 射线可视化增强
+- [x] Go2w 遥控演示
+
+### Phase E: IK Locomotion Jitter Fix
+- [x] 解决世界坐标锁定下的抖动问题
+- [x] 引入状态机切换 (Stand/Walk)
+
+### Phase G: Enhanced Navigation Demo
+- [x] Minimap 实时轨迹绘制
+- [x] 点到点导航状态机
+
+---
+
+## 待开始阶段 (Future Roadmap) ⏳
+
+- [ ] **Phase 10: VLA 接入** - 大模型视觉语言策略集成
+- [ ] **Phase 11: 复杂地形生成** - 基于噪声的随机地形资产库
+- [ ] **Phase 12: 集群仿真** - 1000+ 环境下的多机协同评测

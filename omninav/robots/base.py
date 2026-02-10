@@ -2,56 +2,24 @@
 Robot Abstract Base Class
 
 Defines the interface specifications for robots in OmniNav.
-Sensors are now defined in omninav.sensors.base module.
 """
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass
 from typing import Dict, List, Optional, Any, TYPE_CHECKING
 import numpy as np
 from omegaconf import DictConfig
+
+from omninav.core.types import RobotState, JointInfo, MountInfo, SensorData
+from omninav.core.lifecycle import LifecycleMixin, LifecycleState
 
 if TYPE_CHECKING:
     import genesis as gs
     from omninav.sensors.base import SensorBase
 
 
-@dataclass
-class RobotState:
-    """
-    Robot state data class.
-
-    Attributes:
-        position: [x, y, z] world coordinate position
-        orientation: [qw, qx, qy, qz] quaternion orientation
-        linear_velocity: [vx, vy, vz] linear velocity
-        angular_velocity: [wx, wy, wz] angular velocity
-        joint_positions: Joint position array
-        joint_velocities: Joint velocity array
-    """
-
-    position: np.ndarray
-    orientation: np.ndarray
-    linear_velocity: np.ndarray
-    angular_velocity: np.ndarray
-    joint_positions: np.ndarray
-    joint_velocities: np.ndarray
-
-
-class RobotBase(ABC):
+class RobotBase(LifecycleMixin, ABC):
     """
     Abstract base class for robots.
-
-    All robot implementations must inherit from this class and implement
-    abstract methods. Robots are registered via ROBOT_REGISTRY and can
-    be dynamically instantiated from configuration.
-
-    Lifecycle:
-        1. __init__: Store configuration and scene reference
-        2. spawn: Load robot model via scene.add_entity()
-        3. mount_sensors: Create and attach sensors (before scene.build)
-        4. [scene.build is called externally]
-        5. get_state/get_observations: Read robot and sensor state
     """
 
     # Robot type identifier (for registration)
@@ -65,6 +33,7 @@ class RobotBase(ABC):
             cfg: Robot configuration (from configs/robot/*.yaml)
             scene: Genesis scene object
         """
+        self._state = LifecycleState.CREATED
         self.cfg = cfg
         self.scene = scene
         self.entity: Optional[Any] = None  # Genesis entity object
@@ -74,102 +43,106 @@ class RobotBase(ABC):
 
     @abstractmethod
     def spawn(self) -> None:
-        """
-        Spawn robot in the scene.
-
-        Loads robot model (URDF/MJCF) and adds to Genesis scene via
-        scene.add_entity(). After this call, self.entity.idx is available.
-        """
+        """Spawn robot in the scene."""
         pass
 
     @abstractmethod
     def get_state(self) -> RobotState:
-        """
-        Get current robot state.
-
-        Returns:
-            RobotState: Contains position, orientation, velocity, joint state
-        """
+        """Get current robot state (Batch-First)."""
         pass
 
     @abstractmethod
-    def apply_command(self, cmd_vel: np.ndarray) -> None:
-        """
-        Apply velocity command.
-
-        High-level interface called by LocomotionController to control
-        robot motion.
-
-        Args:
-            cmd_vel: [vx, vy, wz] linear velocity (m/s) + angular velocity (rad/s)
-        """
+    def get_joint_info(self) -> JointInfo:
+        """Get robot joint metadata (read-only descriptor)."""
         pass
+
+    def control_joints_position(
+        self, targets: np.ndarray, indices: np.ndarray
+    ) -> None:
+        """Apply joint position control targets."""
+        self._require_state(LifecycleState.BUILT, "control_joints_position")
+        self.entity.control_dofs_position(targets, indices)
+
+    def control_joints_velocity(
+        self, targets: np.ndarray, indices: np.ndarray
+    ) -> None:
+        """Apply joint velocity control targets."""
+        self._require_state(LifecycleState.BUILT, "control_joints_velocity")
+        self.entity.control_dofs_velocity(targets, indices)
 
     def post_build(self) -> None:
-        """
-        Called after scene.build().
-
-        Override this method to perform robot-specific initialization that
-        requires the scene to be built, such as:
-        - Getting joint DOF indices
-        - Setting PD control gains
-        - Setting initial joint positions
-
-        Must be called by SimulationManager after scene.build().
-        """
-        pass
+        """Called after scene.build()."""
+        if self.lifecycle_state >= LifecycleState.BUILT:
+            return
+        self._transition_to(LifecycleState.BUILT)
 
     def mount_sensors(self, sensor_cfgs: List[DictConfig]) -> None:
         """
-        Mount sensors from configuration after robot spawn.
-
-        Creates sensors via SENSOR_REGISTRY, attaches to robot links,
-        and calls sensor.create() to add to Genesis scene.
-
-        Must be called after spawn() and before scene.build().
-
-        Args:
-            sensor_cfgs: List of sensor configurations, each containing:
-                - type: Sensor type registered in SENSOR_REGISTRY
-                - link_name: Robot link to attach to
-                - position: [x, y, z] offset from link
-                - orientation: [roll, pitch, yaw] euler angles offset
+        Mount multiple sensors from configuration.
         """
+        self._require_state(LifecycleState.SPAWNED, "mount_sensors")
+
         from omninav.core.registry import SENSOR_REGISTRY
 
         for sensor_cfg in sensor_cfgs:
-            sensor_name = sensor_cfg.get("name", sensor_cfg.type)
-            link_name = sensor_cfg.get("link_name", "base_link")
-            position = list(sensor_cfg.get("position", [0.0, 0.0, 0.0]))
-            orientation = list(sensor_cfg.get("orientation", [0.0, 0.0, 0.0]))
-
-            # Create sensor via registry
             sensor = SENSOR_REGISTRY.build(sensor_cfg, scene=self.scene, robot=self)
+            
+            sensor_name = sensor_cfg.get("name", sensor.SENSOR_TYPE)
+            self.mount_sensor(sensor_name, sensor)
 
-            # Attach to robot link and create in scene
-            sensor.attach(link_name, position, orientation)
-            sensor.create()
+        self._transition_to(LifecycleState.SENSORS_MOUNTED)
 
-            self.sensors[sensor_name] = sensor
-
-    def get_observations(self) -> Dict[str, Any]:
+    def mount_sensor(self, name: str, sensor: "SensorBase") -> None:
         """
-        Get all sensor observations.
-
-        Returns:
-            Dictionary with sensor names as keys and sensor data as values
+        Mount a single pre-built sensor.
+        
+        Args:
+            name: Sensor name
+            sensor: Sensor instance
         """
-        obs = {}
+        # Determine attachment point from sensor config (stored in sensor)
+        # However, SensorBase stores cfg. 
+        # But we need to call attach() and create().
+        
+        # Note: attach() expects link_name, pos, orientation.
+        # We need to extract these from sensor.cfg if available.
+        cfg = sensor.cfg
+        link_name = cfg.get("link_name", "base_link")
+        
+        # Convert ListConfig to list if needed
+        pos = cfg.get("position", [0.0, 0.0, 0.0])
+        if hasattr(pos, "tolist"): pos = pos.tolist()
+        elif hasattr(pos, "__iter__"): pos = list(pos)
+            
+        ori = cfg.get("orientation", [0.0, 0.0, 0.0])
+        if hasattr(ori, "tolist"): ori = ori.tolist()
+        elif hasattr(ori, "__iter__"): ori = list(ori)
+
+        sensor.attach(link_name, pos, ori)
+        sensor.create()
+        self.sensors[name] = sensor
+
+    def get_observations(self) -> Dict[str, SensorData]:
+        """Get all sensor observations."""
+        obs: Dict[str, SensorData] = {}
         for name, sensor in self.sensors.items():
             obs[name] = sensor.get_data()
         return obs
 
-    def reset(self) -> None:
-        """
-        Reset robot to initial state.
+    def get_mount_info(self, link_name: str, position: list, orientation: list) -> MountInfo:
+        """Create a MountInfo descriptor."""
+        link = self.entity.get_link(link_name) if self.entity else None
+        return MountInfo(
+            link_handle=link,
+            position=np.array(position, dtype=np.float32),
+            orientation=np.array(orientation, dtype=np.float32),
+            scene_handle=self.scene,
+        )
 
-        Resets position, orientation, and optionally joint states.
-        """
+    def reset(self) -> None:
+        """Reset robot to initial state."""
+        self._require_state(LifecycleState.BUILT, "reset")
+
         if self.entity is None:
             return
 
@@ -177,3 +150,5 @@ class RobotBase(ABC):
             self.entity.set_pos(self._initial_pos)
         if self._initial_quat is not None:
             self.entity.set_quat(self._initial_quat)
+
+        self._transition_to(LifecycleState.READY)

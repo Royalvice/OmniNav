@@ -1,106 +1,86 @@
-# AGENTS.md - OmniNav AI Agent Guide
+# AGENTS.md - OmniNav AI Agent 指南
 
-Guide for AI coding assistants working with the OmniNav simulation platform.
+本指南面向协助开发 OmniNav 仿真平台的 AI 编码助手。
 
-## 1. Context Synchronization Protocol (CRITICAL)
+## 1. 上下文同步协议 (Context Sync Routine)
 
-**Before strictly executing any coding task**, you MUST perform the following **Context Sync Routine** to ensure you are aligned with the latest project state. **Execute this sequence in order**:
+**在执行任何编码任务前**，你必须按照以下顺序同步上下文，以确保与项目最新状态对齐：
 
-1.  **Understand Vision (`.github/contributing/REQUIREMENTS.md`)**:
-    *   **Priority 1**: Read this FIRST.
-    *   Understand the P0-P2 priorities and the strategic "Why" behind features.
-    *   Align any new request with the defined System Architecture.
+1.  **理解愿景 (`.github/contributing/REQUIREMENTS.md`)**: 理解 P0-P2 优先级，确保新功能符合系统架构。
+2.  **检查进度 (`.github/contributing/TASK.md`)**: 确认当前处于哪个 Phase，识别标记为 `[ ]` 的待办任务。
+3.  **对齐设计 (`.github/contributing/IMPLEMENTATION_PLAN.md`)**: **CRITICAL**。查看 Mermaid 图表、数据流规范（Batch-First）和 API 签名。
+4.  **确认功能 (`.github/contributing/WALKTHROUGH.md`)**: 了解已实现的功能和 Demo，避免重复造轮子。
 
-2.  **Check Status (`.github/contributing/TASK.md`)**:
-    *   Determine the current active Phase.
-    *   Identify the immediate next tasks marked as `[ ]`.
-    *   *Self-Correction*: If the user's request conflicts with `TASK.md`, ask for clarification.
+## 2. 核心架构原则与规范
 
-3.  **Verify Blueprint (`.github/contributing/IMPLEMENTATION_PLAN.md`)**:
-    *   **Architecture Validity**: Review the Mermaid diagrams and data flow.
-    *   **API Compliance**: STRICTLY check API signatures (esp. **Batch-First** requirements).
-    *   *Constraint*: Do not invent new patterns; follow the blueprints in this file.
+### 2.1 架构原则
+*   **Batch-First Everything**: 所有数据（Observation, Action, State）必须支持 `(num_envs, ...)` 维度。单一环境请使用 `(1, ...)`。
+*   **Strongly Typed**: 必须使用 `omninav.core.types` 中定义的 `TypedDict` 进行数据交换。
+*   **Registry-Driven**: 不要直接实例化组件，应通过注册器发现，例如 `ROBOT_REGISTRY.build(cfg, ...)`。
+*   **Lifecycle Awareness**: 组件必须继承 `LifecycleMixin` 并严格遵循 `CREATED -> SPAWNED -> BUILT -> READY` 状态流转。
 
-4.  **Confirm Capability (`.github/contributing/WALKTHROUGH.md`)**:
-    *   Understand what is already built and working (Demos/Sensors).
-    *   Avoid re-implementing existing features.
+### 2.2 核心编码规范
 
-## 2. Coding Standards & Principles
+#### 使用 LifecycleMixin 管理初始化时序
+```python
+class MyComponent(LifecycleMixin):
+    def __init__(self, cfg):
+        super().__init__()
+        # ... 初始化逻辑 ...
+        self._transition_to(LifecycleState.CREATED)
 
-### 2.1 Architecture Principles
-*   **Batch-First Everything**: All APIs must support `(num_envs, ...)` tensor shapes.
-    *   Single env? -> `(1, ...)`
-    *   Multi env? -> `(N, ...)`
-*   **Typed Interfaces**: Use `TypedDict` for all data exchange (`Observation`, `Action`, `RobotState`).
-*   **Separation of Concerns**:
-    *   **Core**: Engine wrappers only.
-    *   **Robot**: Hardware abstraction (Joints/Motors).
-    *   **Locomotion**: `cmd_vel` -> Joint Control.
-    *   **Algorithm**: High-level planning (`obs` -> `cmd_vel`).
+    def spawn(self):
+        self._require_state(LifecycleState.CREATED)
+        # ... 生成逻辑 ...
+        self._transition_to(LifecycleState.SPAWNED)
+```
 
-### 2.2 Genesis Integration Rules
-*   **Source of Truth**: The local `external/Genesis` codebase is the **ONLY** authority.
-    *   ❌ DO NOT rely on training data about Genesis (it changes fast).
-    *   ✅ DO use `view_file` on `external/Genesis/examples/**` to find correct API patterns.
-    *   ✅ DO use `view_file` on `external/Genesis/doc/**` for parameter details.
-*   **Performance**: Use Genesis's bulk APIs (e.g., `control_dofs_velocity` with indices) instead of loops.
+#### 使用 Registry 进行插件化扩展
+```python
+from omninav.core.registry import ALGORITHM_REGISTRY
 
-### 2.3 Documentation Hygiene
-*   **Update-As-You-Go**: If you implement a feature, you MUST check off the task in `.github/contributing/TASK.md` and update `.github/contributing/WALKTHROUGH.md`.
-*   **English Comments**: All code comments and docstrings MUST be in English.
-*   **Bilingual Docs**: Documentation content should be in **Chinese (中文)** for clarity, as requested by the user.
+@ALGORITHM_REGISTRY.register("my_awesome_algo")
+class MyAlgo(AlgorithmBase):
+    def __init__(self, cfg, **kwargs):
+        super().__init__(cfg)
+```
 
-## 3. Directory Structure Map
+#### Hydra 配置覆盖
+优先使用 `OmniNavEnv.from_config()`，它正确处理了 Hydra 组合逻辑。
+```python
+env = OmniNavEnv.from_config(overrides=["robot=go2w", "task=inspection"])
+```
+
+## 3. 目录结构映射
 
 ```text
 OmniNav/
-├── configs/                        # Hydra Configs
-│   ├── algorithm/                  # Nav/Planning algos
-│   ├── locomotion/                 # Locomotion (wheel, ik, rl)
-│   ├── robot/                      # Robot defs (go2, go2w)
-│   ├── sensor/                     # Sensor configs
-│   ├── scene/                      # Scene configurations
-│   ├── task/                       # Evaluation tasks
-│   └── config.yaml                 # Entry config
-├── .github/                        # GitHub config & Docs
-│   └── contributing/               # [Source of Truth] Dev Docs
-│       ├── REQUIREMENTS.md         
-│       ├── IMPLEMENTATION_PLAN.md  
-│       ├── TASK.md                 
-│       └── WALKTHROUGH.md          
-├── docs/                           # User Docs (Sphinx)
-├── external/                       # [Reference] Git Submodules
-│   ├── Genesis/                    # >> READ ME for Physics APIs
-│   └── genesis_ros/                # >> READ ME for ROS2 Bridge patterns
-├── omninav/                        # [Source Code] Core Package
-│   ├── algorithms/                 # [Layer] Algos (A*, RL, VLA)
-│   ├── assets/                     # [Layer] Asset Mgmt & Scene Gen
-│   ├── core/                       # [Layer] Core Engine & Registry
-│   ├── evaluation/                 # [Layer] Evaluation System
-│   ├── interfaces/                 # [Layer] External Interfaces (Gym, ROS2)
-│   ├── locomotion/                 # [Layer] Locomotion Control
-│   ├── robots/                     # [Layer] Robot Definitions
-│   └── sensors/                    # [Layer] Sensore Impl
-├── tests/                          # Tests
-└── examples/                       # [Validation] Interactive Examples
+├── configs/                        # Hydra 分层配置
+├── docs/                           # 用户文档与 API 参考
+├── omninav/                        # 核心源码包
+│   ├── algorithms/                 # 规划与导航算法 (Plugin-based)
+│   ├── assets/                     # 场景生成与资产加载
+│   ├── core/                       # 核心层：Runtime, Registry, Lifecycle, Hooks
+│   ├── evaluation/                 # 评测层：Task, Metrics
+│   ├── interfaces/                 # 接口层：Env, Gym, ROS2
+│   ├── locomotion/                 # 运动层：Kinematic/RL 控制器
+│   ├── robots/                     # 机器人层：Go2/Go2w
+│   └── sensors/                    # 传感器层：Batch 可视化
+├── tests/                          # 核心/接口及全流程集成测试
+└── examples/                       # 巡检自动化等全流程 Demo
 ```
 
-## 4. Reference Documentation
+## 4. 关键参考文档
 
-| Document | Description |
-|----------|-------------|
-| [REQUIREMENTS.md](.github/contributing/REQUIREMENTS.md) | Project vision, goals, and P0-P2 priorities |
-| [IMPLEMENTATION_PLAN.md](.github/contributing/IMPLEMENTATION_PLAN.md) | Technical architecture, API definitions, and data flow |
-| [TASK.md](.github/contributing/TASK.md) | Current task checklist and progress tracker |
-| [WALKTHROUGH.md](.github/contributing/WALKTHROUGH.md) | Current project status, completed features, and demos |
+| 文档                                                                  | 作用                                           |
+| --------------------------------------------------------------------- | ---------------------------------------------- |
+| [REQUIREMENTS.md](.github/contributing/REQUIREMENTS.md)               | 愿景与优先级 (Why)                             |
+| [IMPLEMENTATION_PLAN.md](.github/contributing/IMPLEMENTATION_PLAN.md) | 架构图、数据流、API 规范 (How)                 |
+| [TASK.md](.github/contributing/TASK.md)                               | 详细任务清单 (What's Next)                     |
+| [WALKTHROUGH.md](.github/contributing/WALKTHROUGH.md)                 | 进展记录、Demo 说明、技术亮点 (How it's built) |
 
-## 5. Current Development Focus (Dynamic Slot)
+## 5. 常见错误排查建议
 
-> *This section is dynamically interpreted based on `TASK.md`.*
-
-**Sample Focus (Phase 3)**:
-*   Refactoring core types to `TypedDict`.
-*   Updating `OmniNavEnv` to be Batch-First compatible.
-*   Implementing standardized Algorithm interfaces.
-
-**Instruction to Agent**: When the user asks "Status?" or "Next?", synthesize your answer from the documents listed in Section 1. Do not hallucinate progress.
+*   **Genesis API**: 不要依赖旧的训练数据。请直接 `view_file` 查看 `external/Genesis/examples` 中的官方示例。
+*   **Hydra Overrides**: 如果覆盖无效，检查是否在 `python_api.py` 的 `from_config` 中正确传递了 `overrides` 列表给 `hydra.compose`。
+*   **Batch Dimension**: 处理 Observation 时，始终检查 `len(obs)`。

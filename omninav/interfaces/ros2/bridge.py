@@ -11,9 +11,10 @@ from omegaconf import DictConfig
 if TYPE_CHECKING:
     from omninav.core.base import SimulationManagerBase
     from omninav.robots.base import RobotBase
+    from omninav.core.types import Observation
 
 
-class Ros2Bridge:
+class ROS2Bridge:
     """
     ROS2 bridge for OmniNav simulation.
     
@@ -329,14 +330,109 @@ class Ros2Bridge:
         nanosec = int((sim_time - sec) * 1e9)
         return Time(sec=sec, nanosec=nanosec)
     
-    def get_cmd_vel(self) -> Optional[np.ndarray]:
+    def get_external_cmd_vel(self) -> Optional[np.ndarray]:
         """
-        Get latest cmd_vel from subscriber.
-        
+        Get latest cmd_vel from ROS2 subscriber.
+
         Returns:
             [vx, vy, wz] velocity command or None if no message received
         """
         return self._cmd_vel
+
+    def publish_observation(self, obs: "Observation") -> None:
+        """
+        Publish full observation to ROS2.
+
+        Publishes clock, sensor data, and odometry from Observation.
+
+        Args:
+            obs: Observation TypedDict
+        """
+        if not self._enabled or self._node is None:
+            return
+
+        # Publish clock
+        self._publish_clock()
+
+        # Publish sensors from observation
+        sensors = obs.get("sensors", {})
+        for sensor_name, sensor_data in sensors.items():
+            if "ranges" in sensor_data and "scan" in self._publishers:
+                self._publish_laser_scan(sensor_data)
+            if "rgb" in sensor_data and "image" in self._publishers:
+                self._publish_camera_images(sensor_data)
+
+        # Publish odometry from robot state
+        if "robot_state" in obs and "odom" in self._publishers:
+            self._publish_odometry_from_state(obs["robot_state"])
+
+    def publish_cmd_vel(self, cmd_vel: np.ndarray) -> None:
+        """
+        Publish cmd_vel to ROS2.
+
+        Args:
+            cmd_vel: [vx, vy, wz] velocity command
+        """
+        if not self._enabled or self._node is None:
+            return
+
+        try:
+            from geometry_msgs.msg import Twist
+
+            if "cmd_vel_pub" not in self._publishers:
+                topics = self.cfg.get("topics", {})
+                cmd_topic = topics.get("cmd_vel_out", "/cmd_vel_out")
+                self._publishers["cmd_vel_pub"] = self._node.create_publisher(
+                    Twist, cmd_topic, 10
+                )
+
+            msg = Twist()
+            msg.linear.x = float(cmd_vel[0])
+            msg.linear.y = float(cmd_vel[1])
+            msg.angular.z = float(cmd_vel[2])
+            self._publishers["cmd_vel_pub"].publish(msg)
+        except ImportError:
+            pass
+
+    def _publish_odometry_from_state(self, robot_state) -> None:
+        """Publish odometry from RobotState (Batch-First arrays)."""
+        from nav_msgs.msg import Odometry
+
+        pos = np.asarray(robot_state.get("position", np.zeros((1, 3))))
+        if pos.ndim == 2:
+            pos = pos[0]
+        orient = np.asarray(robot_state.get("orientation", np.array([[1, 0, 0, 0]])))
+        if orient.ndim == 2:
+            orient = orient[0]
+        lin_vel = np.asarray(robot_state.get("linear_velocity", np.zeros((1, 3))))
+        if lin_vel.ndim == 2:
+            lin_vel = lin_vel[0]
+        ang_vel = np.asarray(robot_state.get("angular_velocity", np.zeros((1, 3))))
+        if ang_vel.ndim == 2:
+            ang_vel = ang_vel[0]
+
+        msg = Odometry()
+        msg.header.stamp = self._get_ros_time()
+        msg.header.frame_id = "odom"
+        msg.child_frame_id = "base_link"
+
+        msg.pose.pose.position.x = float(pos[0])
+        msg.pose.pose.position.y = float(pos[1])
+        msg.pose.pose.position.z = float(pos[2])
+
+        msg.pose.pose.orientation.w = float(orient[0])
+        msg.pose.pose.orientation.x = float(orient[1])
+        msg.pose.pose.orientation.y = float(orient[2])
+        msg.pose.pose.orientation.z = float(orient[3])
+
+        msg.twist.twist.linear.x = float(lin_vel[0])
+        msg.twist.twist.linear.y = float(lin_vel[1])
+        msg.twist.twist.linear.z = float(lin_vel[2])
+        msg.twist.twist.angular.x = float(ang_vel[0])
+        msg.twist.twist.angular.y = float(ang_vel[1])
+        msg.twist.twist.angular.z = float(ang_vel[2])
+
+        self._publishers["odom"].publish(msg)
     
     def shutdown(self) -> None:
         """Shutdown ROS2 node."""

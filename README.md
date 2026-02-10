@@ -103,14 +103,16 @@ env = OmniNavEnv(config_path="configs")
 obs = env.reset()
 
 # Run navigation loop
+# Run navigation loop
 while not env.is_done:
-    action = env.algorithm.step(obs)  # Or use your own algorithm
-    obs, info = env.step(action)
+    # Use built-in algorithm (configured via Hydra)
+    # or pass explicit action: env.step(cmd_vel)
+    obs, info = env.step()
 
 # Get evaluation results
 result = env.get_result()
 print(f"Success: {result.success}")
-print(f"SPL: {result.metrics.get('spl', 0):.3f}")
+print(f"Metrics: {result.metrics}")
 ```
 
 ### Using Custom Algorithm
@@ -119,17 +121,16 @@ print(f"SPL: {result.metrics.get('spl', 0):.3f}")
 from omninav import OmniNavEnv
 import numpy as np
 
-env = OmniNavEnv(config_path="configs")
+# Override configuration programmatically
+env = OmniNavEnv.from_config(config_path="configs", overrides=["task=navigation"])
 obs = env.reset()
 
 while not env.is_done:
     # Your custom navigation logic
-    robot_pos = obs["robot_state"].position
-    goal_pos = obs.get("goal_position", [5.0, 0.0, 0.0])
+    robot_pos = obs[0]["robot_state"]["position"]
     
-    # Simple proportional controller
-    direction = np.array(goal_pos[:2]) - robot_pos[:2]
-    cmd_vel = np.array([direction[0] * 0.5, direction[1] * 0.5, 0.0])
+    # Simple forward command
+    cmd_vel = np.array([0.5, 0.0, 0.0])
     
     obs, info = env.step(cmd_vel)
 
@@ -137,6 +138,8 @@ env.close()
 ```
 
 ## Architecture
+
+OmniNav v0.2 features a modular, registry-based architecture:
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -153,7 +156,8 @@ env.close()
 │   Go2 / Go2w / Custom Robots  │   Scene Loaders (USD/GLB/OBJ)    │
 ├─────────────────────────────────────────────────────────────────┤
 │                      Core Layer                                  │
-│              Genesis Simulation Manager Wrapper                  │
+│            SimulationRuntime & Genesis Wrapper                   │
+│          (Registry-based Component Construction)                 │
 └─────────────────────────────────────────────────────────────────┘
 ```
 

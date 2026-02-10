@@ -1,12 +1,15 @@
 """
 Raycaster-based Depth Sensor (Depth Camera via Raycasting)
+
+Returns SensorData TypedDict with Batch-First arrays.
 """
 
-from typing import Dict, TYPE_CHECKING
+from typing import TYPE_CHECKING
 import numpy as np
 from omegaconf import DictConfig
 
-from omninav.sensors.base import SensorBase
+from omninav.sensors.base import SensorBase, _to_numpy_batch
+from omninav.core.types import SensorData
 from omninav.core.registry import SENSOR_REGISTRY
 
 if TYPE_CHECKING:
@@ -18,6 +21,7 @@ class RaycasterDepthSensor(SensorBase):
     """
     Raycaster-based Depth Sensor using Genesis DepthCamera.
     Outputs a depth image using raycasting (not rasterization).
+    Returns Batch-First SensorData.
     """
 
     SENSOR_TYPE = "raycaster_depth"
@@ -53,20 +57,20 @@ class RaycasterDepthSensor(SensorBase):
 
         self._is_created = True
 
-    def get_data(self) -> Dict[str, np.ndarray]:
+    def get_data(self) -> SensorData:
+        """
+        Read depth data (Batch-First).
+
+        Returns:
+            SensorData with 'depth': (B, H, W) float32
+        """
         if not self.is_ready:
-            return {"depth": np.zeros((self._height, self._width), dtype=np.float32)}
+            return SensorData(
+                depth=np.zeros((1, self._height, self._width), dtype=np.float32)
+            )
 
         # Genesis DepthCameraSensor provides read_image()
         depth = self._gs_sensor.read_image()
-        
-        if hasattr(depth, "cpu"):
-            depth = depth.cpu().numpy()
-        else:
-            depth = np.array(depth)
+        depth_arr = _to_numpy_batch(depth, target_shape_after_batch=(self._height, self._width))
 
-        # Handle batch dimension if needed
-        if depth.ndim == 3:
-            depth = depth[0]
-
-        return {"depth": depth}
+        return SensorData(depth=depth_arr.astype(np.float32))

@@ -2,13 +2,15 @@
 2D Lidar Sensor Implementation
 
 Provides a 2D laser scanner using Genesis Lidar with SphericalPattern.
+Returns SensorData TypedDict with Batch-First arrays.
 """
 
-from typing import Dict, TYPE_CHECKING
+from typing import TYPE_CHECKING
 import numpy as np
 from omegaconf import DictConfig
 
-from omninav.sensors.base import SensorBase
+from omninav.sensors.base import SensorBase, _to_numpy_batch
+from omninav.core.types import SensorData
 from omninav.core.registry import SENSOR_REGISTRY
 
 if TYPE_CHECKING:
@@ -91,56 +93,42 @@ class Lidar2DSensor(SensorBase):
 
         self._is_created = True
 
-    def get_data(self) -> Dict[str, np.ndarray]:
+    def get_data(self) -> SensorData:
         """
-        Read 2D Lidar data.
+        Read 2D Lidar data (Batch-First).
 
         Returns:
-            Dictionary with:
-            - 'ranges': 1D array of range values [num_rays]
-            - 'points': 2D array of hit points in sensor frame [num_rays, 3]
+            SensorData with:
+            - 'ranges': (B, N) range values
+            - 'points': (B, N, 3) hit points in sensor frame
         """
         if not self.is_ready:
-            return {
-                "ranges": np.zeros(self._num_rays, dtype=np.float32),
-                "points": np.zeros((self._num_rays, 3), dtype=np.float32),
-            }
+            return SensorData(
+                ranges=np.zeros((1, self._num_rays), dtype=np.float32),
+                points=np.zeros((1, self._num_rays, 3), dtype=np.float32),
+            )
 
         # Read from Genesis sensor - returns NamedTuple with points, distances
         data = self._gs_sensor.read()
 
-        # Extract hit positions
-        hit_pos = data.points
-        if hasattr(hit_pos, "cpu"):
-            hit_pos = hit_pos.cpu().numpy()
-        else:
-            hit_pos = np.array(hit_pos)
+        # Extract hit positions → Batch-First (B, N, 3)
+        hit_pos = _to_numpy_batch(data.points, target_shape_after_batch=(self._num_rays, 3))
 
-        # Handle batch dimension: (n_envs, n_rays, 3) -> (n_rays, 3)
-        if hit_pos.ndim == 3:
-            hit_pos = hit_pos[0]
+        # Handle intermediate squeeze: (B, N, 1, 3) → (B, N, 3)
+        if hit_pos.ndim == 4 and hit_pos.shape[2] == 1:
+            hit_pos = hit_pos.squeeze(2)
 
-        # Flatten from (num_rays, 1, 3) to (num_rays, 3) if needed
-        if hit_pos.ndim == 3 and hit_pos.shape[1] == 1:
-            hit_pos = hit_pos.squeeze(1)
+        # Extract ranges → Batch-First (B, N)
+        ranges = _to_numpy_batch(data.distances, target_shape_after_batch=(self._num_rays,))
 
-        # Extract distances/ranges
-        ranges = data.distances
-        if hasattr(ranges, "cpu"):
-            ranges = ranges.cpu().numpy()
-        else:
-            ranges = np.array(ranges)
+        # Handle intermediate squeeze: (B, N, 1) → (B, N)
+        if ranges.ndim == 3 and ranges.shape[2] == 1:
+            ranges = ranges.squeeze(2)
 
-        if ranges.ndim == 2: # (n_envs, n_rays)
-            ranges = ranges[0]
-        
-        if ranges.ndim == 2 and ranges.shape[1] == 1:
-            ranges = ranges.squeeze(1)
-
-        return {
-            "ranges": ranges.flatten(),
-            "points": hit_pos.reshape(-1, 3).astype(np.float32),
-        }
+        return SensorData(
+            ranges=ranges.astype(np.float32),
+            points=hit_pos.astype(np.float32),
+        )
 
     @property
     def angle_min(self) -> float:

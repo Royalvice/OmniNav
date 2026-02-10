@@ -2,13 +2,15 @@
 Camera Sensor Implementation
 
 Provides RGB and depth camera using Genesis RasterizerCameraOptions.
+Returns SensorData TypedDict with Batch-First arrays.
 """
 
-from typing import Dict, List, TYPE_CHECKING
+from typing import List, TYPE_CHECKING
 import numpy as np
 from omegaconf import DictConfig
 
-from omninav.sensors.base import SensorBase
+from omninav.sensors.base import SensorBase, _to_numpy_batch
+from omninav.core.types import SensorData
 from omninav.core.registry import SENSOR_REGISTRY
 
 if TYPE_CHECKING:
@@ -93,24 +95,24 @@ class CameraSensor(SensorBase):
 
         self._is_created = True
 
-    def get_data(self) -> Dict[str, np.ndarray]:
+    def get_data(self) -> SensorData:
         """
-        Read camera data.
+        Read camera data (Batch-First).
 
         Returns:
-            Dictionary with enabled outputs:
-            - 'rgb': RGB image array [H, W, 3] uint8
-            - 'depth': Depth image array [H, W] float32
+            SensorData with enabled outputs:
+            - 'rgb': (B, H, W, 3) uint8
+            - 'depth': (B, H, W) float32
         """
         if not self.is_ready:
-            result = {}
+            result: SensorData = {}
             if "rgb" in self._camera_types:
                 result["rgb"] = np.zeros(
-                    (self._height, self._width, 3), dtype=np.uint8
+                    (1, self._height, self._width, 3), dtype=np.uint8
                 )
             if "depth" in self._camera_types:
                 result["depth"] = np.zeros(
-                    (self._height, self._width), dtype=np.float32
+                    (1, self._height, self._width), dtype=np.float32
                 )
             return result
 
@@ -123,17 +125,14 @@ class CameraSensor(SensorBase):
             normal=False,
         )
         
-        result = {}
+        result: SensorData = {}
         if rgb is not None:
-            # Genesis might return torch tensor or numpy
-            if hasattr(rgb, "cpu"):
-                rgb = rgb.cpu().numpy()
-            result["rgb"] = np.asarray(rgb, dtype=np.uint8)
+            rgb_arr = _to_numpy_batch(rgb, target_shape_after_batch=(self._height, self._width, 3))
+            result["rgb"] = rgb_arr.astype(np.uint8)
 
         if depth is not None:
-            if hasattr(depth, "cpu"):
-                depth = depth.cpu().numpy()
-            result["depth"] = np.asarray(depth, dtype=np.float32)
+            depth_arr = _to_numpy_batch(depth, target_shape_after_batch=(self._height, self._width))
+            result["depth"] = depth_arr.astype(np.float32)
 
         return result
 

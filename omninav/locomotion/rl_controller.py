@@ -4,7 +4,7 @@ RL Controller Placeholder
 Interface for RL-based locomotion policies (not implemented).
 """
 
-from typing import TYPE_CHECKING, Dict
+from typing import TYPE_CHECKING, Dict, Optional
 import numpy as np
 from omegaconf import DictConfig
 
@@ -76,12 +76,13 @@ class RLController(LocomotionControllerBase):
             "Use 'ik_controller' for Go2 or 'wheel_controller' for Go2w."
         )
     
-    def step(self, cmd_vel: np.ndarray) -> None:
+    def step(self, cmd_vel: np.ndarray, obs: Optional["Observation"] = None) -> None:
         """
         Execute one locomotion control step.
         
         Args:
             cmd_vel: [vx, vy, wz] velocity command
+            obs: Optional observation data
         
         Raises:
             NotImplementedError: RL policy not yet implemented

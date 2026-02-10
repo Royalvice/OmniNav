@@ -2,230 +2,316 @@
 OmniNav Python API - Main Interface Class
 
 Provides Gym-style simulation environment interface.
+Thin wrapper delegating to SimulationRuntime.
 """
 
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, Optional, Tuple, List, TYPE_CHECKING
 import numpy as np
 from omegaconf import DictConfig, OmegaConf
 from pathlib import Path
 
-from omninav.robots.base import RobotBase, RobotState
-from omninav.locomotion.base import LocomotionControllerBase
-from omninav.algorithms.base import AlgorithmBase
-from omninav.evaluation.base import TaskBase, TaskResult
+from omninav.core.runtime import SimulationRuntime
+from omninav.core.hooks import HookManager
+from omninav.core.types import Observation, Action
+from omninav.evaluation.base import TaskResult
+
+if TYPE_CHECKING:
+    from omninav.robots.base import RobotBase
+    from omninav.locomotion.base import LocomotionControllerBase
+    from omninav.algorithms.base import AlgorithmBase
+    from omninav.evaluation.base import TaskBase
 
 
 class OmniNavEnv:
     """
     OmniNav Main Interface Class (Gym-style).
-    
-    Provides clean API for:
+
+    Thin wrapper over SimulationRuntime providing a clean API for:
     - Creating simulation environment
     - Controlling robots
     - Running evaluation tasks
-    
+
     Usage example:
         >>> from omninav import OmniNavEnv
-        >>> 
+        >>>
         >>> env = OmniNavEnv(config_path="configs")
         >>> obs = env.reset()
-        >>> 
+        >>>
         >>> while not env.is_done:
-        ...     action = env.algorithm.step(obs)  # or custom algorithm
-        ...     obs, info = env.step(action)
-        >>> 
+        ...     obs, info = env.step()  # uses built-in algorithm
+        >>>
         >>> result = env.get_result()
         >>> print(f"Success: {result.success}")
+
+    Or with explicit actions:
+        >>> obs, info = env.step(Action(cmd_vel=np.array([1, 0, 0])))
     """
-    
+
     def __init__(
-        self, 
+        self,
         cfg: Optional[DictConfig] = None,
         config_path: Optional[str] = None,
         config_name: str = "config",
+        backend: str = "genesis",
+        overrides: Optional[List[str]] = None,
+        **kwargs,
     ):
         """
         Initialize OmniNav environment.
-        
+
         Args:
             cfg: Configuration object passed directly (highest priority)
             config_path: Path to Hydra configuration directory
             config_name: Configuration file name (without extension)
+            backend: Simulation backend ("genesis", "ros2", "replay")
+            overrides: List of Hydra overrides (e.g. ["task=inspection"])
+            **kwargs: Legacy support for kwargs overrides (deprecated)
         """
-        self.cfg = self._load_config(cfg, config_path, config_name)
-        
-        # Component references (lazy initialization)
-        self.sim = None  # SimulationManager
-        self.robot: Optional[RobotBase] = None
-        self.locomotion: Optional[LocomotionControllerBase] = None
-        self.algorithm: Optional[AlgorithmBase] = None
-        self.task: Optional[TaskBase] = None
-        
+        # Merge kwargs into overrides if present (for backward compatibility)
+        if kwargs:
+            if overrides is None:
+                overrides = []
+            for k, v in kwargs.items():
+                overrides.append(f"{k}={v}")
+
+        self.cfg = self._load_config(cfg, config_path, config_name, overrides)
+        self._runtime: Optional[SimulationRuntime] = None
         self._initialized = False
-        self._step_count = 0
-    
+
+    @classmethod
+    def from_config(cls, config_path: str, overrides: Optional[List[str]] = None) -> "OmniNavEnv":
+        """
+        Create OmniNavEnv from config directory with optional overrides.
+        """
+        return cls(config_path=config_path, overrides=overrides)
+
     def _load_config(
-        self, 
+        self,
         cfg: Optional[DictConfig],
         config_path: Optional[str],
         config_name: str,
+        overrides: Optional[List[str]],
     ) -> DictConfig:
-        """Load configuration."""
+        """Load configuration from various sources."""
         if cfg is not None:
-            return cfg
+            # If explicit cfg provided, apply overrides on top
+            result = cfg
+            if overrides:
+                 override_conf = OmegaConf.from_dotlist(overrides)
+                 result = OmegaConf.merge(result, override_conf)
+            return result
         
         if config_path is not None:
-            # Use Hydra to compose configuration
             try:
                 from hydra import compose, initialize_config_dir
                 from hydra.core.global_hydra import GlobalHydra
-                
-                # Clear any existing Hydra instance
+
                 if GlobalHydra.instance().is_initialized():
                     GlobalHydra.instance().clear()
-                
+
                 config_dir = str(Path(config_path).absolute())
                 with initialize_config_dir(config_dir=config_dir, version_base=None):
-                    cfg = compose(config_name=config_name)
-                return cfg
+                    # Pass overrides to compose!
+                    result = compose(config_name=config_name, overrides=overrides if overrides else [])
             except ImportError:
-                # Fall back to direct YAML loading
                 import yaml
+                # Fallback: manual load + dotlist merge
                 config_file = Path(config_path) / f"{config_name}.yaml"
-                with open(config_file) as f:
-                    return OmegaConf.create(yaml.safe_load(f))
-        
-        # Default empty configuration
-        return OmegaConf.create({})
-    
+                if config_file.exists():
+                    with open(config_file) as f:
+                        result = OmegaConf.create(yaml.safe_load(f))
+                else:
+                    result = OmegaConf.create({})
+                
+                if overrides:
+                    override_conf = OmegaConf.from_dotlist(overrides)
+                    result = OmegaConf.merge(result, override_conf)
+        else:
+            result = OmegaConf.create({})
+            if overrides:
+                override_conf = OmegaConf.from_dotlist(overrides)
+                result = OmegaConf.merge(result, override_conf)
+
+        return result
+
     def _initialize(self) -> None:
         """
-        Initialize all components based on configuration.
-        
+        Initialize runtime with all components.
+
         Lazy initialization, called on first reset().
         """
         if self._initialized:
             return
+
+        self._runtime = SimulationRuntime(self.cfg)
+
+        # Lazy initialization
+        if self._runtime is None:
+            self._runtime = SimulationRuntime(self.cfg)
         
-        # TODO: Implement component initialization
         # 1. Initialize SimulationManager
+        from omninav.core.simulation_manager import GenesisSimulationManager
+        sim = GenesisSimulationManager()
+        sim.initialize(self.cfg)
+        self._runtime.sim = sim
+
         # 2. Load scene
-        # 3. Create robot
-        # 4. Mount sensors
-        # 5. Create locomotion controller
-        # 6. Create algorithm (optional)
-        # 7. Create evaluation task (optional)
-        # 8. Build scene
+        if "scene" in self.cfg:
+            sim.load_scene(self.cfg.scene)
+        
+        # Trigger registration by importing submodules
+        import omninav.robots
+        import omninav.sensors
+        import omninav.locomotion
+        import omninav.algorithms
+        import omninav.evaluation.tasks
+        import omninav.evaluation.metrics
+
+        from omninav.core.registry import ROBOT_REGISTRY, SENSOR_REGISTRY, LOCOMOTION_REGISTRY, ALGORITHM_REGISTRY, TASK_REGISTRY
+        
+        robot_cfg = self.cfg.get("robot", {})
+        robot_type = robot_cfg.get("type", "go2")
+        if not isinstance(robot_cfg, DictConfig):
+            robot_cfg = OmegaConf.create(robot_cfg)
+        if "type" not in robot_cfg:
+            OmegaConf.update(robot_cfg, "type", robot_type)
+        robot = ROBOT_REGISTRY.build(robot_cfg, scene=sim.scene)
+        sim.add_robot(robot)
+        self._runtime.robots.append(robot)
+        self.robot = robot  # main robot reference
+        
+        # 4. Create Locomotion (to get required sensors)
+        loco_cfg = self.cfg.get("locomotion", {})
+        loco_type = loco_cfg.get("type", "kinematic")
+        if not isinstance(loco_cfg, DictConfig):
+            loco_cfg = OmegaConf.create(loco_cfg)
+        if "type" not in loco_cfg:
+            OmegaConf.update(loco_cfg, "type", loco_type)
+        locomotion = LOCOMOTION_REGISTRY.build(loco_cfg, robot=robot)
+        self._runtime.locomotions.append(locomotion)
+        self.locomotion = locomotion
+        
+        # 5. Create and mount sensors
+        # Merge config sensors and locomotion required sensors
+        sensors_to_create = {}
+        
+        # From config
+        if "sensor" in self.cfg:
+            for name, s_cfg in self.cfg.sensor.items():
+                if isinstance(s_cfg, (dict, DictConfig, dict)) and "type" in s_cfg:
+                    sensors_to_create[name] = s_cfg
+        
+        # From locomotion
+        if hasattr(locomotion, "required_sensors"):
+            req_sensors = locomotion.required_sensors
+            if req_sensors:
+                sensors_to_create.update(req_sensors)
+        
+        created_sensors = {}
+        for name, s_cfg in sensors_to_create.items():
+            if not isinstance(s_cfg, (dict, DictConfig)):
+                 # Skip invalid configs
+                 continue
+            s_type = s_cfg.get("type")
+            if s_type:
+                try:
+                    if not isinstance(s_cfg, DictConfig):
+                        s_cfg = OmegaConf.create(s_cfg)
+                    sensor = SENSOR_REGISTRY.build(s_cfg, scene=sim.scene, robot=robot)
+                    robot.mount_sensor(name, sensor)
+                    created_sensors[name] = sensor
+                    self._runtime.sensors[name] = sensor
+                except Exception as e:
+                    print(f"Failed to create sensor {name}: {e}")
+        
+        # Bind sensors to locomotion
+        locomotion.bind_sensors(created_sensors)
+        
+        # 6. Create Algorithm
+        if "algorithm" in self.cfg:
+            algo_cfg = self.cfg.algorithm
+            # Ensure type is set (Hydra might put it in defaults, but accessing node should have it)
+            algorithm = ALGORITHM_REGISTRY.build(algo_cfg)
+            self._runtime.algorithms.append(algorithm)
+            self.algorithm = algorithm
+            
+        # 7. Create Task
+        if "task" in self.cfg:
+            task_cfg = self.cfg.task
+            task = TASK_REGISTRY.build(task_cfg)
+            self._runtime.task = task
+            self.task = task
+            
+        # 8. Build Simulation
+        self._runtime.build()
         
         self._initialized = True
-    
-    def reset(self) -> Dict[str, Any]:
+
+    def reset(self) -> List[Observation]:
         """
         Reset environment.
-        
+
         Returns:
-            Initial observation
+            List of initial observations (one per robot)
         """
         if not self._initialized:
             self._initialize()
-        
-        self._step_count = 0
-        
-        # Reset simulation
-        if self.sim is not None:
-            self.sim.reset()
-        
-        # Reset locomotion controller
-        if self.locomotion is not None:
-            self.locomotion.reset()
-        
-        # Reset task and get task info
-        task_info = {}
-        if self.task is not None:
-            task_info = self.task.reset()
-        
-        # Reset algorithm
-        if self.algorithm is not None:
-            self.algorithm.reset(task_info)
-        
-        return self._get_observation()
-    
-    def step(self, action: Optional[np.ndarray] = None) -> Tuple[Dict[str, Any], Dict]:
+
+        return self._runtime.reset()
+
+    def step(
+        self,
+        actions: Optional[List[Action]] = None,
+    ) -> Tuple[List[Observation], Dict[str, Any]]:
         """
         Execute one simulation step.
-        
+
         Args:
-            action: cmd_vel [vx, vy, wz], if None uses built-in algorithm
-        
+            actions: List of Action dicts (one per robot), or None to use built-in algorithms
+
         Returns:
-            obs: New observation
-            info: Additional information
+            observations: List of Observation (one per robot)
+            info: Step metadata
         """
-        # If no action provided, use built-in algorithm
-        if action is None and self.algorithm is not None:
-            obs = self._get_observation()
-            action = self.algorithm.step(obs)
-        
-        if action is None:
-            action = np.zeros(3)
-        
-        # Locomotion control
-        if self.locomotion is not None:
-            self.locomotion.step(action)
-        
-        # Physics simulation
-        if self.sim is not None:
-            self.sim.step()
-        
-        self._step_count += 1
-        
-        # Record task data
-        if self.task is not None and self.robot is not None:
-            robot_state = self.robot.get_state()
-            self.task.step(robot_state, action)
-        
-        obs = self._get_observation()
-        info = {"action": action, "step": self._step_count}
-        
-        return obs, info
-    
-    def _get_observation(self) -> Dict[str, Any]:
-        """Get current observation."""
-        obs = {}
-        
-        if self.robot is not None:
-            obs.update(self.robot.get_observations())
-            obs["robot_state"] = self.robot.get_state()
-        
-        if self.sim is not None:
-            obs["sim_time"] = self.sim.get_sim_time()
-        
-        return obs
-    
+        return self._runtime.step(actions)
+
+    @property
+    def hooks(self) -> HookManager:
+        """Access hook manager for event registration."""
+        if self._runtime is None:
+            self._initialize()
+        return self._runtime.hooks
+
     @property
     def is_done(self) -> bool:
         """Whether task is finished."""
-        if self.task is not None and self.robot is not None:
-            return self.task.is_terminated(self.robot.get_state())
-        if self.algorithm is not None:
-            return self.algorithm.is_done
-        return False
-    
+        if self._runtime is None:
+            return False
+        return self._runtime.is_done
+
     def get_result(self) -> Optional[TaskResult]:
         """Get task result."""
-        if self.task is not None:
-            return self.task.compute_result()
-        return None
-    
+        if self._runtime is None:
+            return None
+        return self._runtime.get_result()
+
+    @property
+    def step_count(self) -> int:
+        """Current step count."""
+        return self._runtime.step_count if self._runtime else 0
+
+    @property
+    def sim_time(self) -> float:
+        """Current simulation time."""
+        return self._runtime.sim_time if self._runtime else 0.0
+
     def close(self) -> None:
         """Close environment and release resources."""
-        if self.sim is not None:
-            # self.sim.scene.destroy()
-            pass
         self._initialized = False
-    
+        self._runtime = None
+
     def __enter__(self):
         return self
-    
+
     def __exit__(self, exc_type, exc_val, exc_tb):
         self.close()

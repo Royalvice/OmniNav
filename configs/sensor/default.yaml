@@ -3,13 +3,13 @@
 
 # Depth Camera
 depth_camera:
-  type: depth_camera
+  type: camera
   width: 640
   height: 480
-  fov: 87  # degrees
+  fov: 60
   near: 0.1
   far: 10.0
-  outputs:
+  camera_types:
     - rgb
     - depth
 

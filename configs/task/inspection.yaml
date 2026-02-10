@@ -1,0 +1,20 @@
+# Inspection Task Configuration
+# Standard inspection mission
+
+type: inspection
+
+# Time limit for the entire mission (seconds)
+time_budget: 180.0
+
+# Minimum coverage required for success (0.0 - 1.0)
+coverage_requirement: 0.9
+
+# Distance tolerance to consider a waypoint visited (meters)
+waypoint_tolerance: 0.5
+
+# Inspection waypoints (x, y, z)
+waypoints:
+  - [2.0, 2.0, 0.0]
+  - [2.0, -2.0, 0.0]
+  - [-2.0, -2.0, 0.0]
+  - [-2.0, 2.0, 0.0]

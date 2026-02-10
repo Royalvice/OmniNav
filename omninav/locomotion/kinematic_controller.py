@@ -17,10 +17,9 @@ Design Philosophy:
 This is the SIMPLEST possible quadruped controller.
 """
 
-from typing import TYPE_CHECKING, Tuple
+from typing import TYPE_CHECKING, Tuple, Optional
 import numpy as np
 from omegaconf import DictConfig
-import genesis as gs
 
 from omninav.locomotion.base import LocomotionControllerBase
 from omninav.core.registry import LOCOMOTION_REGISTRY
@@ -139,83 +138,78 @@ class KinematicController(LocomotionControllerBase):
         # Smoothed stair level to reduce jitter
         self._stairs_level = 0.0
 
-    def add_sensors(self, scene) -> None:
-        """Add raycasters for terrain adaptation. Must be called BEFORE sim.build()."""
-        print("[KinematicController] Adding terrain sensors...")
+    @property
+    def required_sensors(self) -> dict:
+        """Dynamically generate required sensors based on layout."""
+        sensors = {}
         
-        # Four downward rays under feet
+        # 1. Foot sensors
         for name, offset in self._foot_offsets.items():
-            sensor = scene.add_sensor(
-                gs.sensors.Raycaster(
-                    pattern=gs.sensors.GridPattern(
-                        resolution=0.01,
-                        size=(0.0, 0.0),
-                        direction=(0.0, 0.0, -1.0),
-                    ),
-                    entity_idx=self.robot.entity.idx,
-                    link_idx_local=0,
-                    pos_offset=offset,
-                    euler_offset=(0.0, 0.0, 0.0),
-                    draw_debug=False,
-                    return_world_frame=True,
-                )
-            )
-            self._foot_sensors[name] = sensor
+            sensors[name] = {
+                "type": "raycaster",
+                "resolution": 0.01,
+                "size": [0.0, 0.0],
+                "direction": [0.0, 0.0, -1.0],
+                "pos_offset": list(offset),
+                "return_points": True,  # needed for height calc
+            }
+            
+        # 2. Front sensor (Forward fan)
+        sensors["front_ray"] = {
+            "type": "raycaster",
+            "resolution": 0.1,
+            "size": [0.4, 0.2],
+            "direction": [0.0, 0.0, 1.0],
+            "pos_offset": [0.35, 0.0, 0.15],
+            "euler_offset": [0.0, 90.0, 0.0],
+            "return_points": False,
+        }
         
-        # Forward fan for obstacle detection
-        self._front_sensor = scene.add_sensor(
-            gs.sensors.Raycaster(
-                pattern=gs.sensors.GridPattern(
-                    resolution=0.1,
-                    size=(0.4, 0.2),
-                    direction=(0.0, 0.0, 1.0),
-                ),
-                entity_idx=self.robot.entity.idx,
-                link_idx_local=0,
-                pos_offset=(0.35, 0.0, 0.15),
-                euler_offset=(0.0, 90.0, 0.0),
-                draw_debug=False,
-                return_world_frame=True,
-            )
-        )
+        # 3. Side sensors
+        # Left
+        side_dir_left = [0.0, 1.0, 0.0]
+        sensors["side_left"] = {
+            "type": "raycaster",
+            "resolution": 0.1,
+            "size": [0.0, 0.0],
+            "direction": side_dir_left,
+            "pos_offset": [0.0, self._side_sensor_offset_left[1], self._side_sensor_offset_left[2]],
+            "return_points": False,
+        }
         
-        # Left/right side sensors (single horizontal ray per side)
-        # We place them slightly outside the body and purely horizontal to avoid ground hits.
-        side_dir_left = np.array([0.0, 1.0, 0.0])  # pure +Y
-        side_dir_left = side_dir_left / np.linalg.norm(side_dir_left)
-        self._left_sensor = scene.add_sensor(
-            gs.sensors.Raycaster(
-                pattern=gs.sensors.GridPattern(
-                    resolution=0.1,
-                    size=(0.0, 0.0),  # single ray
-                    direction=tuple(side_dir_left),
-                ),
-                entity_idx=self.robot.entity.idx,
-                link_idx_local=0,
-                pos_offset=(0.0, self._side_sensor_offset_left[1], self._side_sensor_offset_left[2]),
-                euler_offset=(0.0, 0.0, 0.0),  # already horizontal
-                draw_debug=False,
-                return_world_frame=True,
-            )
-        )
+        # Right
+        side_dir_right = [0.0, -1.0, 0.0]
+        sensors["side_right"] = {
+            "type": "raycaster",
+            "resolution": 0.1,
+            "size": [0.0, 0.0],
+            "direction": side_dir_right,
+            "pos_offset": [0.0, self._side_sensor_offset_right[1], self._side_sensor_offset_right[2]],
+            "return_points": False,
+        }
         
-        side_dir_right = np.array([0.0, -1.0, 0.0])  # pure -Y
-        side_dir_right = side_dir_right / np.linalg.norm(side_dir_right)
-        self._right_sensor = scene.add_sensor(
-            gs.sensors.Raycaster(
-                pattern=gs.sensors.GridPattern(
-                    resolution=0.1,
-                    size=(0.0, 0.0),  # single ray
-                    direction=tuple(side_dir_right),
-                ),
-                entity_idx=self.robot.entity.idx,
-                link_idx_local=0,
-                pos_offset=(0.0, self._side_sensor_offset_right[1], self._side_sensor_offset_right[2]),
-                euler_offset=(0.0, 0.0, 0.0),  # already horizontal
-                draw_debug=False,
-                return_world_frame=True,
-            )
-        )
+        # Merge with config-defined sensors
+        cfg_sensors = super().required_sensors
+        sensors.update(cfg_sensors)
+        return sensors
+
+    def bind_sensors(self, sensors: dict) -> None:
+        """Bind instantiated sensors."""
+        super().bind_sensors(sensors)
+        
+        # Bind foot sensors
+        self._foot_sensors = {}
+        for name in self._foot_offsets.keys():
+            if name in sensors:
+                self._foot_sensors[name] = sensors[name]
+        
+        # Bind other sensors
+        self._front_sensor = sensors.get("front_ray")
+        self._left_sensor = sensors.get("side_left")
+        self._right_sensor = sensors.get("side_right")
+
+    # [REMOVED] add_sensors method
+
         
     def reset(self) -> None:
         """Reset controller state."""
@@ -283,26 +277,28 @@ class KinematicController(LocomotionControllerBase):
         """Update per-foot ground heights."""
         for name, sensor in self._foot_sensors.items():
             try:
-                raw = sensor.read()
-                if hasattr(raw, "points"):
-                    pts = raw.points
-                    if hasattr(pts, "cpu"):
-                        pts = pts.cpu().numpy()
+                # Use standard get_data() interface
+                data = sensor.get_data()
+                
+                # Try to get points first (best for height)
+                if "points" in data:
+                    pts = data["points"] # (B, N, 3)
                     if pts.ndim > 2:
                         pts = pts[0]
-                    pts = pts.reshape(-1, 3)
                     if pts.shape[0] > 0:
+                        # Use z-coordinate of first valid point
                         self._foot_heights[name] = float(pts[0, 2])
-                else:
-                    rg = raw.distances
-                    if hasattr(rg, "cpu"):
-                        rg = rg.cpu().numpy()
+                elif "ranges" in data:
+                    # Fallback to ranges
+                    rg = data["ranges"] # (B, N)
                     if rg.ndim > 1:
                         rg = rg[0]
                     if rg.size > 0:
-                        dist = float(rg.flatten()[0])
+                        dist = float(rg[0])
                         if dist < 5.0:
                             base_pos, _ = self._get_base_pose()
+                            # Rough estimate: current base z - distance
+                            # Note: this assumes vertical ray
                             self._foot_heights[name] = base_pos[2] - dist
             except Exception:
                 continue
@@ -315,10 +311,10 @@ class KinematicController(LocomotionControllerBase):
         if self._front_sensor is None:
             return
         try:
-            raw = self._front_sensor.read()
-            rg = raw.distances
-            if hasattr(rg, "cpu"):
-                rg = rg.cpu().numpy()
+            data = self._front_sensor.get_data()
+            if "ranges" not in data:
+                return
+            rg = data["ranges"] # (B, N)
             if rg.ndim > 1:
                 rg = rg[0]
             ranges = rg.flatten()
@@ -349,13 +345,12 @@ class KinematicController(LocomotionControllerBase):
         # Left sensor: block if any hit within side_stop_dist
         if self._left_sensor is not None:
             try:
-                raw = self._left_sensor.read()
-                rg = raw.distances
-                if hasattr(rg, "cpu"):
-                    rg = rg.cpu().numpy()
-                if rg.ndim > 1:
-                    rg = rg[0]
-                ranges = rg.flatten()
+                data = self._left_sensor.get_data()
+                if "ranges" in data:
+                    rg = data["ranges"]
+                    if rg.ndim > 1:
+                        rg = rg[0]
+                    ranges = rg.flatten()
                 if ranges.size > 0:
                     d_min = float(np.min(ranges))
                     if min_valid_dist <= d_min < self._side_stop_dist:
@@ -366,13 +361,12 @@ class KinematicController(LocomotionControllerBase):
         # Right sensor: block if any hit within side_stop_dist
         if self._right_sensor is not None:
             try:
-                raw = self._right_sensor.read()
-                rg = raw.distances
-                if hasattr(rg, "cpu"):
-                    rg = rg.cpu().numpy()
-                if rg.ndim > 1:
-                    rg = rg[0]
-                ranges = rg.flatten()
+                data = self._right_sensor.get_data()
+                if "ranges" in data:
+                    rg = data["ranges"]
+                    if rg.ndim > 1:
+                        rg = rg[0]
+                    ranges = rg.flatten()
                 if ranges.size > 0:
                     d_min = float(np.min(ranges))
                     if min_valid_dist <= d_min < self._side_stop_dist:
@@ -439,7 +433,7 @@ class KinematicController(LocomotionControllerBase):
         
         return joints
     
-    def step(self, cmd_vel: np.ndarray) -> None:
+    def step(self, cmd_vel: np.ndarray, obs: Optional["Observation"] = None) -> None:
         """Main control step."""
         # 0. Read sensors
         if self._foot_sensors:

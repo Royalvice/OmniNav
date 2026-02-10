@@ -87,7 +87,7 @@ class TestLidar2DSensor:
         data = sensor.get_data()
         
         assert "ranges" in data
-        assert data["ranges"].shape == (360,)
+        assert data["ranges"].shape == (1, 360)
         assert np.all(data["ranges"] == 0)
 
 
@@ -131,6 +131,6 @@ class TestCameraSensor:
         data = sensor.get_data()
         
         assert "rgb" in data
-        assert data["rgb"].shape == (240, 320, 3)
+        assert data["rgb"].shape == (1, 240, 320, 3)
         assert "depth" in data
-        assert data["depth"].shape == (240, 320)
+        assert data["depth"].shape == (1, 240, 320)

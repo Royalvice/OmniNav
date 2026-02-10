@@ -8,6 +8,7 @@ Design principles:
 2. Control joints via robot.control_dofs_position()
 3. Get state via robot.get_pos/quat()
 4. Follow Genesis go2_env.py control patterns
+5. Batch-First: all state arrays are (B, ...) shaped
 
 References:
 - examples/locomotion/go2_env.py
@@ -18,12 +19,26 @@ from typing import Any, Dict, List, Optional, TYPE_CHECKING
 from omegaconf import DictConfig
 import numpy as np
 
-from omninav.robots.base import RobotBase, RobotState
+from omninav.robots.base import RobotBase
+from omninav.core.types import RobotState, JointInfo
+from omninav.core.lifecycle import LifecycleState
 from omninav.assets import resolve_urdf_path
 from omninav.core.registry import ROBOT_REGISTRY
 
 if TYPE_CHECKING:
     import genesis as gs
+
+
+def _to_numpy(x) -> np.ndarray:
+    """Convert Genesis tensor to numpy, ensuring Batch-First shape."""
+    if hasattr(x, 'cpu'):
+        arr = x.cpu().numpy()
+    else:
+        arr = np.asarray(x)
+    # Ensure batch dimension: (3,) → (1, 3)
+    if arr.ndim == 1:
+        arr = arr.reshape(1, -1)
+    return arr
 
 
 @ROBOT_REGISTRY.register("unitree_go2")
@@ -38,11 +53,6 @@ class Go2Robot(RobotBase):
     - Sensor mounting
     
     Configuration file: configs/robot/go2.yaml
-    
-    Attributes:
-        cfg: Robot configuration
-        scene: Genesis scene object
-        entity: Genesis entity object
     """
     
     ROBOT_TYPE: str = "unitree_go2"
@@ -83,6 +93,7 @@ class Go2Robot(RobotBase):
         
         self._motors_dof_idx: Optional[np.ndarray] = None
         self._default_dof_pos: Optional[np.ndarray] = None
+        self._joint_info: Optional[JointInfo] = None
         
         # PD control parameters
         self._kp = cfg.get("control", {}).get("kp", 20.0)
@@ -98,6 +109,7 @@ class Go2Robot(RobotBase):
         
         Uses gs.morphs.URDF to load model, path resolved by path_resolver.
         """
+        self._require_state(LifecycleState.CREATED, "spawn")
         import genesis as gs
         
         # Resolve URDF path (transparently handles genesis_builtin vs project)
@@ -133,8 +145,7 @@ class Go2Robot(RobotBase):
                 )
             )
         
-        # Note: Joint indices can only be obtained after scene.build()
-        # Here we just record joint names for deferred initialization
+        self._transition_to(LifecycleState.SPAWNED)
     
     def _init_joint_indices(self) -> None:
         """
@@ -142,8 +153,6 @@ class Go2Robot(RobotBase):
         
         Must be called after scene.build().
         """
-        import genesis as gs
-        
         if self._motors_dof_idx is not None:
             return  # Already initialized
         
@@ -186,19 +195,30 @@ class Go2Robot(RobotBase):
             [self._kd] * n_joints, 
             self._motors_dof_idx
         )
+
+        # Build JointInfo descriptor
+        self._joint_info = JointInfo(
+            names=tuple(self.JOINT_NAMES),
+            dof_indices=self._motors_dof_idx.copy(),
+            num_joints=n_joints,
+            position_limits_lower=np.full(n_joints, -np.pi, dtype=np.float32),
+            position_limits_upper=np.full(n_joints, np.pi, dtype=np.float32),
+            velocity_limits=np.full(n_joints, 20.0, dtype=np.float32),
+        )
     
     def get_state(self) -> RobotState:
         """
-        Get current robot state.
+        Get current robot state (Batch-First).
         
         Returns:
-            RobotState: Contains position, orientation, velocity, joint state
+            RobotState: TypedDict with all arrays shaped (B, ...)
         """
+        self._require_state(LifecycleState.BUILT, "get_state")
         self._init_joint_indices()
         
         # Get base state
-        position = self.entity.get_pos()  # [n_envs, 3] or [3]
-        orientation = self.entity.get_quat()  # [n_envs, 4] or [4]
+        position = self.entity.get_pos()
+        orientation = self.entity.get_quat()
         linear_velocity = self.entity.get_vel()
         angular_velocity = self.entity.get_ang()
         
@@ -206,63 +226,25 @@ class Go2Robot(RobotBase):
         joint_positions = self.entity.get_dofs_position(self._motors_dof_idx)
         joint_velocities = self.entity.get_dofs_velocity(self._motors_dof_idx)
         
-        # Convert to numpy (Genesis may return torch tensor)
-        def to_numpy(x):
-            if hasattr(x, 'cpu'):
-                return x.cpu().numpy()
-            return np.array(x)
-        
         return RobotState(
-            position=to_numpy(position),
-            orientation=to_numpy(orientation),
-            linear_velocity=to_numpy(linear_velocity),
-            angular_velocity=to_numpy(angular_velocity),
-            joint_positions=to_numpy(joint_positions),
-            joint_velocities=to_numpy(joint_velocities),
+            position=_to_numpy(position),
+            orientation=_to_numpy(orientation),
+            linear_velocity=_to_numpy(linear_velocity),
+            angular_velocity=_to_numpy(angular_velocity),
+            joint_positions=_to_numpy(joint_positions),
+            joint_velocities=_to_numpy(joint_velocities),
         )
     
-    def apply_command(self, cmd_vel: np.ndarray) -> None:
+    def get_joint_info(self) -> JointInfo:
         """
-        Apply velocity command (high-level interface).
+        Get Go2 joint metadata.
         
-        Note: This is a simplified kinematic interface. Actual quadruped control
-        requires conversion to joint targets via LocomotionController.
-        
-        For simple navigation testing, can directly set base velocity (kinematic mode only).
-        
-        Args:
-            cmd_vel: [vx, vy, wz] linear velocity (m/s) + angular velocity (rad/s)
+        Returns:
+            JointInfo with 12 motor joint names and indices
         """
-        # Clamp velocity
-        cmd_vel = np.array(cmd_vel)
-        cmd_vel[:2] = np.clip(cmd_vel[:2], -self._max_linear_vel, self._max_linear_vel)
-        cmd_vel[2] = np.clip(cmd_vel[2], -self._max_angular_vel, self._max_angular_vel)
-        
-        # TODO: Actual implementation needs LocomotionController conversion
-        # This is just an interface placeholder
-        pass
-    
-    def control_joints_position(self, target_positions: np.ndarray) -> None:
-        """
-        Direct joint position control (low-level interface).
-        
-        Called by LocomotionController.
-        
-        Args:
-            target_positions: Target positions for 12 joints (rad)
-        """
+        self._require_state(LifecycleState.BUILT, "get_joint_info")
         self._init_joint_indices()
-        self.entity.control_dofs_position(target_positions, self._motors_dof_idx)
-    
-    def control_joints_velocity(self, target_velocities: np.ndarray) -> None:
-        """
-        Direct joint velocity control (low-level interface).
-        
-        Args:
-            target_velocities: Target velocities for 12 joints (rad/s)
-        """
-        self._init_joint_indices()
-        self.entity.control_dofs_velocity(target_velocities, self._motors_dof_idx)
+        return self._joint_info
     
     def post_build(self) -> None:
         """
@@ -284,6 +266,9 @@ class Go2Robot(RobotBase):
         # Set PD control target to maintain standing pose
         # This tells the PD controller what position to hold
         self.entity.control_dofs_position(self._default_dof_pos, self._motors_dof_idx)
+
+        # Transition lifecycle
+        super().post_build()
     
     @property
     def motors_dof_idx(self) -> np.ndarray:
@@ -304,6 +289,8 @@ class Go2Robot(RobotBase):
         """
         Reset robot to initial state.
         """
+        self._require_state(LifecycleState.BUILT, "reset")
+
         if self.entity is None:
             return
         
@@ -320,5 +307,4 @@ class Go2Robot(RobotBase):
                 self._motors_dof_idx
             )
 
-
-
+        self._transition_to(LifecycleState.READY)

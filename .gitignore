@@ -21,6 +21,7 @@ develop-eggs/
 lib/
 lib64/
 .eggs/
+.kiro/
 MANIFEST
 
 # Virtual environments

@@ -5,10 +5,37 @@ Provides a generic registration mechanism for pluggable components.
 Components are registered by name and can be instantiated from configuration.
 """
 
-from typing import Type, Dict, Any, Optional, Callable, TypeVar
+from typing import Type, Dict, Any, Optional, Callable, TypeVar, TYPE_CHECKING
+from dataclasses import dataclass, field
 from omegaconf import DictConfig
 
+if TYPE_CHECKING:
+    from omninav.robots.base import RobotBase
+    from omninav.core.base import SimulationManagerBase
+
 T = TypeVar("T")
+
+
+@dataclass
+class BuildContext:
+    """
+    Construction context for Registry.build().
+
+    Provides typed references to dependencies that components may need
+    during construction, replacing opaque **kwargs.
+    """
+
+    scene: Any = None
+    """Physics engine scene object."""
+
+    robot: Optional["RobotBase"] = None
+    """Robot instance (for sensors, locomotion controllers)."""
+
+    sim: Optional["SimulationManagerBase"] = None
+    """Simulation manager instance."""
+
+    extra: dict = field(default_factory=dict)
+    """Additional context for custom components."""
 
 
 class Registry:
@@ -92,7 +119,7 @@ class Registry:
             )
         return self._module_dict[name]
     
-    def build(self, cfg: DictConfig, **kwargs) -> Any:
+    def build(self, cfg: DictConfig, context: BuildContext = None, **kwargs) -> Any:
         """
         Instantiate a class from configuration.
         
@@ -101,6 +128,7 @@ class Registry:
         
         Args:
             cfg: Configuration with 'type' field
+            context: Optional BuildContext with typed dependencies
             **kwargs: Additional arguments passed to constructor
         
         Returns:
@@ -115,6 +143,8 @@ class Registry:
                 f"Got keys: {list(cfg.keys())}"
             )
         cls = self.get(cfg.type)
+        if context is not None:
+            kwargs["context"] = context
         return cls(cfg, **kwargs)
     
     def __contains__(self, name: str) -> bool:

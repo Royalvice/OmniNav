@@ -1,9 +1,10 @@
 """
-OmniNav Interfaces Layer - External Interfaces
+OmniNav Interfaces Layer
 
-Provides Python API and optional ROS2 bridge.
+Public-facing API and integration adapters.
 """
 
 from omninav.interfaces.python_api import OmniNavEnv
+from omninav.interfaces.gym_wrapper import OmniNavGymWrapper
 
-__all__ = ["OmniNavEnv"]
+__all__ = ["OmniNavEnv", "OmniNavGymWrapper"]

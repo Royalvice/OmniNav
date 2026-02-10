@@ -33,4 +33,5 @@ algorithms/evaluation
 
 advanced/ros2_integration
 advanced/contributing
+advanced/migration_v0_2
 ```

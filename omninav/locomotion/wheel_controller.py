@@ -4,7 +4,7 @@ Wheel Controller for Go2w
 Converts cmd_vel to wheel velocities for wheeled quadruped.
 """
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 import numpy as np
 from omegaconf import DictConfig
 
@@ -174,7 +174,7 @@ class WheelController(LocomotionControllerBase):
         
         return wheel_velocities
     
-    def step(self, cmd_vel: np.ndarray) -> None:
+    def step(self, cmd_vel: np.ndarray, obs: Optional["Observation"] = None) -> None:
         """
         Execute one locomotion control step.
         
@@ -182,6 +182,7 @@ class WheelController(LocomotionControllerBase):
         
         Args:
             cmd_vel: [vx, vy, wz] velocity command
+            obs: Optional observation (unused by this controller)
         """
         wheel_velocities = self.compute_action(cmd_vel)
         indices = self._get_wheel_indices()
@@ -192,13 +193,13 @@ class WheelController(LocomotionControllerBase):
             
         # Apply leg holding (position control)
         if self._leg_indices is not None and len(self._leg_indices) > 0:
-            self.robot.entity.control_dofs_position(
+            self.robot.control_joints_position(
                 self._leg_targets,
                 self._leg_indices,
             )
         
         # Apply wheel velocities using velocity control
-        self.robot.entity.control_dofs_velocity(
+        self.robot.control_joints_velocity(
             wheel_velocities,
             indices,
         )

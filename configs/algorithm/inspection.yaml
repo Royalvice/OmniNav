@@ -1,0 +1,21 @@
+# Inspection Algorithm Pipeline
+# Composes InspectionPlanner (Global) + DWAPlanner (Local)
+
+type: algorithm_pipeline
+
+global_planner:
+  type: inspection_planner
+  planning_strategy: tsp_2opt   # "greedy" or "tsp_2opt"
+  scan_at_waypoint: true
+  scan_duration: 3.0            # Seconds
+  scan_angular_velocity: 1.0    # rad/s
+  waypoint_tolerance: 0.5       # meters
+
+local_planner:
+  type: dwa_planner
+  max_speed: 0.6                # m/s
+  max_yaw_rate: 1.0             # rad/s
+  obstacle_margin: 0.35         # meters
+  goal_tolerance: 0.5           # meters
+  predict_time: 2.0             # seconds
+  dt: 0.1                       # planning time step

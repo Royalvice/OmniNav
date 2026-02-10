@@ -1,19 +1,21 @@
 # Architecture Overview
 
-OmniNav adopts a layered architecture design to ensure effective decoupling and independent scalability of modules.
+OmniNav adopts a layered, registry-driven architecture to ensure effective decoupling and scalability. The core of the simulation is orchestrated by the `SimulationRuntime`.
 
-## Architecture Diagram
+## System Architecture
+
+The following diagram illustrates the relationship between the major layers:
 
 ```mermaid
 graph TB
-    subgraph "User Layer"
-        U1[Python Scripts]
-        U2[ROS2 Nodes]
-    end
-
     subgraph "Interface Layer"
         I1[OmniNavEnv]
         I2[ROS2Bridge]
+        I3[GymWrapper]
+    end
+
+    subgraph "Orchestration Layer"
+        RT[SimulationRuntime]
     end
 
     subgraph "Application Layer"
@@ -26,8 +28,9 @@ graph TB
     end
 
     subgraph "Entity Layer"
+        Reg[Registry System]
         R[Robot Layer<br/>Robot & Sensors]
-        S[Asset Layer<br/>Scene Loaders]
+        S[Asset Layer<br/>Scene Generators]
     end
 
     subgraph "Foundation Layer"
@@ -35,11 +38,13 @@ graph TB
         G[Genesis Engine]
     end
 
-    U1 --> I1
-    U2 --> I2
-    I1 --> E
-    I1 --> A
-    I2 --> A
+    I1 --> RT
+    I2 --> RT
+    I3 --> I1
+    RT --> Reg
+    Reg --> R
+    RT --> E
+    RT --> A
     A --> L
     L --> R
     R --> C
@@ -47,92 +52,79 @@ graph TB
     C --> G
 ```
 
-## Design Principles
+## Runtime Lifecycle
 
-### 1. Layered Decoupling
+Component initialization and simulation steps follow a strict state machine managed by `LifecycleMixin`:
 
-Each layer depends only on the interface of the layer below it, without direct access to cross-layer components:
-
-- ✅ Algorithm Layer → Locomotion Layer → Robot Layer
-- ❌ Algorithm Layer → Robot Layer (Skipping Locomotion Layer)
-
-### 2. Interface First
-
-All modules define Abstract Base Classes (ABCs), and concrete implementations are discovered via a registry mechanism:
-
-```python
-# Define base class
-class AlgorithmBase(ABC):
-    @abstractmethod
-    def step(self, observation) -> np.ndarray: ...
-
-# Register implementation
-@ALGORITHM_REGISTRY.register("my_algorithm")
-class MyAlgorithm(AlgorithmBase):
-    def step(self, observation):
-        return np.array([0.1, 0.0, 0.0])
-
-# Use via config
-# algorithm:
-#   type: my_algorithm
+```mermaid
+stateDiagram-v2
+    [*] --> CREATED: Initialize objects
+    CREATED --> SPAWNED: robot.spawn() / sensor.create()
+    SPAWNED --> BUILT: simulation.build()
+    BUILT --> READY: post_build() logic
+    READY --> STEPPING: runtime.step() loop
+    STEPPING --> STEPPING: Simulation step
+    STEPPING --> DONE: task.is_terminated()
+    DONE --> [*]
 ```
 
-### 3. Config Driven
+## Core Design Philosophy
 
-Use Hydra/OmegaConf to unify management of all configurations, supporting:
+OmniNav is built on three pillars that ensure flexibility and performance:
 
-- Composition (defaults)
-- Command line overrides
-- Multirun
-
-### 4. Optional Dependencies
-
-ROS2 related features are controlled by config switches, not affecting pure Python usage:
-
-```yaml
-ros2:
-  enabled: false  # Set to true to enable ROS2 bridge
+```mermaid
+graph LR
+    P1[<b>Registry-Based</b><br/>Config-driven instantiation]
+    P2[<b>Lifecycle-Managed</b><br/>Deterministic initialization]
+    P3[<b>Batch-First</b><br/>GPU-parallel native]
+    
+    P1 --- P2
+    P2 --- P3
+    P3 --- P1
 ```
+
+| Principle             | Description                                                                                                                                                                                          |
+| --------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Registry-Based**    | All components (robots, sensors, controllers) are registered in a central registry. This allows the system to instantiate components dynamically from YAML configurations without hardcoded imports. |
+| **Lifecycle-Managed** | Explicit states (CREATED, SPAWNED, BUILT, READY) prevent timing issues between sensor mounting, physics building, and robot post-processing.                                                         |
+| **Batch-First**       | All data interfaces support `(num_envs, ...)` tensors. This allows seamless switching between single-environment debugging and massive multi-environment RL training.                                |
 
 ## Layer Responsibilities
 
-| Layer | Responsibility | Key Class/Interface |
-|------|------|------------|
-| **Core Layer** | Genesis wrapper, scene management, simulation loop | `SimulationManager` |
-| **Asset Layer** | Load USD/GLB/Mesh scene assets | `AssetLoaderBase` |
-| **Robot Layer** | Robot entity, sensor management | `RobotBase`, `SensorBase` |
-| **Locomotion Layer** | Convert cmd_vel to joint control | `LocomotionControllerBase` |
-| **Algorithm Layer** | Pluggable navigation/perception algorithms | `AlgorithmBase` |
-| **Evaluation Layer** | Task definition and metric calculation | `TaskBase`, `MetricBase` |
-| **Interface Layer** | External API (Python/ROS2) | `OmniNavEnv`, `ROS2Bridge` |
+| Layer                | Responsibility                                         | Key Class/Interface                      |
+| -------------------- | ------------------------------------------------------ | ---------------------------------------- |
+| **Core Layer**       | Genesis wrapper, SimulationRuntime orchestrator, Hooks | `SimulationManager`, `SimulationRuntime` |
+| **Asset Layer**      | Procedural scene generation and asset loading          | `SceneGeneratorBase`, `AssetLoader`      |
+| **Robot Layer**      | Robot kinematic/dynamic state, sensor mounting         | `RobotBase`, `SensorBase`                |
+| **Locomotion Layer** | High-level cmd_vel to low-level joint target mapping   | `LocomotionControllerBase`               |
+| **Algorithm Layer**  | Planning, collision avoidance, and perception logic    | `AlgorithmBase`                          |
+| **Evaluation Layer** | Goal-directed tasks and metric calculation             | `TaskBase`, `MetricBase`                 |
+| **Interface Layer**  | External APIs (Gym-like, ROS2, Gymnasium)              | `OmniNavEnv`, `ROS2Bridge`               |
 
-## Data Flow
+## Data Flow (Runtime Step)
 
 ```mermaid
 sequenceDiagram
-    participant User
-    participant Env as OmniNavEnv
-    participant Algo as Algorithm
-    participant Loco as Locomotion
+    participant Env as Interface
+    participant Runtime
+    participant Algo
+    participant Loco
     participant Robot
-    participant Genesis
-
-    User->>Env: reset()
-    Env->>Robot: get_observations()
-    Robot-->>Env: obs
-    Env-->>User: obs
-
-    loop Simulation Loop
-        User->>Env: step(action)
-        Env->>Algo: step(obs) [Optional]
-        Algo-->>Env: cmd_vel
-        Env->>Loco: step(cmd_vel)
-        Loco->>Robot: Joint Control
-        Robot->>Genesis: Physics Simulation
-        Genesis-->>Robot: New State
-        Robot-->>Env: obs
-        Env-->>User: obs, info
+    participant Sim as Genesis
+    
+    Env->>Runtime: step(action)
+    Runtime->>Robot: get_observations()
+    
+    opt Use Internal Algorithm
+        Runtime->>Algo: plan(obs)
+        Algo-->>Runtime: cmd_vel
     end
+    
+    Runtime->>Loco: control(cmd_vel, obs)
+    Loco->>Robot: set_joint_targets()
+    Runtime->>Sim: physics_step()
+    Runtime->>Task: update_metrics(obs)
+    Runtime-->>Env: List[obs], info
 ```
 
 ## Next Steps

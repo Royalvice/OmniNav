@@ -4,9 +4,9 @@
 defaults:
   - robot: go2
   - sensor: default
-  - locomotion: kinematic
-  - algorithm: waypoint
-  - task: point_nav
+  - locomotion: kinematic_gait
+  - algorithm: inspection
+  - task: inspection
   - scene: empty
   - _self_
 
