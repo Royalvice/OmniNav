@@ -226,7 +226,7 @@ def main():
             step_count += 1
             if step_count % 200 == 0:
                 state = robot.get_state()
-                pos = state.position
+                pos = state["position"]
                 if pos.ndim > 1:
                     pos = pos[0]
                 print(f"Step {step_count}: Pos=[{pos[0]:.2f}, {pos[1]:.2f}], Height={pos[2]:.3f}")

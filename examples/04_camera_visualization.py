@@ -156,8 +156,8 @@ def main():
             
             # View
             data = camera.get_data()
-            rgb = data.get("rgb")
-            depth = data.get("depth")
+            rgb = data.get("rgb")[0] if data.get("rgb") is not None else None
+            depth = data.get("depth")[0] if data.get("depth") is not None else None
             
             if rgb is not None:
                 bgr = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)

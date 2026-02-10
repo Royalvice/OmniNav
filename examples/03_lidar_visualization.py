@@ -189,7 +189,7 @@ def main():
             
             # View
             data = depth_sensor.get_data()
-            depth = data.get("depth")
+            depth = data.get("depth")[0] if data.get("depth") is not None else None
             
             if depth is not None:
                 # Normalize for visualization

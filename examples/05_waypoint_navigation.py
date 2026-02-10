@@ -262,10 +262,10 @@ def main():
         while True:
             # A. Get State
             state = robot.get_state()
-            pos = state.position  # [x, y, z]
+            pos = state["position"][0]  # [x, y, z]
             
             # Quat to Yaw
-            q = state.orientation
+            q = state["orientation"][0]
             siny_cosp = 2 * (q[0] * q[3] + q[1] * q[2])
             cosy_cosp = 1 - 2 * (q[2] * q[2] + q[3] * q[3])
             yaw = math.atan2(siny_cosp, cosy_cosp)

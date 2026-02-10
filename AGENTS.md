@@ -1,6 +1,6 @@
 # AGENTS.md - OmniNav AI Agent 指南
 
-本指南面向协助开发 OmniNav 仿真平台的 AI 编码助手。
+本指南面向协助开发 OmniNav 智能巡检导航的仿真平台的 AI 编码助手。
 
 ## 1. 上下文同步协议 (Context Sync Routine)
 
@@ -10,6 +10,7 @@
 2.  **检查进度 (`.github/contributing/TASK.md`)**: 确认当前处于哪个 Phase，识别标记为 `[ ]` 的待办任务。
 3.  **对齐设计 (`.github/contributing/IMPLEMENTATION_PLAN.md`)**: **CRITICAL**。查看 Mermaid 图表、数据流规范（Batch-First）和 API 签名。
 4.  **确认功能 (`.github/contributing/WALKTHROUGH.md`)**: 了解已实现的功能和 Demo，避免重复造轮子。
+5.  **查询物理引擎接口 (`external/Genesis/doc/source/api_reference`)**: **MANDATORY**。涉及任何对 Genesis 物理引擎接口的对齐、调用或修改，**必须**查询此目录下的官方 API 引用文档。
 
 ## 2. 核心架构原则与规范
 
@@ -81,6 +82,6 @@ OmniNav/
 
 ## 5. 常见错误排查建议
 
-*   **Genesis API**: 不要依赖旧的训练数据。请直接 `view_file` 查看 `external/Genesis/examples` 中的官方示例。
+*   **Genesis API**: 严禁依赖陈旧的训练数据。必须在执行前通过 `view_file` 查阅 `external/Genesis/doc/source/api_reference` 中的最新 API 定义以及 `external/Genesis/examples` 中的官方示例。
 *   **Hydra Overrides**: 如果覆盖无效，检查是否在 `python_api.py` 的 `from_config` 中正确传递了 `overrides` 列表给 `hydra.compose`。
 *   **Batch Dimension**: 处理 Observation 时，始终检查 `len(obs)`。
