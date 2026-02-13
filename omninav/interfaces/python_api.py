@@ -12,8 +12,7 @@ from pathlib import Path
 
 from omninav.core.runtime import SimulationRuntime
 from omninav.core.hooks import HookManager
-from omninav.core.types import Observation, Action
-from omninav.evaluation.base import TaskResult
+from omninav.core.types import Observation, Action, TaskResult
 
 if TYPE_CHECKING:
     from omninav.robots.base import RobotBase
@@ -170,7 +169,7 @@ class OmniNavEnv:
         from omninav.core.registry import ROBOT_REGISTRY, SENSOR_REGISTRY, LOCOMOTION_REGISTRY, ALGORITHM_REGISTRY, TASK_REGISTRY
         
         robot_cfg = self.cfg.get("robot", {})
-        robot_type = robot_cfg.get("type", "go2")
+        robot_type = robot_cfg.get("type", "unitree_go2")
         if not isinstance(robot_cfg, DictConfig):
             robot_cfg = OmegaConf.create(robot_cfg)
         if "type" not in robot_cfg:
@@ -182,7 +181,7 @@ class OmniNavEnv:
         
         # 4. Create Locomotion (to get required sensors)
         loco_cfg = self.cfg.get("locomotion", {})
-        loco_type = loco_cfg.get("type", "kinematic")
+        loco_type = loco_cfg.get("type", "kinematic_gait")
         if not isinstance(loco_cfg, DictConfig):
             loco_cfg = OmegaConf.create(loco_cfg)
         if "type" not in loco_cfg:

@@ -12,8 +12,8 @@ Design principles:
 
 from __future__ import annotations
 
-from typing import TypedDict, Optional
-from dataclasses import dataclass
+from typing import TypedDict, Optional, Any
+from dataclasses import dataclass, field
 
 import numpy as np
 
@@ -205,16 +205,16 @@ class TaskResult:
     success: bool
     """Whether the task was completed successfully."""
 
-    episode_length: int
+    episode_length: int = 0
     """Number of steps in the episode."""
 
-    elapsed_time: float
+    elapsed_time: float = 0.0
     """Wall-clock time of the episode in seconds."""
 
-    metrics: dict[str, float]
+    metrics: dict[str, float] = field(default_factory=dict)
     """Computed metric values (e.g. {'spl': 0.85, 'coverage': 0.92})."""
 
-    info: dict
+    info: dict[str, Any] = field(default_factory=dict)
     """Additional task-specific information."""
 
 

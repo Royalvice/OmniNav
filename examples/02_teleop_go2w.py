@@ -8,6 +8,7 @@ This demo showcases:
 """
 
 import sys
+import argparse
 import warnings
 
 # Suppress annoying pygltflib warnings
@@ -99,7 +100,15 @@ else:
 
 
 def main():
-    global running
+    global running, current_cmd
+    parser = argparse.ArgumentParser(description="Go2w teleop demo")
+    parser.add_argument("--test-mode", action="store_true", help="Run deterministic scripted controls and exit")
+    parser.add_argument("--max-steps", type=int, default=400, help="Max steps in test mode")
+    parser.add_argument("--show-viewer", action=argparse.BooleanOptionalAction, default=True)
+    args = parser.parse_args()
+
+    running = True
+    current_cmd[:] = 0.0
 
     print("=" * 60)
     print("  OmniNav Demo 02: Go2w Teleop")
@@ -109,7 +118,7 @@ def main():
         "simulation": {
             "dt": 0.01,
             "backend": "gpu",
-            "show_viewer": True,
+            "show_viewer": args.show_viewer,
             "camera_pos": [2.0, 2.0, 1.5],
             "camera_lookat": [0.0, 0.0, 0.3],
             "disable_keyboard_shortcuts": True,
@@ -141,7 +150,7 @@ def main():
     controller.reset()
 
     # 6. Start Input
-    if not _USE_POLLING:
+    if not _USE_POLLING and not args.test_mode:
         # Pass controller to pynput callbacks
         global _controller_ref
         _controller_ref = controller
@@ -153,12 +162,23 @@ def main():
 
     # 7. Loop
     try:
+        step_count = 0
         while running:
-            if _USE_POLLING:
+            if args.test_mode:
+                if step_count < args.max_steps // 3:
+                    current_cmd[:] = [LINEAR_VEL, 0.0, 0.0]
+                elif step_count < (2 * args.max_steps) // 3:
+                    current_cmd[:] = [0.0, 0.0, ANGULAR_VEL]
+                else:
+                    current_cmd[:] = 0.0
+            elif _USE_POLLING:
                 poll_keyboard(controller)
 
             controller.step(current_cmd)
             sim.step()
+            step_count += 1
+            if args.test_mode and step_count >= args.max_steps:
+                break
             
     finally:
         if not _USE_POLLING and _listener is not None:

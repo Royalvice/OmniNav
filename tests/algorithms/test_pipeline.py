@@ -43,6 +43,7 @@ class TestInspectionPlanner:
 
     def test_registration(self):
         from omninav.core.registry import ALGORITHM_REGISTRY
+        import omninav.algorithms  # noqa: F401 - trigger registry side-effects
         assert "inspection_planner" in ALGORITHM_REGISTRY
 
     def test_greedy_ordering(self):
@@ -92,6 +93,7 @@ class TestInspectionPlanner:
         cmd = planner.step(obs)
 
         assert planner.is_done
+        assert cmd.shape == (1, 3)
         assert np.allclose(cmd, 0.0)
 
     def test_scanning_at_waypoint(self):
@@ -115,7 +117,8 @@ class TestInspectionPlanner:
 
         # Second step → returns rotation command
         cmd = planner.step(obs)
-        assert cmd[2] == pytest.approx(1.0)  # wz = scan_angular_velocity
+        assert cmd.shape == (1, 3)
+        assert cmd[0, 2] == pytest.approx(1.0)  # wz = scan_angular_velocity
 
     def test_dynamic_waypoint_insertion(self):
         from omninav.algorithms.inspection_planner import InspectionPlanner
@@ -165,6 +168,7 @@ class TestDWAPlanner:
 
     def test_registration(self):
         from omninav.core.registry import ALGORITHM_REGISTRY
+        import omninav.algorithms  # noqa: F401 - trigger registry side-effects
         assert "dwa_planner" in ALGORITHM_REGISTRY
 
     def test_zero_at_goal(self):
@@ -200,7 +204,8 @@ class TestDWAPlanner:
         cmd = planner.step(obs)
 
         # Should command positive vx
-        assert cmd[0] > 0
+        assert cmd.shape == (1, 3)
+        assert cmd[0, 0] > 0
 
     def test_navigate_to_interface(self):
         from omninav.algorithms.local_planner import DWAPlanner
@@ -213,8 +218,8 @@ class TestDWAPlanner:
         target = np.array([5.0, 0.0, 0.0])
         cmd = planner.navigate_to(obs, target)
 
-        assert cmd.shape == (3,)
-        assert cmd[0] > 0
+        assert cmd.shape == (1, 3)
+        assert cmd[0, 0] > 0
 
 
 # =============================================================================
@@ -226,6 +231,7 @@ class TestAlgorithmPipeline:
 
     def test_registration(self):
         from omninav.core.registry import ALGORITHM_REGISTRY
+        import omninav.algorithms  # noqa: F401 - trigger registry side-effects
         assert "algorithm_pipeline" in ALGORITHM_REGISTRY
 
     def test_pipeline_composes(self):
@@ -251,9 +257,9 @@ class TestAlgorithmPipeline:
         obs = _make_obs(pos=(0, 0, 0))
         cmd = pipeline.step(obs)
 
-        assert cmd.shape == (3,)
+        assert cmd.shape == (1, 3)
         # Should navigate forward toward (5, 0, 0)
-        assert cmd[0] > 0
+        assert cmd[0, 0] > 0
 
     def test_pipeline_is_done_delegates(self):
         from omninav.algorithms.pipeline import AlgorithmPipeline

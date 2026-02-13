@@ -11,6 +11,7 @@ Features:
 """
 
 import sys
+import argparse
 import math
 import numpy as np
 import cv2
@@ -50,15 +51,17 @@ def normalize_angle(angle):
 # Minimap Visualizer
 # =============================================================================
 class MinimapVisualizer:
-    def __init__(self, name="Minimap: Click to Navigate"):
+    def __init__(self, name="Minimap: Click to Navigate", enable_window=True):
         self.name = name
+        self.enable_window = enable_window
         self.image = np.zeros((MAP_SIZE, MAP_SIZE, 3), dtype=np.uint8)
         self.trajectory = deque(maxlen=1000)
         self.target = None # (x, y) world coords
         
         # Interaction
-        cv2.namedWindow(self.name)
-        cv2.setMouseCallback(self.name, self._mouse_callback)
+        if self.enable_window:
+            cv2.namedWindow(self.name)
+            cv2.setMouseCallback(self.name, self._mouse_callback)
 
     def _world_to_map(self, x, y):
         # World X -> Map U (Right)
@@ -119,11 +122,13 @@ class MinimapVisualizer:
         cv2.line(self.image, (rx, ry), (hx, hy), (0, 0, 0), 2)
 
         # Show
-        cv2.imshow(self.name, self.image)
-        cv2.waitKey(1)
+        if self.enable_window:
+            cv2.imshow(self.name, self.image)
+            cv2.waitKey(1)
 
     def close(self):
-        cv2.destroyWindow(self.name)
+        if self.enable_window:
+            cv2.destroyWindow(self.name)
 
 # =============================================================================
 # Navigation Controller
@@ -208,6 +213,12 @@ class NavigationStateMachine:
 # Main
 # =============================================================================
 def main():
+    parser = argparse.ArgumentParser(description="Go2w waypoint navigation demo")
+    parser.add_argument("--test-mode", action="store_true", help="Run scripted target updates and exit")
+    parser.add_argument("--max-steps", type=int, default=500, help="Max steps in test mode")
+    parser.add_argument("--show-viewer", action=argparse.BooleanOptionalAction, default=True)
+    args = parser.parse_args()
+
     print("=" * 60)
     print("  OmniNav Demo 05: Enhanced Navigation")
     print("  Controls: LEFT CLICK on Minimap to navigate.")
@@ -217,7 +228,9 @@ def main():
     cfg = OmegaConf.create({
         "simulation": {
             "dt": 0.01,
-            "show_viewer": True,
+            "substeps": 1 if args.test_mode else 2,
+            "backend": "cpu" if args.test_mode else "gpu",
+            "show_viewer": args.show_viewer,
             "camera_pos": [0.0, 0.0, 5.0],
             "camera_lookat": [0.0, 0.0, 0.0],
             "disable_keyboard_shortcuts": True,
@@ -249,7 +262,7 @@ def main():
     controller.reset()
     
     # 6. Navigation System
-    minimap = MinimapVisualizer()
+    minimap = MinimapVisualizer(enable_window=not args.test_mode)
     nav_sm = NavigationStateMachine(minimap)
     
     # Set initial waypoint
@@ -259,6 +272,7 @@ def main():
 
     # 7. Loop
     try:
+        step_count = 0
         while True:
             # A. Get State
             state = robot.get_state()
@@ -271,7 +285,14 @@ def main():
             yaw = math.atan2(siny_cosp, cosy_cosp)
             
             # B. Update UI
-            minimap.update(pos, yaw)
+            if not args.test_mode:
+                minimap.update(pos, yaw)
+            elif step_count in (0, args.max_steps // 3, (2 * args.max_steps) // 3):
+                scripted_targets = [(2.0, 0.0), (2.0, 2.0), (0.0, 1.0)]
+                idx = 0 if step_count == 0 else (1 if step_count == args.max_steps // 3 else 2)
+                tx, ty = scripted_targets[idx]
+                minimap.set_target(tx, ty)
+                nav_sm.current_target = np.array([tx, ty], dtype=np.float32)
             
             # C. Compute Control
             cmd_vel = nav_sm.step(pos, yaw)
@@ -279,6 +300,9 @@ def main():
             # D. Act
             controller.step(cmd_vel)
             sim.step()
+            step_count += 1
+            if args.test_mode and step_count >= args.max_steps:
+                break
             
     except KeyboardInterrupt:
         pass

@@ -2,6 +2,8 @@
 Tests for Interface layer: SimulationRuntime, OmniNavEnv, OmniNavGymWrapper.
 """
 
+import os
+
 import pytest
 import numpy as np
 from omegaconf import OmegaConf
@@ -13,6 +15,16 @@ from omninav.core.types import Observation, RobotState, Action
 def _gymnasium_available():
     try:
         import gymnasium
+        return True
+    except ImportError:
+        return False
+
+
+def _genesis_available():
+    if os.environ.get("OMNINAV_RUN_GENESIS_TESTS", "0") != "1":
+        return False
+    try:
+        import genesis  # noqa: F401
         return True
     except ImportError:
         return False
@@ -76,10 +88,11 @@ class TestSimulationRuntime:
         runtime.robots.append(_make_mock_robot())
 
         runtime.reset()
-        runtime.step([Action(cmd_vel=np.zeros(3))])
+        obs, info = runtime.step([Action(cmd_vel=np.zeros((1, 3), dtype=np.float32))])
 
         assert runtime.step_count == 1
         assert runtime.sim_time == pytest.approx(0.01)
+        assert "done_mask" in info
 
     def test_runtime_build_emits_events(self):
         """Build should emit PRE_BUILD and POST_BUILD events."""
@@ -119,12 +132,25 @@ class TestSimulationRuntime:
         runtime.robots.append(_make_mock_robot())
 
         mock_task = MagicMock()
-        mock_task.is_terminated.return_value = True
+        mock_task.is_terminated.return_value = np.array([True])
         mock_task.reset.return_value = {}
         runtime.task = mock_task
 
         runtime.reset()
         assert runtime.is_done
+
+    def test_runtime_normalizes_1d_cmd_vel(self):
+        """Runtime should accept legacy (3,) cmd_vel and normalize internally."""
+        from omninav.core.runtime import SimulationRuntime
+
+        cfg = OmegaConf.create({"simulation": {"dt": 0.01}})
+        runtime = SimulationRuntime(cfg)
+        runtime.robots.append(_make_mock_robot())
+        runtime.locomotions.append(MagicMock())
+        runtime.reset()
+
+        runtime.step([Action(cmd_vel=np.array([0.1, 0.0, 0.0], dtype=np.float32))])
+        assert runtime.step_count == 1
 
 
 # =============================================================================
@@ -143,6 +169,8 @@ class TestOmniNavEnv:
 
     def test_env_reset_initializes_runtime(self):
         """Reset should trigger lazy init of runtime."""
+        if not _genesis_available():
+            pytest.skip("genesis not installed")
         from omninav.interfaces.python_api import OmniNavEnv
 
         env = OmniNavEnv()
@@ -153,6 +181,8 @@ class TestOmniNavEnv:
 
     def test_env_step_returns_observations(self):
         """Step should return tuple of observations and info."""
+        if not _genesis_available():
+            pytest.skip("genesis not installed")
         from omninav.interfaces.python_api import OmniNavEnv
 
         env = OmniNavEnv()
@@ -164,6 +194,8 @@ class TestOmniNavEnv:
 
     def test_context_manager(self):
         """Should support context manager protocol."""
+        if not _genesis_available():
+            pytest.skip("genesis not installed")
         from omninav.interfaces.python_api import OmniNavEnv
 
         with OmniNavEnv() as env:
@@ -172,6 +204,8 @@ class TestOmniNavEnv:
 
     def test_hooks_access(self):
         """Should expose hooks from runtime."""
+        if not _genesis_available():
+            pytest.skip("genesis not installed")
         from omninav.interfaces.python_api import OmniNavEnv
         from omninav.core.hooks import HookManager
 

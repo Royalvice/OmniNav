@@ -69,13 +69,16 @@ class AlgorithmPipeline(AlgorithmBase):
             cmd_vel: [vx, vy, wz] velocity command
         """
         # Global planner step — may return cmd_vel directly or update internal waypoint
-        global_cmd = self._global_planner.step(obs)
+        _ = self._global_planner.step(obs)
 
         # If the global planner provides a waypoint (non-zero output),
         # inject it as goal_position for the local planner
         local_obs = dict(obs)  # shallow copy
         if hasattr(self._global_planner, 'current_waypoint') and self._global_planner.current_waypoint is not None:
-            local_obs['goal_position'] = self._global_planner.current_waypoint
+            waypoint = np.asarray(self._global_planner.current_waypoint, dtype=np.float32)
+            if waypoint.ndim == 1:
+                waypoint = waypoint.reshape(1, -1)
+            local_obs['goal_position'] = waypoint
 
         # Local planner produces the final cmd_vel
         cmd_vel = self._local_planner.step(local_obs)

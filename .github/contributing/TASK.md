@@ -1,93 +1,92 @@
 # OmniNav 开发任务清单 (Task List)
 
-本文件追踪 OmniNav 项目的开发进度。
+本文件追踪 OmniNav `v0.1` 阶段（架构重构后到需求对齐与工程化收敛）的任务。
 
-## Core v0.1.0 重构与实现 (Active Phases) ✅
+## 0. 当前状态快照 (2026-02)
 
-### Phase 1: Foundation — 数据契约与基础设施 ✅
-- [x] 1.1 创建 `omninav/core/types.py` — 所有 TypedDict 数据契约
-- [x] 1.2 创建 `omninav/core/hooks.py` — Event/Hook 系统
-- [x] 1.3 创建 `omninav/core/lifecycle.py` — 组件生命周期状态机
-- [x] 1.4 重构 `omninav/core/registry.py` — 添加 BuildContext
-- [x] 1.5 测试: `tests/core/test_types.py`, `tests/core/test_hooks.py`, `test_lifecycle.py`
+### 已完成能力 (代码已存在)
+- [x] Core 分层、Registry、Hook、Runtime 主循环
+- [x] Go2 / Go2w 机器人与基础传感器挂载
+- [x] 巡检任务链路：`Observation -> Algorithm -> Locomotion -> Task`
+- [x] Hydra 配置体系与 `OmniNavEnv.from_config(...)`
+- [x] 单元测试 + 基础集成测试骨架
 
-### Phase 2: Robot 层重构 ✅
-- [x] 2.1 重构 `omninav/robots/base.py` — 删除 apply_command, 添加生命周期
-- [x] 2.2 更新 `omninav/robots/go2.py`
-- [x] 2.3 更新 `omninav/robots/go2w.py`
-- [x] 2.4 测试: `tests/robots/test_robot_base.py`
-
-### Phase 3: Sensor 层解耦 ✅
-- [x] 3.1 重构 `omninav/sensors/base.py` — 解耦 scene/robot
-- [x] 3.2 更新 `omninav/sensors/lidar.py`
-- [x] 3.3 更新 `omninav/sensors/camera.py`
-- [x] 3.4 更新 `omninav/sensors/raycaster_depth.py`
-- [x] 3.5 测试: `tests/sensors/test_sensors.py`
-
-### Phase 4: Locomotion 层净化 ✅
-- [x] 4.1 重构 `omninav/locomotion/base.py` — 添加 bind_sensors, step(cmd_vel, obs=None)
-- [x] 4.2 重构 `omninav/locomotion/kinematic_controller.py` — 移除直接 import genesis
-- [x] 4.3 更新 `omninav/locomotion/wheel_controller.py`
-- [x] 4.4 重构 `omninav/locomotion/rl_controller.py`
-- [x] 4.5 测试: `tests/locomotion/test_locomotion.py`
-
-### Phase 5: Algorithm 层增强 ✅
-- [x] 5.1 重构 `omninav/algorithms/base.py` — 使用 Observation TypedDict
-- [x] 5.2 创建 `omninav/algorithms/pipeline.py` — AlgorithmPipeline
-- [x] 5.3 创建 `omninav/algorithms/local_planner.py` — LocalPlannerBase + DWA
-- [x] 5.4 创建 `omninav/algorithms/inspection_planner.py` — InspectionPlanner
-- [x] 5.5 测试: `tests/algorithms/test_pipeline.py`
-
-### Phase 6: Evaluation 层 — 巡检特化 ✅
-- [x] 6.1 更新 `omninav/evaluation/base.py` — 使用 Observation TypedDict
-- [x] 6.2 创建 `omninav/evaluation/tasks/inspection_task.py`
-- [x] 6.3 创建 `omninav/evaluation/metrics/inspection_metrics.py`
-- [x] 6.4 测试: `tests/evaluation/test_inspection.py`
-
-### Phase 7: Interface 层重构 ✅
-- [x] 7.1 创建 `omninav/core/runtime.py` — SimulationRuntime 编排器
-- [x] 7.2 重构 `omninav/interfaces/python_api.py` — 轻量 OmniNavEnv
-- [x] 7.3 创建 `omninav/interfaces/gym_wrapper.py` — OmniNavGymWrapper
-- [x] 7.4 重构 `omninav/interfaces/ros2/bridge.py` — 双向通信桥接
-- [x] 7.5 测试: `tests/interfaces/test_env.py`
-
-### Phase 8: 配置与示例 ✅
-- [x] 8.1 适配 `configs/config.yaml` — 迁移至分层 Hydra 系统
-- [x] 8.2 创建 `examples/run_inspection.py` — 全流程巡检演示
-- [x] 8.3 验证: 运行示例并确认指标输出
-
-### Phase 9: 验证与文档沉淀 🔄
-- [x] 9.1 集成测试: `tests/integration/test_full_pipeline.py`
-- [x] 9.2 全面更新 `.github/contributing/` 文档库
-- [ ] 9.3 完善 `docs/` 用户手册
-- [ ] 9.4 全流程回顾与代码冻结
+### 与需求文档的关键差距 (需补齐)
+- [x] **Batch-First 一致性**：主链路统一为 `(B,3)`，兼容输入 `(3,)` 并在 runtime 归一化
+- [x] **强类型单一真源**：`TaskResult` 统一到 `omninav/core/types.py`
+- [x] **Lifecycle 全覆盖**：Algorithm / Task 已纳入生命周期管理
+- [ ] **ROS2 工程化闭环**：`/tf` 与批量语义已补齐，Nav2 对接仍需补充验证
+- [ ] **评测体系完整性**：PointNav/ObjectNav + SR/SPL/Collision 未完整落地
+- [ ] **程序化场景与复杂度评估**：尚未形成可复现实验流水线
 
 ---
 
-## 历史阶段 (Foundational Work & Demos) ✅
+## 1. P0 收敛阶段（正在进行）
 
-### Phase A: Pure Game-Style Kinematic Controller
-- [x] 核心实现：预烘焙动画系统、100Hz 插值
-- [x] 性能优化：耗时从 10ms 降至 0.1ms
-- [x] 验证：Go2 稳定行走上楼梯
+### Phase 9A: 架构一致性修复 (P0 - Critical)
+- [x] 9A.1 统一 `Action.cmd_vel` 契约为 `(B, 3)`，清理 runtime/algo/loco 单样本分支
+- [x] 9A.2 统一 `TaskResult` 定义到 `omninav/core/types.py`，删除重复实现
+- [x] 9A.3 `AlgorithmBase`、`TaskBase` 引入 `LifecycleMixin` 并补足状态迁移
+- [x] 9A.4 在 Runtime 和关键层加入 batch shape 校验（`validate_batch_shape`）
+- [x] 9A.5 补充回归测试：`tests/core/test_types.py`、`tests/interfaces/test_env.py`
 
-### Phase C: Demo Enhancements
-- [x] 修复地面渲染与障碍物环
-- [x] Lidar 射线可视化增强
-- [x] Go2w 遥控演示
+### Phase 9B: Runtime 并行语义落地 (P0 - Critical)
+- [x] 9B.1 明确 `num_envs` 与 `B` 的映射规则（单机器人/多机器人）
+- [x] 9B.2 `SimulationRuntime.step` 支持批量 action 输入与批量 done 输出
+- [x] 9B.3 `TaskBase.is_terminated` 升级为批量布尔数组接口
+- [x] 9B.4 增加 `n_envs=4` 集成测试与基准脚本（Genesis 实测由开关控制）
 
-### Phase E: IK Locomotion Jitter Fix
-- [x] 解决世界坐标锁定下的抖动问题
-- [x] 引入状态机切换 (Stand/Walk)
+### Phase 9C: ROS2 Bridge 可用性达标 (P0 - Critical)
+- [x] 9C.1 完成 `/tf` 与 `/clock` 对齐，补齐 frame 约定文档
+- [x] 9C.2 修正 `RobotState` 读取方式，统一 TypedDict 访问
+- [ ] 9C.3 建立 Nav2 最小闭环样例（发布 + 订阅 + 时钟同步）
+- [x] 9C.4 增加 `tests/interfaces/test_ros2_bridge.py` 的端到端断言
 
-### Phase G: Enhanced Navigation Demo
-- [x] Minimap 实时轨迹绘制
-- [x] 点到点导航状态机
+### Phase 9D: 文档冻结前清理 (P0 - Critical)
+- [ ] 9D.1 完善 `docs/` 用户手册（安装、配置、运行、扩展）
+- [ ] 9D.2 更新公开 API docstring 与最小示例
+- [ ] 9D.3 发布前 checklist（测试、示例、配置、文档）并冻结 `v0.1`
 
 ---
 
-## 待开始阶段 (Future Roadmap) ⏳
+## 2. P1 扩展阶段（需求高优先）
 
-- [ ] **Phase 10: VLA 接入** - 大模型视觉语言策略集成
-- [ ] **Phase 11: 复杂地形生成** - 基于噪声的随机地形资产库
-- [ ] **Phase 12: 集群仿真** - 1000+ 环境下的多机协同评测
+### Phase 10: 评测体系扩展 (P1 - High)
+- [ ] 10.1 新增 `PointNavTask` 与 `ObjectNavTask`
+- [ ] 10.2 指标库标准化：SR、SPL、Collision、Time Efficiency
+- [ ] 10.3 任务/指标注册与 Hydra 配置模板补齐
+- [ ] 10.4 对齐报告导出格式（json/csv）
+
+### Phase 11: 资产与场景生成 (P1 - High)
+- [ ] 11.1 多格式资产导入最小闭环（USD/GLB/OBJ）
+- [ ] 11.2 程序化场景生成器（规则 + 随机化）
+- [ ] 11.3 场景复杂度评估器（障碍密度/曲率/遮挡）
+- [ ] 11.4 场景基准集与复现实验脚本
+
+### Phase 12: VLA/VLN 接口预留 (P1 - High)
+- [ ] 12.1 在 `Observation` 中规范语言字段与多模态输入格式
+- [ ] 12.2 增加算法插件模板：视觉编码器 + 文本指令 + `cmd_vel`
+- [ ] 12.3 提供最小 fake-policy demo 与 smoke test
+
+---
+
+## 3. P2 高级能力阶段
+
+### Phase 13: Sim2Real 高级链路 (P2 - Medium)
+- [ ] 13.1 场景重建导入（Gaussian Splatting / NeRF）
+- [ ] 13.2 轨迹回放（ROSbag / 自定义格式）
+- [ ] 13.3 参数标定工具（摩擦/阻尼/质量）
+
+### Phase 14: 大规模并行与集群 (P2 - Medium)
+- [ ] 14.1 Headless 模式批量运行
+- [ ] 14.2 100+/1000+ env 吞吐统计与稳定性报告
+- [ ] 14.3 多机任务编排与结果聚合
+
+---
+
+## 4. 验收标准 (Definition of Done)
+
+- [x] 所有新增能力具备 `n_envs=1` 与 `n_envs=4` 测试（Genesis 实测默认可跳过，开关启用）
+- [x] 接口文档、实现、测试三者一致（无契约分叉）
+- [x] 每个 Phase 至少有一个可运行 Demo
+- [x] 关键流程在 `examples/` 与 `docs/` 中有可复现指令

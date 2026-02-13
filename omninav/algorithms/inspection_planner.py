@@ -129,7 +129,7 @@ class InspectionPlanner(AlgorithmBase):
         The pipeline reads self.current_waypoint and feeds it to local planner.
         """
         if self._state == InspectionState.COMPLETE:
-            return np.zeros(3, dtype=np.float32)
+            return np.zeros((1, 3), dtype=np.float32)
 
         # Get robot position
         robot_state = obs.get("robot_state", {})
@@ -141,7 +141,7 @@ class InspectionPlanner(AlgorithmBase):
         if self._state == InspectionState.NAVIGATING:
             if self._current_waypoint is None:
                 self._advance_to_next()
-                return np.zeros(3, dtype=np.float32)
+                return np.zeros((1, 3), dtype=np.float32)
 
             # Check if reached current waypoint
             dist = np.linalg.norm(self._current_waypoint[:2] - pos[:2])
@@ -154,7 +154,7 @@ class InspectionPlanner(AlgorithmBase):
                     self._advance_to_next()
 
             # Return zeros — local planner handles navigation via current_waypoint
-            return np.zeros(3, dtype=np.float32)
+            return np.zeros((1, 3), dtype=np.float32)
 
         elif self._state == InspectionState.SCANNING:
             # Rotate in place for scan_duration
@@ -163,12 +163,12 @@ class InspectionPlanner(AlgorithmBase):
 
             if self._scan_elapsed >= self._scan_duration:
                 self._advance_to_next()
-                return np.zeros(3, dtype=np.float32)
+                return np.zeros((1, 3), dtype=np.float32)
 
             # Pure rotation
-            return np.array([0.0, 0.0, self._scan_angular_velocity], dtype=np.float32)
+            return np.array([[0.0, 0.0, self._scan_angular_velocity]], dtype=np.float32)
 
-        return np.zeros(3, dtype=np.float32)
+        return np.zeros((1, 3), dtype=np.float32)
 
     def _advance_to_next(self) -> None:
         """Advance to next waypoint in visit order."""

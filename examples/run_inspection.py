@@ -12,6 +12,7 @@ Demonstrates the new Interface Layer and Evaluation System.
 """
 
 import sys
+import argparse
 import logging
 import numpy as np
 from pathlib import Path
@@ -24,6 +25,12 @@ from omninav.core.types import Action
 
 
 def main():
+    parser = argparse.ArgumentParser(description="Inspection pipeline demo")
+    parser.add_argument("--test-mode", action="store_true", help="Run for a bounded number of steps and exit")
+    parser.add_argument("--max-steps", type=int, default=400, help="Max steps in test mode")
+    parser.add_argument("--show-viewer", action=argparse.BooleanOptionalAction, default=True)
+    args = parser.parse_args()
+
     # Configure logging
     logging.basicConfig(level=logging.WARN)
     # Suppress Genesis logs
@@ -31,7 +38,10 @@ def main():
     
     # Create environment using default configuration (which we just updated)
     # This loads configs/config.yaml -> defaults: inspection, kinematic_gait, etc.
-    with OmniNavEnv(config_path="configs") as env:
+    overrides = [f"simulation.show_viewer={str(args.show_viewer)}"]
+    if args.test_mode:
+        overrides.append("task.time_budget=5.0")
+    with OmniNavEnv.from_config(config_path="configs", overrides=overrides) as env:
         
         print("Initializing Inspection Mission...")
         obs_list = env.reset()
@@ -53,6 +63,9 @@ def main():
                 task_result = env.get_result()
                 coverage = task_result.metrics.get("coverage_rate", 0.0) if task_result else 0.0
                 print(f"Step {step}: Time={sim_time:.1f}s, Coverage={coverage*100:.1f}%")
+            if args.test_mode and step >= args.max_steps:
+                print("Test mode reached max steps, stopping early.")
+                break
         
         # Mission complete
         result = env.get_result()

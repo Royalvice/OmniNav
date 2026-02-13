@@ -6,29 +6,14 @@ Uses Observation TypedDict for standardized data input.
 """
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
 from typing import Dict, Any, List, Optional, TYPE_CHECKING
 import numpy as np
 from omegaconf import DictConfig
+from omninav.core.lifecycle import LifecycleMixin, LifecycleState
+from omninav.core.types import TaskResult
 
 if TYPE_CHECKING:
     from omninav.core.types import Observation, Action
-
-
-@dataclass
-class TaskResult:
-    """
-    Task execution result.
-
-    Attributes:
-        success: Whether task succeeded
-        metrics: Evaluation metric values
-        info: Additional info (e.g., trajectory, step count)
-    """
-    success: bool
-    metrics: Dict[str, float] = field(default_factory=dict)
-    info: Dict[str, Any] = field(default_factory=dict)
-
 
 class MetricBase(ABC):
     """
@@ -81,7 +66,7 @@ class MetricBase(ABC):
         pass
 
 
-class TaskBase(ABC):
+class TaskBase(ABC, LifecycleMixin):
     """
     Abstract base class for evaluation tasks.
 
@@ -101,6 +86,7 @@ class TaskBase(ABC):
         """
         self.cfg = cfg
         self.metrics: List[MetricBase] = []
+        self._state = LifecycleState.CREATED
 
     @abstractmethod
     def reset(self) -> Dict[str, Any]:
@@ -127,7 +113,7 @@ class TaskBase(ABC):
         pass
 
     @abstractmethod
-    def is_terminated(self, obs: "Observation") -> bool:
+    def is_terminated(self, obs: "Observation") -> np.ndarray:
         """
         Determine if task is terminated.
 
@@ -137,7 +123,7 @@ class TaskBase(ABC):
             obs: Current Observation TypedDict
 
         Returns:
-            True if task should terminate, False otherwise
+            Batch termination mask. Shape: (B,)
         """
         pass
 

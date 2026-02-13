@@ -212,6 +212,18 @@ class TestTaskResult:
         assert result.success is True
         assert result.metrics["spl"] == 0.85
 
+    def test_task_result_defaults(self):
+        """TaskResult should support minimal construction with defaults."""
+        result = TaskResult(success=False)
+        assert result.episode_length == 0
+        assert result.elapsed_time == 0.0
+        assert result.metrics == {}
+
+    def test_task_result_single_source(self):
+        """Evaluation layer should re-use TaskResult from core.types."""
+        from omninav.evaluation.base import TaskResult as EvalTaskResult
+        assert EvalTaskResult is TaskResult
+
 
 class TestValidateBatchShape:
     """Tests for validate_batch_shape helper."""

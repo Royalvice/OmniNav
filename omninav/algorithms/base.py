@@ -9,12 +9,13 @@ from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, TYPE_CHECKING
 import numpy as np
 from omegaconf import DictConfig
+from omninav.core.lifecycle import LifecycleMixin, LifecycleState
 
 if TYPE_CHECKING:
     from omninav.core.types import Observation
 
 
-class AlgorithmBase(ABC):
+class AlgorithmBase(ABC, LifecycleMixin):
     """
     Abstract base class for pluggable algorithms.
 
@@ -36,6 +37,7 @@ class AlgorithmBase(ABC):
             cfg: Algorithm configuration
         """
         self.cfg = cfg
+        self._state = LifecycleState.CREATED
 
     @abstractmethod
     def reset(self, task_info: Optional[Dict[str, Any]] = None) -> None:
@@ -62,7 +64,7 @@ class AlgorithmBase(ABC):
                 - goal_position: Optional target position
 
         Returns:
-            cmd_vel: [vx, vy, wz] velocity command array (3,)
+            cmd_vel: Batch-First velocity commands with shape (B, 3)
         """
         pass
 

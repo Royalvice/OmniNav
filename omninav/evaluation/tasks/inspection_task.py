@@ -8,7 +8,9 @@ from typing import Dict, Any, List, Optional, TYPE_CHECKING
 import numpy as np
 from omegaconf import DictConfig
 
-from omninav.evaluation.base import TaskBase, TaskResult, MetricBase
+from omninav.evaluation.base import TaskBase, MetricBase
+from omninav.core.types import TaskResult
+from omninav.core.lifecycle import LifecycleState
 from omninav.core.registry import TASK_REGISTRY
 
 if TYPE_CHECKING:
@@ -68,6 +70,8 @@ class InspectionTask(TaskBase):
         for metric in self.metrics:
             metric.reset()
 
+        self._transition_to(LifecycleState.READY)
+
         return {
             "waypoints": [wp.tolist() for wp in self._waypoints],
             "time_budget": self._time_budget,
@@ -98,19 +102,23 @@ class InspectionTask(TaskBase):
         for metric in self.metrics:
             metric.update(obs, action)
 
-    def is_terminated(self, obs: "Observation") -> bool:
+    def is_terminated(self, obs: "Observation") -> np.ndarray:
         """Check if task is terminated (all visited or timeout)."""
+        terminated = False
         # Check time budget
         elapsed = obs.get("sim_time", 0.0) - self._start_time
         if elapsed >= self._time_budget:
-            return True
+            terminated = True
 
         # Check if all waypoints visited
-        if all(self._visited):
+        if not terminated and all(self._visited):
             self._success = True
-            return True
+            terminated = True
 
-        return False
+        robot_state = obs.get("robot_state", {})
+        pos = np.asarray(robot_state.get("position", np.zeros((1, 3))))
+        batch_size = int(pos.shape[0]) if pos.ndim >= 2 else 1
+        return np.full((batch_size,), terminated, dtype=bool)
 
     def compute_result(self) -> TaskResult:
         """Compute inspection task result."""
@@ -147,6 +155,8 @@ class InspectionTask(TaskBase):
 
         return TaskResult(
             success=success,
+            episode_length=self._step_count,
+            elapsed_time=elapsed,
             metrics=metric_values,
             info={
                 "trajectory": [p.tolist() for p in self._trajectory[-10:]],  # last 10 points

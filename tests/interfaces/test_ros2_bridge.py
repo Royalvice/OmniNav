@@ -16,38 +16,38 @@ class TestRos2BridgeDisabled:
     
     def test_bridge_disabled_by_default(self):
         """Test bridge is disabled when enabled=false."""
-        from omninav.interfaces.ros2.bridge import Ros2Bridge
+        from omninav.interfaces.ros2.bridge import ROS2Bridge
         
         cfg = OmegaConf.create({
             "enabled": False,
         })
         
         mock_sim = MagicMock()
-        bridge = Ros2Bridge(cfg, mock_sim)
+        bridge = ROS2Bridge(cfg, mock_sim)
         
         assert not bridge.enabled
         assert bridge._node is None
     
     def test_spin_once_noop_when_disabled(self):
         """Test spin_once does nothing when disabled."""
-        from omninav.interfaces.ros2.bridge import Ros2Bridge
+        from omninav.interfaces.ros2.bridge import ROS2Bridge
         
         cfg = OmegaConf.create({"enabled": False})
         mock_sim = MagicMock()
-        bridge = Ros2Bridge(cfg, mock_sim)
+        bridge = ROS2Bridge(cfg, mock_sim)
         
         # Should not raise
         bridge.spin_once()
     
     def test_get_cmd_vel_returns_none_when_disabled(self):
         """Test get_cmd_vel returns None when disabled."""
-        from omninav.interfaces.ros2.bridge import Ros2Bridge
+        from omninav.interfaces.ros2.bridge import ROS2Bridge
         
         cfg = OmegaConf.create({"enabled": False})
         mock_sim = MagicMock()
-        bridge = Ros2Bridge(cfg, mock_sim)
+        bridge = ROS2Bridge(cfg, mock_sim)
         
-        assert bridge.get_cmd_vel() is None
+        assert bridge.get_external_cmd_vel() is None
 
 
 class TestRos2BridgeLogic:
@@ -55,11 +55,11 @@ class TestRos2BridgeLogic:
     
     def test_cmd_vel_callback_stores_velocity(self):
         """Test cmd_vel callback stores velocity correctly."""
-        from omninav.interfaces.ros2.bridge import Ros2Bridge
+        from omninav.interfaces.ros2.bridge import ROS2Bridge
         
         cfg = OmegaConf.create({"enabled": False})
         mock_sim = MagicMock()
-        bridge = Ros2Bridge(cfg, mock_sim)
+        bridge = ROS2Bridge(cfg, mock_sim)
         
         # Create mock Twist message
         mock_msg = MagicMock()
@@ -69,7 +69,7 @@ class TestRos2BridgeLogic:
         
         bridge._cmd_vel_callback(mock_msg)
         
-        cmd_vel = bridge.get_cmd_vel()
+        cmd_vel = bridge.get_external_cmd_vel()
         assert cmd_vel is not None
         assert np.isclose(cmd_vel[0], 1.0)
         assert np.isclose(cmd_vel[1], 0.5)

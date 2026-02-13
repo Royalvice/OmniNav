@@ -102,6 +102,7 @@ class ROS2Bridge:
         from sensor_msgs.msg import LaserScan, Image
         from nav_msgs.msg import Odometry
         from rosgraph_msgs.msg import Clock
+        from tf2_msgs.msg import TFMessage
         
         topics = self.cfg.get("topics", {})
         qos = 10
@@ -109,6 +110,9 @@ class ROS2Bridge:
         # Clock publisher
         self._publishers["clock"] = self._node.create_publisher(
             Clock, "/clock", qos
+        )
+        self._publishers["tf"] = self._node.create_publisher(
+            TFMessage, "/tf", qos
         )
         
         # Sensor publishers (created when robot is set up)
@@ -252,7 +256,10 @@ class ROS2Bridge:
         msg.scan_time = 0.0
         msg.range_min = lidar._min_range
         msg.range_max = lidar._max_range
-        msg.ranges = data["ranges"].tolist()
+        ranges = np.asarray(data["ranges"])
+        if ranges.ndim == 2:
+            ranges = ranges[0]
+        msg.ranges = ranges.tolist()
         
         self._publishers["scan"].publish(msg)
     
@@ -261,7 +268,9 @@ class ROS2Bridge:
         from sensor_msgs.msg import Image
         
         if "rgb" in data and "image" in self._publishers:
-            rgb = data["rgb"]
+            rgb = np.asarray(data["rgb"])
+            if rgb.ndim == 4:
+                rgb = rgb[0]
             msg = Image()
             msg.header.stamp = self._get_ros_time()
             msg.header.frame_id = "camera_frame"
@@ -274,7 +283,9 @@ class ROS2Bridge:
             self._publishers["image"].publish(msg)
         
         if "depth" in data and "depth" in self._publishers:
-            depth = data["depth"]
+            depth = np.asarray(data["depth"])
+            if depth.ndim == 3:
+                depth = depth[0]
             msg = Image()
             msg.header.stamp = self._get_ros_time()
             msg.header.frame_id = "camera_frame"
@@ -290,36 +301,8 @@ class ROS2Bridge:
         """Publish odometry message."""
         if "odom" not in self._publishers or self._robot is None:
             return
-        
-        from nav_msgs.msg import Odometry
-        
         state = self._robot.get_state()
-        
-        msg = Odometry()
-        msg.header.stamp = self._get_ros_time()
-        msg.header.frame_id = "odom"
-        msg.child_frame_id = "base_link"
-        
-        # Position
-        msg.pose.pose.position.x = float(state.position[0])
-        msg.pose.pose.position.y = float(state.position[1])
-        msg.pose.pose.position.z = float(state.position[2])
-        
-        # Orientation (quaternion)
-        msg.pose.pose.orientation.w = float(state.orientation[0])
-        msg.pose.pose.orientation.x = float(state.orientation[1])
-        msg.pose.pose.orientation.y = float(state.orientation[2])
-        msg.pose.pose.orientation.z = float(state.orientation[3])
-        
-        # Velocity
-        msg.twist.twist.linear.x = float(state.linear_velocity[0])
-        msg.twist.twist.linear.y = float(state.linear_velocity[1])
-        msg.twist.twist.linear.z = float(state.linear_velocity[2])
-        msg.twist.twist.angular.x = float(state.angular_velocity[0])
-        msg.twist.twist.angular.y = float(state.angular_velocity[1])
-        msg.twist.twist.angular.z = float(state.angular_velocity[2])
-        
-        self._publishers["odom"].publish(msg)
+        self._publish_odometry_from_state(state)
     
     def _get_ros_time(self):
         """Get current ROS time from simulation."""
@@ -397,6 +380,8 @@ class ROS2Bridge:
     def _publish_odometry_from_state(self, robot_state) -> None:
         """Publish odometry from RobotState (Batch-First arrays)."""
         from nav_msgs.msg import Odometry
+        from geometry_msgs.msg import TransformStamped
+        from tf2_msgs.msg import TFMessage
 
         pos = np.asarray(robot_state.get("position", np.zeros((1, 3))))
         if pos.ndim == 2:
@@ -433,6 +418,22 @@ class ROS2Bridge:
         msg.twist.twist.angular.z = float(ang_vel[2])
 
         self._publishers["odom"].publish(msg)
+
+        if "tf" in self._publishers:
+            tf_msg = TFMessage()
+            tf = TransformStamped()
+            tf.header.stamp = msg.header.stamp
+            tf.header.frame_id = "odom"
+            tf.child_frame_id = "base_link"
+            tf.transform.translation.x = float(pos[0])
+            tf.transform.translation.y = float(pos[1])
+            tf.transform.translation.z = float(pos[2])
+            tf.transform.rotation.w = float(orient[0])
+            tf.transform.rotation.x = float(orient[1])
+            tf.transform.rotation.y = float(orient[2])
+            tf.transform.rotation.z = float(orient[3])
+            tf_msg.transforms.append(tf)
+            self._publishers["tf"].publish(tf_msg)
     
     def shutdown(self) -> None:
         """Shutdown ROS2 node."""

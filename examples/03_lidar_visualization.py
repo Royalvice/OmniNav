@@ -10,6 +10,7 @@ This demo showcases:
 """
 
 import sys
+import argparse
 import numpy as np
 import cv2
 from omegaconf import OmegaConf
@@ -83,7 +84,15 @@ else:
 
 
 def main():
-    global running
+    global running, current_cmd
+    parser = argparse.ArgumentParser(description="Go2w raycaster depth visualization demo")
+    parser.add_argument("--test-mode", action="store_true", help="Run deterministic scripted controls and exit")
+    parser.add_argument("--max-steps", type=int, default=300, help="Max steps in test mode")
+    parser.add_argument("--show-viewer", action=argparse.BooleanOptionalAction, default=True)
+    args = parser.parse_args()
+
+    running = True
+    current_cmd[:] = 0.0
     print("=" * 60)
     print("  OmniNav Demo 03: Depth Raycaster Visualization (Go2w)")
     print("  Controls: WASD=move, Q/E=rotate, Space=stop, Esc=exit")
@@ -94,7 +103,7 @@ def main():
         "simulation": {
             "dt": 0.01,
             "backend": "gpu", 
-            "show_viewer": True,
+            "show_viewer": args.show_viewer,
             "disable_keyboard_shortcuts": True,
         },
         "scene": {
@@ -171,7 +180,7 @@ def main():
     controller.reset()
     
     # 7. Start Teleop
-    if not _USE_POLLING:
+    if not _USE_POLLING and not args.test_mode:
         listener = keyboard.Listener(on_press=on_press, on_release=on_release)
         listener.start()
 
@@ -179,8 +188,16 @@ def main():
 
     # 8. Loop
     try:
+        step_count = 0
         while running:
-            if _USE_POLLING:
+            if args.test_mode:
+                if step_count < args.max_steps // 2:
+                    current_cmd[:] = [LINEAR_VEL, 0.0, 0.0]
+                elif step_count < (3 * args.max_steps) // 4:
+                    current_cmd[:] = [0.0, 0.0, ANGULAR_VEL]
+                else:
+                    current_cmd[:] = 0.0
+            elif _USE_POLLING:
                 poll_keyboard()
             
             # Control
@@ -191,13 +208,16 @@ def main():
             data = depth_sensor.get_data()
             depth = data.get("depth")[0] if data.get("depth") is not None else None
             
-            if depth is not None:
+            if depth is not None and not args.test_mode:
                 # Normalize for visualization
                 depth_vis = np.clip(depth, cfg.sensor.min_range, cfg.sensor.max_range)
                 depth_vis = (depth_vis - cfg.sensor.min_range) / (cfg.sensor.max_range - cfg.sensor.min_range)
                 cv2.imshow("Raycaster Depth Pattern", depth_vis)
             
-            if cv2.waitKey(1) & 0xFF == ord('q'):
+            step_count += 1
+            if (not args.test_mode and cv2.waitKey(1) & 0xFF == ord('q')) or (
+                args.test_mode and step_count >= args.max_steps
+            ):
                 break
                 
     except KeyboardInterrupt:

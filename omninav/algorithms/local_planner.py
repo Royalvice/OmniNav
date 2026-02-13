@@ -100,7 +100,7 @@ class DWAPlanner(LocalPlannerBase):
             target = gp[:3]
 
         if target is None:
-            return np.zeros(3, dtype=np.float32)
+            return np.zeros((1, 3), dtype=np.float32)
 
         # Extract robot state
         robot_state = obs.get("robot_state", {})
@@ -112,7 +112,7 @@ class DWAPlanner(LocalPlannerBase):
         dist_to_goal = np.linalg.norm(target[:2] - pos[:2])
         if dist_to_goal < self._goal_tolerance:
             self._is_done = True
-            return np.zeros(3, dtype=np.float32)
+            return np.zeros((1, 3), dtype=np.float32)
 
         # Extract lidar ranges for obstacle check
         sensors = obs.get("sensors", {})
@@ -169,7 +169,7 @@ class DWAPlanner(LocalPlannerBase):
                     best_cost = total_cost
                     best_cmd = np.array([vx, 0.0, wz], dtype=np.float32)
 
-        return best_cmd
+        return best_cmd.reshape(1, 3)
 
     def navigate_to(self, obs: "Observation", target: np.ndarray) -> np.ndarray:
         """Navigate to target using DWA."""

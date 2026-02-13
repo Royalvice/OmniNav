@@ -21,6 +21,7 @@ Controls:
 """
 
 import sys
+import argparse
 import numpy as np
 from omegaconf import OmegaConf
 
@@ -122,7 +123,15 @@ def build_scene(sim):
 # Main
 # =============================================================================
 def main():
-    global running, _listener
+    global running, _listener, current_cmd
+    parser = argparse.ArgumentParser(description="Go2 teleop demo")
+    parser.add_argument("--test-mode", action="store_true", help="Run deterministic scripted controls and exit")
+    parser.add_argument("--max-steps", type=int, default=400, help="Max steps in test mode")
+    parser.add_argument("--show-viewer", action=argparse.BooleanOptionalAction, default=True)
+    args = parser.parse_args()
+
+    running = True
+    current_cmd[:] = 0.0
     
     print("=" * 60)
     print("  OmniNav Demo 01: Go2 Teleop (Kinematic Controller)")
@@ -139,7 +148,7 @@ def main():
             "dt": 0.01,
             "substeps": 2,
             "backend": "gpu",
-            "show_viewer": True,
+            "show_viewer": args.show_viewer,
             "camera_pos": [3.0, 3.0, 2.0],
             "camera_lookat": [1.0, 0.0, 0.3],
             "camera_fov": 40,
@@ -195,7 +204,7 @@ def main():
     # -------------------------------------------------------------------------
     # 6. Start Keyboard Listener
     # -------------------------------------------------------------------------
-    if not _USE_POLLING:
+    if not _USE_POLLING and not args.test_mode:
         _listener = keyboard.Listener(on_press=on_press, on_release=on_release)
         _listener.start()
     
@@ -217,7 +226,17 @@ def main():
     step_count = 0
     try:
         while running:
-            if _USE_POLLING:
+            if args.test_mode:
+                # Scripted behavior: forward -> strafe -> rotate -> stop
+                if step_count < args.max_steps // 4:
+                    current_cmd[:] = [LINEAR_VEL, 0.0, 0.0]
+                elif step_count < args.max_steps // 2:
+                    current_cmd[:] = [0.0, LATERAL_VEL, 0.0]
+                elif step_count < (3 * args.max_steps) // 4:
+                    current_cmd[:] = [0.0, 0.0, ANGULAR_VEL]
+                else:
+                    current_cmd[:] = 0.0
+            elif _USE_POLLING:
                 poll_keyboard()
             
             controller.step(current_cmd)
@@ -230,6 +249,8 @@ def main():
                 if pos.ndim > 1:
                     pos = pos[0]
                 print(f"Step {step_count}: Pos=[{pos[0]:.2f}, {pos[1]:.2f}], Height={pos[2]:.3f}")
+            if args.test_mode and step_count >= args.max_steps:
+                break
     
     except KeyboardInterrupt:
         pass

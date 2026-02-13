@@ -1,87 +1,143 @@
-# AGENTS.md - OmniNav AI Agent 指南
+# AGENTS.md - OmniNav AI Agent 工程指南
 
-本指南面向协助开发 OmniNav 智能巡检导航的仿真平台的 AI 编码助手。
+本指南用于约束 AI 编码助手在 OmniNav 仓库中的协作方式，目标是保证实现与需求、架构、测试三者一致。
 
-## 1. 上下文同步协议 (Context Sync Routine)
+## 1. 上下文同步协议 (必须执行)
 
-**在执行任何编码任务前**，你必须按照以下顺序同步上下文，以确保与项目最新状态对齐：
+在执行任何编码任务前，按以下顺序同步上下文：
 
-1.  **理解愿景 (`.github/contributing/REQUIREMENTS.md`)**: 理解 P0-P2 优先级，确保新功能符合系统架构。
-2.  **检查进度 (`.github/contributing/TASK.md`)**: 确认当前处于哪个 Phase，识别标记为 `[ ]` 的待办任务。
-3.  **对齐设计 (`.github/contributing/IMPLEMENTATION_PLAN.md`)**: **CRITICAL**。查看 Mermaid 图表、数据流规范（Batch-First）和 API 签名。
-4.  **确认功能 (`.github/contributing/WALKTHROUGH.md`)**: 了解已实现的功能和 Demo，避免重复造轮子。
-5.  **查询物理引擎接口 (`external/Genesis/doc/source/api_reference`)**: **MANDATORY**。涉及任何对 Genesis 物理引擎接口的对齐、调用或修改，**必须**查询此目录下的官方 API 引用文档。
+1. 阅读 `.github/contributing/REQUIREMENTS.md`（理解 P0/P1/P2 优先级）
+2. 阅读 `.github/contributing/TASK.md`（确认当前激活阶段和待办项）
+3. 阅读 `.github/contributing/IMPLEMENTATION_PLAN.md`（对齐 API、数据流、状态机）
+4. 阅读 `.github/contributing/WALKTHROUGH.md`（避免重复建设）
+5. 涉及 Genesis 接口时，必须查阅：
+`external/Genesis/doc/source/api_reference` 与 `external/Genesis/examples`
 
-## 2. 核心架构原则与规范
+---
 
-### 2.1 架构原则
-*   **Batch-First Everything**: 所有数据（Observation, Action, State）必须支持 `(num_envs, ...)` 维度。单一环境请使用 `(1, ...)`。
-*   **Strongly Typed**: 必须使用 `omninav.core.types` 中定义的 `TypedDict` 进行数据交换。
-*   **Registry-Driven**: 不要直接实例化组件，应通过注册器发现，例如 `ROBOT_REGISTRY.build(cfg, ...)`。
-*   **Lifecycle Awareness**: 组件必须继承 `LifecycleMixin` 并严格遵循 `CREATED -> SPAWNED -> BUILT -> READY` 状态流转。
+## 2. 运行环境与命令规范
 
-### 2.2 核心编码规范
+1. 默认在 `conda` 的 `torch` 环境执行命令
+2. 推荐命令前缀（PowerShell）：
+`& E:\miniconda\shell\condabin\conda-hook.ps1; conda activate torch; <command>`
+3. 若 `conda run -n torch` 出现编码/插件异常，允许切换为 `conda activate torch` 方案
 
-#### 使用 LifecycleMixin 管理初始化时序
-```python
-class MyComponent(LifecycleMixin):
-    def __init__(self, cfg):
-        super().__init__()
-        # ... 初始化逻辑 ...
-        self._transition_to(LifecycleState.CREATED)
+---
 
-    def spawn(self):
-        self._require_state(LifecycleState.CREATED)
-        # ... 生成逻辑 ...
-        self._transition_to(LifecycleState.SPAWNED)
-```
+## 3. 核心架构原则
 
-#### 使用 Registry 进行插件化扩展
-```python
-from omninav.core.registry import ALGORITHM_REGISTRY
+1. **Batch-First Everything**
+- 所有 Observation/Action/State 均支持 `(B, ...)`
+- 单环境单机器人也必须是 `(1, ...)`
 
-@ALGORITHM_REGISTRY.register("my_awesome_algo")
-class MyAlgo(AlgorithmBase):
-    def __init__(self, cfg, **kwargs):
-        super().__init__(cfg)
-```
+2. **Single Source of Truth for Types**
+- 跨层数据结构只能定义在 `omninav/core/types.py`
+- 禁止在其他模块重复定义 `TaskResult`、`Observation`、`Action`
 
-#### Hydra 配置覆盖
-优先使用 `OmniNavEnv.from_config()`，它正确处理了 Hydra 组合逻辑。
-```python
-env = OmniNavEnv.from_config(overrides=["robot=go2w", "task=inspection"])
-```
+3. **Registry-Driven Construction**
+- 组件必须通过 Registry 构建，不允许硬编码直接实例化
+- 使用 `BuildContext` 传递依赖，避免不透明 `**kwargs`
 
-## 3. 目录结构映射
+4. **Lifecycle-Managed Components**
+- Robot/Sensor/Locomotion/Algorithm/Task 必须遵循统一状态机
+- 基本流转：`CREATED -> SPAWNED -> BUILT -> READY`
+
+---
+
+## 4. 编码硬约束
+
+### 4.1 数据契约
+
+1. 每个公共 API 的输入/输出必须标注 shape
+2. 关键路径加入 shape 校验（例如 `validate_batch_shape`）
+3. 不允许隐式去 batch（如 `(B,3)` 自动退化为 `(3,)`）
+
+### 4.2 组件实现
+
+1. 新增组件必须：
+- 继承对应 Base 类
+- 在对应 Registry 注册
+- 提供最小可运行配置（`configs/...`）
+
+2. 修改 Runtime/Interface 时必须：
+- 同步更新测试
+- 同步更新文档（TASK/PLAN/WALKTHROUGH）
+
+### 4.3 Hydra 配置
+
+1. 优先使用 `OmniNavEnv.from_config(...)`
+2. 覆盖参数必须通过 `overrides: list[str]`
+3. 新增配置必须提供默认值并可命令行覆盖
+
+---
+
+## 5. Genesis 接口对齐规则 (强制)
+
+1. 任何涉及 `Scene`/`Entity`/`Sensor` API 的修改前，必须先查阅本地官方文档
+2. 任何 Genesis 调用差异，优先以 `external/Genesis/examples` 为行为基准
+3. 禁止基于记忆臆测 Genesis API
+
+---
+
+## 6. 测试与验收规则
+
+1. 每次功能变更至少包含：
+- 单元测试（对应模块）
+- 必要集成测试（跨层行为）
+
+2. Batch 相关功能必须同时验证：
+- `n_envs=1`
+- `n_envs=4`
+  - 若依赖真实 Genesis 重型场景，测试可通过 `OMNINAV_RUN_GENESIS_TESTS=1` 显式开启
+
+3. PR/提交前最低验收：
+- 新增测试通过
+- 现有核心测试不回归
+- 示例脚本可运行（至少 1 个）
+
+---
+
+## 7. 目录职责映射
 
 ```text
 OmniNav/
 ├── configs/                        # Hydra 分层配置
-├── docs/                           # 用户文档与 API 参考
-├── omninav/                        # 核心源码包
-│   ├── algorithms/                 # 规划与导航算法 (Plugin-based)
-│   ├── assets/                     # 场景生成与资产加载
-│   ├── core/                       # 核心层：Runtime, Registry, Lifecycle, Hooks
-│   ├── evaluation/                 # 评测层：Task, Metrics
-│   ├── interfaces/                 # 接口层：Env, Gym, ROS2
-│   ├── locomotion/                 # 运动层：Kinematic/RL 控制器
-│   ├── robots/                     # 机器人层：Go2/Go2w
-│   └── sensors/                    # 传感器层：Batch 可视化
-├── tests/                          # 核心/接口及全流程集成测试
-└── examples/                       # 巡检自动化等全流程 Demo
+├── docs/                           # 用户文档与 API 文档
+├── omninav/
+│   ├── core/                       # Runtime/Registry/Lifecycle/Types
+│   ├── robots/                     # Robot 实现
+│   ├── sensors/                    # Sensor 实现
+│   ├── locomotion/                 # 运动控制
+│   ├── algorithms/                 # 规划与决策
+│   ├── evaluation/                 # Task 与 Metric
+│   └── interfaces/                 # Python/Gym/ROS2 接口
+├── tests/                          # 单元与集成测试
+└── examples/                       # 最小可运行示例
 ```
 
-## 4. 关键参考文档
+---
 
-| 文档                                                                  | 作用                                           |
-| --------------------------------------------------------------------- | ---------------------------------------------- |
-| [REQUIREMENTS.md](.github/contributing/REQUIREMENTS.md)               | 愿景与优先级 (Why)                             |
-| [IMPLEMENTATION_PLAN.md](.github/contributing/IMPLEMENTATION_PLAN.md) | 架构图、数据流、API 规范 (How)                 |
-| [TASK.md](.github/contributing/TASK.md)                               | 详细任务清单 (What's Next)                     |
-| [WALKTHROUGH.md](.github/contributing/WALKTHROUGH.md)                 | 进展记录、Demo 说明、技术亮点 (How it's built) |
+## 8. 常见问题排查
 
-## 5. 常见错误排查建议
+1. Hydra 覆盖不生效：
+- 检查 `from_config(..., overrides=...)` 是否透传到 `hydra.compose`
 
-*   **Genesis API**: 严禁依赖陈旧的训练数据。必须在执行前通过 `view_file` 查阅 `external/Genesis/doc/source/api_reference` 中的最新 API 定义以及 `external/Genesis/examples` 中的官方示例。
-*   **Hydra Overrides**: 如果覆盖无效，检查是否在 `python_api.py` 的 `from_config` 中正确传递了 `overrides` 列表给 `hydra.compose`。
-*   **Batch Dimension**: 处理 Observation 时，始终检查 `len(obs)`。
+2. Batch 维度异常：
+- 检查 `obs/action` 是否被错误降维
+- 对关键字段打印 `shape`
+
+3. ROS2 话题行为异常：
+- 检查 frame 命名、`/clock` 时间源、消息字段维度
+
+4. Genesis 运行异常：
+- 回查 `api_reference` 与官方示例参数签名
+
+---
+
+## 9. 文档同步约定
+
+当出现以下变更时，必须同步更新 `TASK.md` 与 `IMPLEMENTATION_PLAN.md`：
+
+1. API 契约（类型、shape、函数签名）变化
+2. 架构执行路径变化（Runtime 编排、生命周期、注册机制）
+3. 阶段目标或优先级变化（P0/P1/P2）

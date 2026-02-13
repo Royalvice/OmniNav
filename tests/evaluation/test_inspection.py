@@ -92,7 +92,9 @@ class TestInspectionTask:
 
         obs = _make_obs(pos=(0, 0, 0))
         task.step(obs)
-        assert task.is_terminated(obs)
+        done = task.is_terminated(obs)
+        assert done.shape == (1,)
+        assert bool(done[0])
 
     def test_termination_on_timeout(self):
         from omninav.evaluation.tasks.inspection_task import InspectionTask
@@ -106,7 +108,9 @@ class TestInspectionTask:
         task.reset()
 
         obs = _make_obs(pos=(0, 0, 0), sim_time=15.0)
-        assert task.is_terminated(obs)
+        done = task.is_terminated(obs)
+        assert done.shape == (1,)
+        assert bool(done[0])
 
     def test_compute_result(self):
         from omninav.evaluation.tasks.inspection_task import InspectionTask

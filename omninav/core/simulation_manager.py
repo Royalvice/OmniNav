@@ -84,11 +84,14 @@ class GenesisSimulationManager(SimulationManagerBase):
         show_viewer = sim_cfg.get("show_viewer", False)
         self._n_envs = sim_cfg.get("n_envs", 1)
         
-        # Initialize Genesis (only once)
+        # Initialize Genesis only if global runtime is not already initialized.
         if not self._gs_initialized:
             gs_backend = gs.gpu if backend == "gpu" else gs.cpu
-            gs.init(backend=gs_backend)
-            self._gs_initialized = True
+            if getattr(gs, "_initialized", False):
+                self._gs_initialized = True
+            else:
+                gs.init(backend=gs_backend)
+                self._gs_initialized = True
         
         # Create scene (following Genesis example patterns)
         self._scene = gs.Scene(
