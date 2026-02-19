@@ -1,0 +1,25 @@
+# @package _global_
+defaults:
+  - /robot: go2w
+  - /sensor: default
+  - /locomotion: wheel
+  - /scene: ring_obstacles
+  - _self_
+
+simulation:
+  dt: 0.01
+  substeps: 2
+  backend: gpu
+  show_viewer: true
+  disable_keyboard_shortcuts: true
+
+demo:
+  mode: keyboard
+  max_linear_vel: 0.5
+  max_lateral_vel: 0.0
+  max_angular_vel: 0.5
+  allow_lateral: false
+
+# Lidar demo: keep only lidar.
+sensor:
+  depth_camera: null

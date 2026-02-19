@@ -1,454 +1,305 @@
-"""
-ROS2 Bridge for OmniNav
+"""ROS2 Bridge for OmniNav."""
 
-Provides ROS2 integration for publishing sensor data and receiving control commands.
-"""
+from __future__ import annotations
 
-from typing import Optional, Dict, Any, List, TYPE_CHECKING
+from typing import Optional, Dict, Any, TYPE_CHECKING
+import time
+import warnings
+
 import numpy as np
 from omegaconf import DictConfig
 
+from omninav.interfaces.ros2.adapter import Ros2Adapter
+from omninav.interfaces.ros2.components import (
+    TopicConfig,
+    FrameConfig,
+    ClockPublisher,
+    TfPublisher,
+    OdomPublisher,
+    ScanPublisher,
+    CmdVelSubscriber,
+    CmdVelPublisher,
+)
+
 if TYPE_CHECKING:
-    from omninav.core.base import SimulationManagerBase
     from omninav.robots.base import RobotBase
     from omninav.core.types import Observation
 
 
+_PROFILE_DEFAULTS = {
+    "all_off": {
+        "publish": {"clock": False, "tf": False, "tf_static": False, "odom": False, "scan": False},
+    },
+    "nav2_minimal": {
+        "publish": {"clock": True, "tf": True, "tf_static": True, "odom": True, "scan": True},
+    },
+    "nav2_full": {
+        "publish": {"clock": True, "tf": True, "tf_static": True, "odom": True, "scan": True},
+    },
+}
+
+
 class ROS2Bridge:
-    """
-    ROS2 bridge for OmniNav simulation.
-    
-    Handles:
-    - Publishing sensor data (Lidar, Camera, Odom)
-    - Subscribing to control commands (cmd_vel)
-    - Clock synchronization
-    
-    Usage:
-        bridge = Ros2Bridge(cfg, sim_manager)
-        bridge.setup(robot)
-        
-        while running:
-            sim_manager.step()
-            bridge.spin_once()
-            cmd_vel = bridge.get_cmd_vel()
-    
-    Config example:
-        ros2:
-          enabled: true
-          node_name: omninav
-          publish_rate: 30.0
-          topics:
-            scan: /scan
-            image: /camera/image_raw
-            depth: /camera/depth
-            odom: /odom
-            cmd_vel: /cmd_vel
-    """
-    
-    def __init__(self, cfg: DictConfig, sim: "SimulationManagerBase"):
-        """
-        Initialize ROS2 bridge.
-        
-        Args:
-            cfg: Configuration (ros2 section of main config)
-            sim: Simulation manager instance
-        """
+    """ROS2 bridge for publishing OmniNav state and consuming external commands."""
+
+    def __init__(self, cfg: DictConfig, sim: Any):
         self.cfg = cfg
         self.sim = sim
-        self._enabled = cfg.get("enabled", False)
-        
-        # ROS2 objects (lazily initialized)
+        self._enabled = bool(cfg.get("enabled", False))
         self._node = None
-        self._publishers: Dict[str, Any] = {}
-        self._subscribers: Dict[str, Any] = {}
+
+        self._topics = self._resolve_topics()
+        self._frames = self._resolve_frames()
+        self._control_source = str(cfg.get("control_source", "python"))
+        self._profile = str(cfg.get("profile", "all_off"))
+        self._namespace_mode = str(cfg.get("namespace_mode", "single"))
+        self._cmd_vel_timeout_sec = float(cfg.get("cmd_vel_timeout_sec", 0.5))
+
+        self._publish = self._resolve_publish_switches()
+
         self._robot: Optional["RobotBase"] = None
-        
-        # Latest received cmd_vel
+        self._clock_pub: Optional[ClockPublisher] = None
+        self._tf_pub: Optional[TfPublisher] = None
+        self._odom_pub: Optional[OdomPublisher] = None
+        self._scan_pub: Optional[ScanPublisher] = None
+        self._cmd_sub: Optional[CmdVelSubscriber] = None
+        self._cmd_pub: Optional[CmdVelPublisher] = None
+
         self._cmd_vel: Optional[np.ndarray] = None
-        
+        self._last_cmd_vel_ts: Optional[float] = None
+        self._published_static_tf = False
+
         if self._enabled:
             self._init_ros2()
-    
+
+    def _resolve_topics(self) -> TopicConfig:
+        topics = self.cfg.get("topics", {})
+        return TopicConfig(
+            clock=topics.get("clock", "/clock"),
+            tf=topics.get("tf", "/tf"),
+            tf_static=topics.get("tf_static", "/tf_static"),
+            odom=topics.get("odom", self.cfg.get("odom_topic", "/odom")),
+            scan=topics.get("scan", "/scan"),
+            cmd_vel_in=topics.get("cmd_vel_in", self.cfg.get("cmd_vel_topic", "/cmd_vel")),
+            cmd_vel_out=topics.get("cmd_vel_out", "/omninav/cmd_vel"),
+        )
+
+    def _resolve_frames(self) -> FrameConfig:
+        frames = self.cfg.get("frames", {})
+        return FrameConfig(
+            map=frames.get("map", "map"),
+            odom=frames.get("odom", "odom"),
+            base_link=frames.get("base_link", "base_link"),
+            laser=frames.get("laser", "laser_frame"),
+        )
+
+    def _resolve_publish_switches(self) -> Dict[str, bool]:
+        profile_defaults = _PROFILE_DEFAULTS.get(self._profile, _PROFILE_DEFAULTS["all_off"])
+        publish_cfg = dict(profile_defaults.get("publish", {}))
+        publish_override = self.cfg.get("publish", {})
+        for key in ["clock", "tf", "tf_static", "odom", "scan"]:
+            if key in publish_override:
+                publish_cfg[key] = bool(publish_override.get(key))
+        return publish_cfg
+
+    def _validate_config(self) -> None:
+        valid_sources = {"python", "ros2"}
+        if self._control_source not in valid_sources:
+            raise ValueError(f"Invalid ros2.control_source={self._control_source}; expected one of {sorted(valid_sources)}")
+
+        valid_namespace_modes = {"single", "per_env"}
+        if self._namespace_mode not in valid_namespace_modes:
+            raise ValueError(
+                f"Invalid ros2.namespace_mode={self._namespace_mode}; expected one of {sorted(valid_namespace_modes)}"
+            )
+
+    def _build_qos(self, key: str):
+        from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy, HistoryPolicy
+
+        defaults = {"history": "keep_last", "depth": 10, "reliability": "reliable", "durability": "volatile"}
+        qos_cfg = self.cfg.get("qos", {}).get(key, {})
+        merged = {**defaults, **qos_cfg}
+
+        profile = QoSProfile(depth=int(merged["depth"]))
+        profile.history = HistoryPolicy.KEEP_ALL if str(merged["history"]).lower() == "keep_all" else HistoryPolicy.KEEP_LAST
+        profile.reliability = (
+            ReliabilityPolicy.BEST_EFFORT
+            if str(merged["reliability"]).lower() == "best_effort"
+            else ReliabilityPolicy.RELIABLE
+        )
+        profile.durability = (
+            DurabilityPolicy.TRANSIENT_LOCAL
+            if str(merged["durability"]).lower() == "transient_local"
+            else DurabilityPolicy.VOLATILE
+        )
+        return profile
+
     def _init_ros2(self) -> None:
-        """Initialize ROS2 node and communications."""
         try:
             import rclpy
-            from rclpy.node import Node
-            from rclpy.qos import QoSProfile, ReliabilityPolicy
-            
+
+            self._validate_config()
             if not rclpy.ok():
                 rclpy.init()
-            
+
             node_name = self.cfg.get("node_name", "omninav")
             self._node = rclpy.create_node(node_name)
-            
-            # Setup publishers and subscribers
-            self._setup_publishers()
-            self._setup_subscribers()
-            
+
+            # Publishers
+            if self._publish.get("clock", False):
+                self._clock_pub = ClockPublisher(self._node, self._topics.clock, self._build_qos("clock"))
+            if self._publish.get("tf", False) or self._publish.get("tf_static", False):
+                self._tf_pub = TfPublisher(
+                    self._node,
+                    self._topics.tf,
+                    self._topics.tf_static,
+                    self._build_qos("tf"),
+                    self._build_qos("tf_static"),
+                )
+            if self._publish.get("odom", False):
+                self._odom_pub = OdomPublisher(self._node, self._topics.odom, self._build_qos("odom"))
+            if self._publish.get("scan", False):
+                self._scan_pub = ScanPublisher(self._node, self._topics.scan, self._build_qos("scan"))
+
+            # Subscriptions / optional mirror publisher
+            if self._control_source == "ros2":
+                self._cmd_sub = CmdVelSubscriber(self._node, self._topics.cmd_vel_in, self._build_qos("cmd_vel_in"), self._cmd_vel_callback)
+            self._cmd_pub = CmdVelPublisher(self._node, self._topics.cmd_vel_out, self._build_qos("cmd_vel_out"))
+
         except ImportError:
-            import warnings
             warnings.warn(
-                "rclpy not found. ROS2 bridge disabled. "
-                "Install ROS2 and source setup.bash to enable."
+                "rclpy not found. ROS2 bridge disabled. Install ROS2 and source setup.bash to enable."
             )
             self._enabled = False
-    
-    def _setup_publishers(self) -> None:
-        """Setup ROS2 publishers."""
-        if self._node is None:
-            return
-        
-        from sensor_msgs.msg import LaserScan, Image
-        from nav_msgs.msg import Odometry
-        from rosgraph_msgs.msg import Clock
-        from tf2_msgs.msg import TFMessage
-        
-        topics = self.cfg.get("topics", {})
-        qos = 10
-        
-        # Clock publisher
-        self._publishers["clock"] = self._node.create_publisher(
-            Clock, "/clock", qos
-        )
-        self._publishers["tf"] = self._node.create_publisher(
-            TFMessage, "/tf", qos
-        )
-        
-        # Sensor publishers (created when robot is set up)
-        # These are placeholders - actual creation happens in setup()
-    
-    def _setup_subscribers(self) -> None:
-        """Setup ROS2 subscribers."""
-        if self._node is None:
-            return
-        
-        from geometry_msgs.msg import Twist
-        
-        topics = self.cfg.get("topics", {})
-        cmd_vel_topic = topics.get("cmd_vel", "/cmd_vel")
-        
-        self._subscribers["cmd_vel"] = self._node.create_subscription(
-            Twist,
-            cmd_vel_topic,
-            self._cmd_vel_callback,
-            10
-        )
-    
-    def _cmd_vel_callback(self, msg) -> None:
-        """Handle incoming cmd_vel message."""
-        self._cmd_vel = np.array([
-            msg.linear.x,
-            msg.linear.y,
-            msg.angular.z
-        ], dtype=np.float32)
-    
+
     def setup(self, robot: "RobotBase") -> None:
-        """
-        Setup bridge with robot reference.
-        
-        Creates sensor-specific publishers based on robot's mounted sensors.
-        
-        Args:
-            robot: Robot instance with sensors
-        """
         self._robot = robot
-        
         if not self._enabled or self._node is None:
             return
-        
-        from sensor_msgs.msg import LaserScan, Image
-        from nav_msgs.msg import Odometry
-        
-        topics = self.cfg.get("topics", {})
-        
-        # Create Lidar publisher if robot has lidar
-        if "lidar_2d" in robot.sensors:
-            scan_topic = topics.get("scan", "/scan")
-            self._publishers["scan"] = self._node.create_publisher(
-                LaserScan, scan_topic, 10
-            )
-        
-        # Create camera publishers if robot has camera
-        if "camera" in robot.sensors:
-            image_topic = topics.get("image", "/camera/image_raw")
-            depth_topic = topics.get("depth", "/camera/depth")
-            self._publishers["image"] = self._node.create_publisher(
-                Image, image_topic, 10
-            )
-            self._publishers["depth"] = self._node.create_publisher(
-                Image, depth_topic, 10
-            )
-        
-        # Odometry publisher
-        odom_topic = topics.get("odom", "/odom")
-        self._publishers["odom"] = self._node.create_publisher(
-            Odometry, odom_topic, 10
-        )
-    
-    def spin_once(self) -> None:
-        """
-        Process ROS2 callbacks and publish data.
-        
-        Should be called after each simulation step.
-        """
-        if not self._enabled or self._node is None:
-            return
-        
-        import rclpy
-        
-        # Process incoming messages
-        rclpy.spin_once(self._node, timeout_sec=0)
-        
-        # Publish clock
-        self._publish_clock()
-        
-        # Publish sensor data
-        if self._robot is not None:
-            self._publish_sensors()
-            self._publish_odometry()
-    
-    def _publish_clock(self) -> None:
-        """Publish simulation clock."""
-        from rosgraph_msgs.msg import Clock
-        from builtin_interfaces.msg import Time
-        
-        sim_time = self.sim.get_sim_time()
-        sec = int(sim_time)
-        nanosec = int((sim_time - sec) * 1e9)
-        
-        msg = Clock()
-        msg.clock = Time(sec=sec, nanosec=nanosec)
-        self._publishers["clock"].publish(msg)
-    
-    def _publish_sensors(self) -> None:
-        """Publish sensor data."""
-        if self._robot is None:
-            return
-        
-        # Publish Lidar
-        if "scan" in self._publishers and "lidar_2d" in self._robot.sensors:
-            lidar = self._robot.sensors["lidar_2d"]
-            if lidar.is_ready:
-                data = lidar.get_data()
-                self._publish_laser_scan(data)
-        
-        # Publish Camera
-        if "image" in self._publishers and "camera" in self._robot.sensors:
-            camera = self._robot.sensors["camera"]
-            if camera.is_ready:
-                data = camera.get_data()
-                self._publish_camera_images(data)
-    
-    def _publish_laser_scan(self, data: Dict[str, np.ndarray]) -> None:
-        """Publish LaserScan message."""
-        from sensor_msgs.msg import LaserScan
-        
-        lidar = self._robot.sensors["lidar_2d"]
-        
-        msg = LaserScan()
-        msg.header.stamp = self._get_ros_time()
-        msg.header.frame_id = "laser_frame"
-        msg.angle_min = lidar.angle_min
-        msg.angle_max = lidar.angle_max
-        msg.angle_increment = lidar.angle_increment
-        msg.time_increment = 0.0
-        msg.scan_time = 0.0
-        msg.range_min = lidar._min_range
-        msg.range_max = lidar._max_range
-        ranges = np.asarray(data["ranges"])
-        if ranges.ndim == 2:
-            ranges = ranges[0]
-        msg.ranges = ranges.tolist()
-        
-        self._publishers["scan"].publish(msg)
-    
-    def _publish_camera_images(self, data: Dict[str, np.ndarray]) -> None:
-        """Publish camera Image messages."""
-        from sensor_msgs.msg import Image
-        
-        if "rgb" in data and "image" in self._publishers:
-            rgb = np.asarray(data["rgb"])
-            if rgb.ndim == 4:
-                rgb = rgb[0]
-            msg = Image()
-            msg.header.stamp = self._get_ros_time()
-            msg.header.frame_id = "camera_frame"
-            msg.height = rgb.shape[0]
-            msg.width = rgb.shape[1]
-            msg.encoding = "rgb8"
-            msg.is_bigendian = False
-            msg.step = rgb.shape[1] * 3
-            msg.data = rgb.tobytes()
-            self._publishers["image"].publish(msg)
-        
-        if "depth" in data and "depth" in self._publishers:
-            depth = np.asarray(data["depth"])
-            if depth.ndim == 3:
-                depth = depth[0]
-            msg = Image()
-            msg.header.stamp = self._get_ros_time()
-            msg.header.frame_id = "camera_frame"
-            msg.height = depth.shape[0]
-            msg.width = depth.shape[1]
-            msg.encoding = "32FC1"
-            msg.is_bigendian = False
-            msg.step = depth.shape[1] * 4
-            msg.data = depth.tobytes()
-            self._publishers["depth"].publish(msg)
-    
-    def _publish_odometry(self) -> None:
-        """Publish odometry message."""
-        if "odom" not in self._publishers or self._robot is None:
-            return
-        state = self._robot.get_state()
-        self._publish_odometry_from_state(state)
-    
+        self._publish_static_tf()
+
     def _get_ros_time(self):
-        """Get current ROS time from simulation."""
         from builtin_interfaces.msg import Time
-        
-        sim_time = self.sim.get_sim_time()
+
+        sim_time = float(self.sim.get_sim_time()) if self.sim is not None else 0.0
         sec = int(sim_time)
         nanosec = int((sim_time - sec) * 1e9)
         return Time(sec=sec, nanosec=nanosec)
-    
+
+    def _cmd_vel_callback(self, msg) -> None:
+        self._cmd_vel = Ros2Adapter.cmd_vel_from_twist(msg)
+        self._last_cmd_vel_ts = time.monotonic()
+
+    def _cmd_vel_fresh(self) -> bool:
+        if self._last_cmd_vel_ts is None:
+            return False
+        return (time.monotonic() - self._last_cmd_vel_ts) <= self._cmd_vel_timeout_sec
+
     def get_external_cmd_vel(self) -> Optional[np.ndarray]:
-        """
-        Get latest cmd_vel from ROS2 subscriber.
+        if self._control_source != "ros2":
+            return None
+        if self._cmd_vel is None:
+            return None
+        if not self._cmd_vel_fresh():
+            return np.zeros(3, dtype=np.float32)
+        return self._cmd_vel.copy()
 
-        Returns:
-            [vx, vy, wz] velocity command or None if no message received
-        """
-        return self._cmd_vel
-
-    def publish_observation(self, obs: "Observation") -> None:
-        """
-        Publish full observation to ROS2.
-
-        Publishes clock, sensor data, and odometry from Observation.
-
-        Args:
-            obs: Observation TypedDict
-        """
+    def spin_once(self) -> None:
         if not self._enabled or self._node is None:
             return
 
-        # Publish clock
-        self._publish_clock()
+        import rclpy
 
-        # Publish sensors from observation
-        sensors = obs.get("sensors", {})
-        for sensor_name, sensor_data in sensors.items():
-            if "ranges" in sensor_data and "scan" in self._publishers:
-                self._publish_laser_scan(sensor_data)
-            if "rgb" in sensor_data and "image" in self._publishers:
-                self._publish_camera_images(sensor_data)
+        rclpy.spin_once(self._node, timeout_sec=0)
 
-        # Publish odometry from robot state
-        if "robot_state" in obs and "odom" in self._publishers:
-            self._publish_odometry_from_state(obs["robot_state"])
-
-    def publish_cmd_vel(self, cmd_vel: np.ndarray) -> None:
-        """
-        Publish cmd_vel to ROS2.
-
-        Args:
-            cmd_vel: [vx, vy, wz] velocity command
-        """
-        if not self._enabled or self._node is None:
+    def _publish_clock(self) -> None:
+        if self._clock_pub is None:
             return
+        self._clock_pub.publish(self._get_ros_time())
 
-        try:
-            from geometry_msgs.msg import Twist
-
-            if "cmd_vel_pub" not in self._publishers:
-                topics = self.cfg.get("topics", {})
-                cmd_topic = topics.get("cmd_vel_out", "/cmd_vel_out")
-                self._publishers["cmd_vel_pub"] = self._node.create_publisher(
-                    Twist, cmd_topic, 10
-                )
-
-            msg = Twist()
-            msg.linear.x = float(cmd_vel[0])
-            msg.linear.y = float(cmd_vel[1])
-            msg.angular.z = float(cmd_vel[2])
-            self._publishers["cmd_vel_pub"].publish(msg)
-        except ImportError:
-            pass
-
-    def _publish_odometry_from_state(self, robot_state) -> None:
-        """Publish odometry from RobotState (Batch-First arrays)."""
-        from nav_msgs.msg import Odometry
+    def _make_odom_transform(self, stamp, robot_state):
         from geometry_msgs.msg import TransformStamped
-        from tf2_msgs.msg import TFMessage
 
-        pos = np.asarray(robot_state.get("position", np.zeros((1, 3))))
+        pos = np.asarray(robot_state.get("position", np.zeros((1, 3), dtype=np.float32)))
+        orient = np.asarray(robot_state.get("orientation", np.array([[1, 0, 0, 0]], dtype=np.float32)))
         if pos.ndim == 2:
             pos = pos[0]
-        orient = np.asarray(robot_state.get("orientation", np.array([[1, 0, 0, 0]])))
         if orient.ndim == 2:
             orient = orient[0]
-        lin_vel = np.asarray(robot_state.get("linear_velocity", np.zeros((1, 3))))
-        if lin_vel.ndim == 2:
-            lin_vel = lin_vel[0]
-        ang_vel = np.asarray(robot_state.get("angular_velocity", np.zeros((1, 3))))
-        if ang_vel.ndim == 2:
-            ang_vel = ang_vel[0]
 
-        msg = Odometry()
-        msg.header.stamp = self._get_ros_time()
-        msg.header.frame_id = "odom"
-        msg.child_frame_id = "base_link"
+        tf = TransformStamped()
+        tf.header.stamp = stamp
+        tf.header.frame_id = self._frames.odom
+        tf.child_frame_id = self._frames.base_link
+        tf.transform.translation.x = float(pos[0])
+        tf.transform.translation.y = float(pos[1])
+        tf.transform.translation.z = float(pos[2])
+        tf.transform.rotation.w = float(orient[0])
+        tf.transform.rotation.x = float(orient[1])
+        tf.transform.rotation.y = float(orient[2])
+        tf.transform.rotation.z = float(orient[3])
+        return tf
 
-        msg.pose.pose.position.x = float(pos[0])
-        msg.pose.pose.position.y = float(pos[1])
-        msg.pose.pose.position.z = float(pos[2])
+    def _publish_static_tf(self) -> None:
+        if self._published_static_tf or self._tf_pub is None or not self._publish.get("tf_static", False):
+            return
 
-        msg.pose.pose.orientation.w = float(orient[0])
-        msg.pose.pose.orientation.x = float(orient[1])
-        msg.pose.pose.orientation.y = float(orient[2])
-        msg.pose.pose.orientation.z = float(orient[3])
+        from geometry_msgs.msg import TransformStamped
 
-        msg.twist.twist.linear.x = float(lin_vel[0])
-        msg.twist.twist.linear.y = float(lin_vel[1])
-        msg.twist.twist.linear.z = float(lin_vel[2])
-        msg.twist.twist.angular.x = float(ang_vel[0])
-        msg.twist.twist.angular.y = float(ang_vel[1])
-        msg.twist.twist.angular.z = float(ang_vel[2])
+        static_tf = TransformStamped()
+        static_tf.header.stamp = self._get_ros_time()
+        static_tf.header.frame_id = self._frames.base_link
+        static_tf.child_frame_id = self._frames.laser
+        static_tf.transform.translation.x = 0.0
+        static_tf.transform.translation.y = 0.0
+        static_tf.transform.translation.z = 0.0
+        static_tf.transform.rotation.w = 1.0
+        static_tf.transform.rotation.x = 0.0
+        static_tf.transform.rotation.y = 0.0
+        static_tf.transform.rotation.z = 0.0
+        self._tf_pub.publish_static(static_tf)
+        self._published_static_tf = True
 
-        self._publishers["odom"].publish(msg)
+    def publish_observation(self, obs: "Observation") -> None:
+        if not self._enabled or self._node is None:
+            return
 
-        if "tf" in self._publishers:
-            tf_msg = TFMessage()
-            tf = TransformStamped()
-            tf.header.stamp = msg.header.stamp
-            tf.header.frame_id = "odom"
-            tf.child_frame_id = "base_link"
-            tf.transform.translation.x = float(pos[0])
-            tf.transform.translation.y = float(pos[1])
-            tf.transform.translation.z = float(pos[2])
-            tf.transform.rotation.w = float(orient[0])
-            tf.transform.rotation.x = float(orient[1])
-            tf.transform.rotation.y = float(orient[2])
-            tf.transform.rotation.z = float(orient[3])
-            tf_msg.transforms.append(tf)
-            self._publishers["tf"].publish(tf_msg)
-    
+        self._publish_clock()
+        robot_state = obs.get("robot_state", None)
+        stamp = self._get_ros_time()
+
+        if robot_state is not None and self._odom_pub is not None and self._publish.get("odom", False):
+            odom_msg = self._odom_pub.publish(robot_state, stamp, self._frames)
+            if self._tf_pub is not None and self._publish.get("tf", False):
+                odom_tf = self._make_odom_transform(odom_msg.header.stamp, robot_state)
+                self._tf_pub.publish_dynamic(odom_tf)
+
+        if self._scan_pub is not None and self._publish.get("scan", False):
+            scan_data = Ros2Adapter.pick_scan_data(obs.get("sensors", {}))
+            if scan_data is not None:
+                self._scan_pub.publish(scan_data, stamp, self._frames.laser)
+
+    def publish_cmd_vel(self, cmd_vel: np.ndarray) -> None:
+        if not self._enabled or self._cmd_pub is None:
+            return
+        self._cmd_pub.publish(Ros2Adapter.first_batch(cmd_vel))
+
     def shutdown(self) -> None:
-        """Shutdown ROS2 node."""
         if self._node is not None:
             self._node.destroy_node()
             self._node = None
-        
         try:
             import rclpy
+
             if rclpy.ok():
                 rclpy.shutdown()
         except ImportError:
             pass
-    
+
     @property
     def enabled(self) -> bool:
-        """Check if ROS2 bridge is enabled."""
         return self._enabled
+
+    @property
+    def control_source(self) -> str:
+        return self._control_source

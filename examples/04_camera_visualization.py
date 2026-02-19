@@ -1,199 +1,145 @@
 #!/usr/bin/env python3
-"""
-Demo 04: Camera Visualization (Enhanced + Locomotion)
+"""Demo 04: Go2w camera visualization with keyboard teleop."""
 
-This demo showcases:
-1. Mounting a CameraSensor (RGB-D) to Go2
-2. Complex obstacle environment and visible ground
-3. Physics-based locomotion control (WASD/QE) using IKController
-4. Real-time vision using OpenCV
-"""
+from __future__ import annotations
 
-import sys
 import argparse
+import sys
+from typing import Optional
+
 import numpy as np
-import cv2
-from omegaconf import OmegaConf
 
-from omninav.core import GenesisSimulationManager
-from omninav.robots import Go2wRobot
-from omninav.sensors import CameraSensor
-from omninav.locomotion import WheelController
+from omninav.core.types import Action
+from omninav.interfaces import OmniNavEnv
 
-# =============================================================================
-# Keyboard Input (Consolidated from Demo 01)
-# =============================================================================
-current_cmd = np.zeros(3)  # [vx, vy, wz]
-running = True
 
-LINEAR_VEL = 0.5
-LATERAL_VEL = 0.3
-ANGULAR_VEL = 1.0
+class _KeyboardInput:
+    def __init__(self, allow_lateral: bool, linear_vel: float, lateral_vel: float, angular_vel: float):
+        self.allow_lateral = allow_lateral
+        self.linear_vel = linear_vel
+        self.lateral_vel = lateral_vel
+        self.angular_vel = angular_vel
+        self.running = True
+        self._cmd = np.zeros(3, dtype=np.float32)
+        self._key_state: dict[str, bool] = {}
+        self._listener = None
+        self._keyboard = None
 
-_USE_POLLING = sys.platform == "win32"
-
-if _USE_POLLING:
-    import ctypes
-    _user32 = ctypes.windll.user32
-    _VK = {"w": 0x57, "a": 0x41, "s": 0x53, "d": 0x44,
-           "q": 0x51, "e": 0x45, "r": 0x52, "space": 0x20, "escape": 0x1B}
-
-    def poll_keyboard(controller=None):
-        global current_cmd, running
-        def down(name):
-            return (_user32.GetAsyncKeyState(_VK[name]) & 0x8000) != 0
-        if down("escape"):
-            running = False
-            return
-        if down("space") or down("r"):
-            current_cmd[:] = 0
-            if controller: controller.force_snap_legs_to_default()
-            return
-        current_cmd[0] = LINEAR_VEL if down("w") else (-LINEAR_VEL if down("s") else 0.0)
-        # Go2w is mecanum, can strafe
-        current_cmd[1] = 0.0 # Disable strafing for stability per Demo 02
-        current_cmd[2] = ANGULAR_VEL if down("q") else (-ANGULAR_VEL if down("e") else 0.0)
-else:
-    from pynput import keyboard
-    _listener = None
-    def on_press(key):
-        global current_cmd, running
         try:
-            if key.char == "w": current_cmd[0] = LINEAR_VEL
-            elif key.char == "s": current_cmd[0] = -LINEAR_VEL
-            # elif key.char == "a": current_cmd[1] = LATERAL_VEL
-            # elif key.char == "d": current_cmd[1] = -LATERAL_VEL
-            elif key.char == "q": current_cmd[2] = ANGULAR_VEL
-            elif key.char == "e": current_cmd[2] = -ANGULAR_VEL
-        except AttributeError:
-            if key == keyboard.Key.space: current_cmd[:] = 0
-            elif key == keyboard.Key.esc: running = False
-    def on_release(key):
-        global current_cmd
-        try:
-            if key.char in ["w", "s"]: current_cmd[0] = 0.0
-            # elif key.char in ["a", "d"]: current_cmd[1] = 0.0
-            elif key.char in ["q", "e"]: current_cmd[2] = 0.0
-        except AttributeError: pass
+            from pynput import keyboard
+
+            self._keyboard = keyboard
+        except Exception as exc:
+            raise RuntimeError("pynput is required for interactive teleop") from exc
+
+    def start(self) -> None:
+        def on_press(key):
+            try:
+                self._key_state[key.char.lower()] = True
+            except Exception:
+                if key == self._keyboard.Key.space:
+                    self._key_state["space"] = True
+                elif key == self._keyboard.Key.esc:
+                    self._key_state["escape"] = True
+
+        def on_release(key):
+            try:
+                self._key_state[key.char.lower()] = False
+            except Exception:
+                if key == self._keyboard.Key.space:
+                    self._key_state["space"] = False
+                elif key == self._keyboard.Key.esc:
+                    self._key_state["escape"] = False
+
+        self._listener = self._keyboard.Listener(on_press=on_press, on_release=on_release)
+        self._listener.start()
+
+    def read(self) -> np.ndarray:
+        if self._key_state.get("escape", False):
+            self.running = False
+            return self._cmd
+
+        if self._key_state.get("space", False):
+            self._cmd.fill(0.0)
+            return self._cmd
+
+        self._cmd[0] = self.linear_vel if self._key_state.get("w", False) else (-self.linear_vel if self._key_state.get("s", False) else 0.0)
+        self._cmd[1] = (
+            self.lateral_vel if self._key_state.get("a", False) else (-self.lateral_vel if self._key_state.get("d", False) else 0.0)
+        ) if self.allow_lateral else 0.0
+        self._cmd[2] = self.angular_vel if self._key_state.get("q", False) else (-self.angular_vel if self._key_state.get("e", False) else 0.0)
+        return self._cmd
+
+    def stop(self) -> None:
+        if self._listener is not None:
+            self._listener.stop()
+            self._listener = None
 
 
-def main():
-    global running, current_cmd
+def _build_overrides(show_viewer: bool, fast_mode: bool) -> list[str]:
+    overrides = [f"simulation.show_viewer={str(show_viewer)}"]
+    if fast_mode:
+        overrides.extend([
+            "simulation.backend=cpu",
+            "simulation.substeps=1",
+            "simulation.dt=0.02",
+        ])
+    return overrides
+
+
+def main() -> int:
     parser = argparse.ArgumentParser(description="Go2w camera visualization demo")
-    parser.add_argument("--test-mode", action="store_true", help="Run deterministic scripted controls and exit")
-    parser.add_argument("--max-steps", type=int, default=300, help="Max steps in test mode")
+    parser.add_argument("--test-mode", action="store_true")
+    parser.add_argument("--smoke-fast", action="store_true", help="Use lighter simulation settings for smoke tests")
+    parser.add_argument("--max-steps", type=int, default=300)
     parser.add_argument("--show-viewer", action=argparse.BooleanOptionalAction, default=True)
     args = parser.parse_args()
 
-    running = True
-    current_cmd[:] = 0.0
-    print("=" * 60)
-    print("  OmniNav Demo 04: Camera Visualization (Go2w)")
-    print("  Controls: WASD=move, Q/E=rotate, Space=stop, Esc=exit")
-    print("=" * 60)
+    if args.smoke_fast and args.max_steps > 30:
+        args.max_steps = 30
 
-    # 1. Config
-    cfg = OmegaConf.create({
-        "simulation": {
-            "dt": 0.01,
-            "backend": "gpu", 
-            "show_viewer": args.show_viewer,
-            "disable_keyboard_shortcuts": True,
-        },
-        "scene": {
-            "ground_plane": {"enabled": True},
-        },
-        "robot": OmegaConf.load("configs/robot/go2w.yaml"),
-        "sensor": OmegaConf.load("configs/sensor/camera_rgbd.yaml"),
-        "control": OmegaConf.load("configs/locomotion/wheel.yaml"),
-    })
+    keyboard: Optional[_KeyboardInput] = None
+    overrides = _build_overrides(args.show_viewer, args.test_mode or args.smoke_fast)
 
-    # 2. Init Simulation
-    sim = GenesisSimulationManager()
-    sim.initialize(cfg)
-    
-    # 3. Add Obstacles (Ring pattern)
-    import genesis as gs
-    num_cylinders = 8
-    for i in range(num_cylinders):
-        angle = 2 * np.pi * i / num_cylinders
-        x = 3.0 * np.cos(angle)
-        y = 3.0 * np.sin(angle)
-        sim.scene.add_entity(gs.morphs.Cylinder(height=1.5, radius=0.3, pos=(x, y, 0.75), fixed=True))
+    with OmniNavEnv(config_path="configs", config_name="demo/camera_visualization", overrides=overrides) as env:
+        obs_list = env.reset()
+        if not obs_list:
+            return 1
 
-    num_boxes = 6
-    for i in range(num_boxes):
-        angle = 2 * np.pi * i / num_boxes + np.pi / 6
-        x = 5.0 * np.cos(angle)
-        y = 5.0 * np.sin(angle)
-        sim.scene.add_entity(gs.morphs.Box(size=(0.5, 0.5, 2.0 * (i + 1) / num_boxes), pos=(x, y, 1.0), fixed=True))
-    
-    # 4. Robot + Sensor + Controller
-    robot = Go2wRobot(cfg.robot, sim.scene)
-    sim.add_robot(robot)
-    
-    controller = WheelController(cfg.control, robot)
-    
-    camera = CameraSensor(cfg.sensor, sim.scene, robot)
-    camera.attach(link_name="base", position=[0.45, 0.0, 0.2], orientation=[90, 0, -90])
-    camera.create()
-    
-    # 5. Load Scene Assets (Ground plane etc)
-    sim.load_scene(cfg.scene)
-    
-    # 6. Build
-    sim.build()
-    robot.reset()
-    controller.reset()
-    
-    # 7. Start Teleop
-    if not _USE_POLLING and not args.test_mode:
-        listener = keyboard.Listener(on_press=on_press, on_release=on_release)
-        listener.start()
+        demo_cfg = env.cfg.get("demo", {})
+        vx = float(demo_cfg.get("max_linear_vel", 0.5))
+        vy = float(demo_cfg.get("max_lateral_vel", 0.0))
+        wz = float(demo_cfg.get("max_angular_vel", 0.5))
+        allow_lateral = bool(demo_cfg.get("allow_lateral", False))
 
-    print("Simulation started. Press 'q' in OpenCV window or 'Esc' to exit.")
+        if not args.test_mode:
+            keyboard = _KeyboardInput(allow_lateral=allow_lateral, linear_vel=vx, lateral_vel=vy, angular_vel=wz)
+            keyboard.start()
 
-    # 8. Loop
-    try:
-        step_count = 0
-        while running:
-            if args.test_mode:
-                if step_count < args.max_steps // 2:
-                    current_cmd[:] = [LINEAR_VEL, 0.0, 0.0]
-                elif step_count < (3 * args.max_steps) // 4:
-                    current_cmd[:] = [0.0, 0.0, ANGULAR_VEL]
+        step = 0
+        try:
+            while True:
+                if args.test_mode:
+                    cmd = np.array([vx, 0.0, 0.0], dtype=np.float32) if step < args.max_steps // 2 else np.array([0.0, 0.0, -wz], dtype=np.float32)
                 else:
-                    current_cmd[:] = 0.0
-            elif _USE_POLLING:
-                poll_keyboard()
-            
-            # Control
-            controller.step(current_cmd)
-            sim.step()
-            
-            # View
-            data = camera.get_data()
-            rgb = data.get("rgb")[0] if data.get("rgb") is not None else None
-            depth = data.get("depth")[0] if data.get("depth") is not None else None
-            
-            if rgb is not None and not args.test_mode:
-                bgr = cv2.cvtColor(rgb, cv2.COLOR_RGB2BGR)
-                cv2.imshow("Robot RGB Eye", bgr)
-            
-            if depth is not None and not args.test_mode:
-                depth_vis = np.clip(depth, 0, 5.0) / 5.0
-                cv2.imshow("Robot Depth Eye", depth_vis)
-            
-            step_count += 1
-            if (not args.test_mode and cv2.waitKey(1) & 0xFF == ord('q')) or (
-                args.test_mode and step_count >= args.max_steps
-            ):
-                break
-                
-    except KeyboardInterrupt:
-        pass
-    finally:
-        cv2.destroyAllWindows()
+                    cmd = keyboard.read() if keyboard is not None else np.zeros(3, dtype=np.float32)
+                    if keyboard is not None and not keyboard.running:
+                        break
+
+                action = Action(cmd_vel=np.asarray(cmd, dtype=np.float32).reshape(1, 3))
+                obs_list, _info = env.step(actions=[action])
+
+                step += 1
+                if env.is_done:
+                    break
+                if args.test_mode and step >= args.max_steps:
+                    break
+        finally:
+            if keyboard is not None:
+                keyboard.stop()
+
+    return 0
+
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

@@ -1,0 +1,60 @@
+# Ring obstacle scene for visualization demos
+# @package _group_
+
+type: ring_obstacles
+name: ring_obstacles_scene
+
+ground_plane:
+  enabled: true
+
+obstacles:
+  - type: cylinder
+    position: [3.0, 0.0, 0.75]
+    radius: 0.3
+    height: 1.5
+  - type: cylinder
+    position: [2.1213, 2.1213, 0.75]
+    radius: 0.3
+    height: 1.5
+  - type: cylinder
+    position: [0.0, 3.0, 0.75]
+    radius: 0.3
+    height: 1.5
+  - type: cylinder
+    position: [-2.1213, 2.1213, 0.75]
+    radius: 0.3
+    height: 1.5
+  - type: cylinder
+    position: [-3.0, 0.0, 0.75]
+    radius: 0.3
+    height: 1.5
+  - type: cylinder
+    position: [-2.1213, -2.1213, 0.75]
+    radius: 0.3
+    height: 1.5
+  - type: cylinder
+    position: [0.0, -3.0, 0.75]
+    radius: 0.3
+    height: 1.5
+  - type: cylinder
+    position: [2.1213, -2.1213, 0.75]
+    radius: 0.3
+    height: 1.5
+  - type: box
+    position: [4.3301, 2.5, 0.1667]
+    size: [0.5, 0.5, 0.3333]
+  - type: box
+    position: [0.0, 5.0, 0.3333]
+    size: [0.5, 0.5, 0.6667]
+  - type: box
+    position: [-4.3301, 2.5, 0.5]
+    size: [0.5, 0.5, 1.0]
+  - type: box
+    position: [-4.3301, -2.5, 0.6667]
+    size: [0.5, 0.5, 1.3333]
+  - type: box
+    position: [0.0, -5.0, 0.8333]
+    size: [0.5, 0.5, 1.6667]
+  - type: box
+    position: [4.3301, -2.5, 1.0]
+    size: [0.5, 0.5, 2.0]

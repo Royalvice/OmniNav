@@ -27,9 +27,31 @@ simulation:
 ros2:
   enabled: false
   node_name: "omninav"
-  cmd_vel_topic: "/cmd_vel"
-  odom_topic: "/odom"
-  publish_rate: 50        # Hz
+  control_source: "python"      # "python" | "ros2"
+  profile: "all_off"            # "all_off" | "nav2_minimal" | "nav2_full" | "custom"
+  namespace_mode: "single"      # "single" | "per_env"
+  env_namespace_prefix: "/env"
+  cmd_vel_timeout_sec: 0.5
+  topics:
+    clock: "/clock"
+    tf: "/tf"
+    tf_static: "/tf_static"
+    odom: "/odom"
+    scan: "/scan"
+    cmd_vel_in: "/cmd_vel"
+    cmd_vel_out: "/omninav/cmd_vel"
+  frames:
+    map: "map"
+    odom: "odom"
+    base_link: "base_link"
+    laser: "laser_frame"
+  publish:
+    clock: false
+    tf: false
+    tf_static: false
+    odom: false
+    scan: false
+  qos: {}
 
 # Hydra configuration
 hydra:

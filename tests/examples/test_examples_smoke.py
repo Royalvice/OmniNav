@@ -20,10 +20,21 @@ EXAMPLE_SCRIPTS = [
     "04_camera_visualization.py",
     "05_waypoint_navigation.py",
     "run_inspection.py",
+    "06_ros2_nav2_bridge.py",
 ]
 
 EXAMPLE_TIMEOUT_SEC = {
-    "05_waypoint_navigation.py": 600,
+    "05_waypoint_navigation.py": 240,
+}
+
+EXAMPLE_MAX_STEPS = {
+    "01_teleop_go2.py": 40,
+    "02_teleop_go2w.py": 30,
+    "03_lidar_visualization.py": 30,
+    "04_camera_visualization.py": 30,
+    "05_waypoint_navigation.py": 40,
+    "run_inspection.py": 30,
+    "06_ros2_nav2_bridge.py": 30,
 }
 
 
@@ -47,6 +58,7 @@ def _has_unhandled_traceback(output: str) -> bool:
 
 
 @pytest.mark.integration
+@pytest.mark.smoke
 @pytest.mark.parametrize("script_name", EXAMPLE_SCRIPTS)
 def test_example_script_smoke(script_name: str):
     """
@@ -75,8 +87,9 @@ def test_example_script_smoke(script_name: str):
         sys.executable,
         str(script_path),
         "--test-mode",
+        "--smoke-fast",
         "--max-steps",
-        "120",
+        str(EXAMPLE_MAX_STEPS.get(script_name, 30)),
         "--no-show-viewer",
     ]
     result = subprocess.run(

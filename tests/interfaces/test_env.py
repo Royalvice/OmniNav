@@ -212,6 +212,29 @@ class TestOmniNavEnv:
         env = OmniNavEnv()
         assert isinstance(env.hooks, HookManager)
 
+    def test_env_step_uses_ros2_external_action_when_configured(self):
+        """ROS2 control source should inject external cmd_vel into runtime.step actions."""
+        from omninav.interfaces.python_api import OmniNavEnv
+
+        env = OmniNavEnv(cfg=OmegaConf.create({"ros2": {"enabled": False}}))
+        env._initialized = True
+        env._runtime = MagicMock()
+        env._runtime.step.return_value = ([], {"step": 1})
+
+        bridge = MagicMock()
+        bridge.enabled = True
+        bridge.control_source = "ros2"
+        bridge.get_external_cmd_vel.return_value = np.array([0.7, 0.0, -0.1], dtype=np.float32)
+        env._ros2_bridge = bridge
+
+        env.step(actions=None)
+
+        assert env._runtime.step.call_count == 1
+        passed_actions = env._runtime.step.call_args[0][0]
+        assert len(passed_actions) == 1
+        assert passed_actions[0]["cmd_vel"].shape == (1, 3)
+        assert np.isclose(passed_actions[0]["cmd_vel"][0, 0], 0.7)
+
 
 # =============================================================================
 # OmniNavGymWrapper Tests (requires gymnasium)

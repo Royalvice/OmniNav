@@ -3,6 +3,9 @@
 # Provides RGB and optionally depth images.
 
 type: camera
+link_name: base
+position: [0.45, 0.0, 0.2]
+orientation: [90.0, 0.0, -90.0]
 
 # Resolution
 width: 640

@@ -1,0 +1,25 @@
+# @package _global_
+defaults:
+  - /robot: go2w
+  - /sensor: default
+  - /locomotion: wheel
+  - /scene: empty
+  - _self_
+
+simulation:
+  dt: 0.01
+  substeps: 2
+  backend: gpu
+  show_viewer: false
+
+demo:
+  mode: algorithm
+
+ros2:
+  enabled: true
+  control_source: ros2
+  profile: nav2_full
+
+# Nav2 bridge requires scan; camera stream is unnecessary overhead here.
+sensor:
+  depth_camera: null

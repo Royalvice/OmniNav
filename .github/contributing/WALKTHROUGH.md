@@ -82,3 +82,30 @@ python examples/03_lidar_visualization.py
 
 ## 总结
 通过本次重构，OmniNav 已经具备了作为科研平台的基础实力。后续我们将在此基础上，探索 VLA (Vision-Language-Action) 模型在大规模仿真环境中的泛化性能。
+
+---
+
+## ROS2 / Nav2 对接补充 (2026-02-19)
+
+我们将 ROS2 Bridge 从“单文件逻辑”升级为“契约驱动 + 组件化”模式，关键变化如下：
+
+1. 新增配置契约：`control_source/profile/topics/frames/publish/qos`
+2. 默认控制源固定为 `python`，可切换 `ros2` 以订阅 `/cmd_vel`
+3. profile 化发布策略：
+   - `all_off`: 默认不发布 ROS2 topic
+   - `nav2_minimal` / `nav2_full`: 发布 `clock/tf/tf_static/odom/scan`
+4. 增加命令超时保护：`cmd_vel_timeout_sec`
+
+对接边界明确为：
+1. OmniNav 负责仿真数据与控制桥接
+2. Nav2 负责规划与控制
+3. AMCL 负责定位（`map->odom`）
+4. map_server 负责 `/map`
+
+---
+
+## Examples 工程化重构补充 (2026-02-19)
+
+1. 删除统一 demo runner，恢复为每个 `examples/*.py` 保留自身实例化与业务逻辑
+2. 示例仍通过 `configs/demo/*.yaml` 组合标准模块配置（robot/sensor/locomotion/algorithm/task/scene）
+3. 新增统一测试降载参数 `--smoke-fast`，用于 `tests/examples/test_examples_smoke.py` 的全量默认执行提速

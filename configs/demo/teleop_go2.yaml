@@ -1,0 +1,29 @@
+# @package _global_
+defaults:
+  - /robot: go2
+  - /sensor: default
+  - /locomotion: kinematic_gait
+  - /scene: stairs
+  - _self_
+
+simulation:
+  dt: 0.01
+  substeps: 2
+  backend: gpu
+  show_viewer: true
+  camera_pos: [3.0, 3.0, 2.0]
+  camera_lookat: [1.0, 0.0, 0.3]
+  camera_fov: 40
+  disable_keyboard_shortcuts: true
+
+demo:
+  mode: keyboard
+  max_linear_vel: 0.5
+  max_lateral_vel: 0.3
+  max_angular_vel: 1.0
+  allow_lateral: true
+
+# Keep teleop lightweight: kinematic gait only needs its own required raycasters.
+sensor:
+  depth_camera: null
+  lidar_2d: null

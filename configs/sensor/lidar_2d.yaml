@@ -3,6 +3,9 @@
 # Simulates a planar laser scanner for obstacle detection and SLAM.
 
 type: lidar_2d
+link_name: base
+position: [0.25, 0.0, 0.15]
+orientation: [0.0, 0.0, 0.0]
 
 # Scan parameters
 horizontal_fov: 360.0    # Horizontal field of view in degrees

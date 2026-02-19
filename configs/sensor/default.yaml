@@ -4,6 +4,9 @@
 # Depth Camera
 depth_camera:
   type: camera
+  link_name: base
+  position: [0.45, 0.0, 0.2]
+  orientation: [90.0, 0.0, -90.0]
   width: 640
   height: 480
   fov: 60
@@ -16,6 +19,9 @@ depth_camera:
 # 2D LiDAR
 lidar_2d:
   type: lidar_2d
+  link_name: base
+  position: [0.25, 0.0, 0.15]
+  orientation: [0.0, 0.0, 0.0]
   num_rays: 360
   min_angle: -3.14159  # -π
   max_angle: 3.14159   # π

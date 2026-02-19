@@ -1,313 +1,226 @@
 #!/usr/bin/env python3
-"""
-Demo 05: Enhanced Waypoint Navigation (Go2w)
+"""Demo 05: Go2w waypoint navigation with minimap click target."""
 
-Features:
-1.  **Minimap**: Open a separate top-down 2D map window.
-2.  **Trajectory**: Draw robot path (Red line) on minimap.
-3.  **Click-to-Nav**: Click on minimap to set target.
-4.  **Strict Control**: "Stop -> Turn -> Stop -> Forward" logic.
-5.  **Speed Limits**: Aligned with teleop demo (0.5 m/s, 0.5 rad/s).
-"""
+from __future__ import annotations
 
-import sys
 import argparse
 import math
-import numpy as np
-import cv2
-from omegaconf import OmegaConf
+import sys
 from collections import deque
+from typing import Optional
 
-from omninav.core import GenesisSimulationManager
-from omninav.robots import Go2wRobot
-from omninav.locomotion import WheelController
+import cv2
+import numpy as np
 
-# =============================================================================
-# Constants
-# =============================================================================
-# Speed Limits (from Demo 02)
-MAX_LINEAR_VEL = 0.5   # m/s
-MAX_ANGULAR_VEL = 0.5  # rad/s
+from omninav.core.types import Action
+from omninav.interfaces import OmniNavEnv
 
-# Navigation Parameters
-GOAL_TOLERANCE = 0.15        # meters
-ANGLE_TOLERANCE = 0.05       # radians (~3 degrees)
-BRAKE_DURATION = 10          # steps (0.1s at dt=0.01)
 
-# Minimap Config
-MAP_SIZE = 500               # pixels
-MAP_SCALE = 50               # pixels per meter
-MAP_CENTER_X = MAP_SIZE // 2
-MAP_CENTER_Y = MAP_SIZE // 2
+def _quat_to_yaw_wxyz(quat: np.ndarray) -> float:
+    siny_cosp = 2.0 * (quat[0] * quat[3] + quat[1] * quat[2])
+    cosy_cosp = 1.0 - 2.0 * (quat[2] * quat[2] + quat[3] * quat[3])
+    return float(math.atan2(siny_cosp, cosy_cosp))
 
-# =============================================================================
-# Utilities
-# =============================================================================
-def normalize_angle(angle):
-    """Normalize angle to [-pi, pi]."""
-    return (angle + np.pi) % (2 * np.pi) - np.pi
 
-# =============================================================================
-# Minimap Visualizer
-# =============================================================================
-class MinimapVisualizer:
-    def __init__(self, name="Minimap: Click to Navigate", enable_window=True):
-        self.name = name
+def _normalize_angle(angle: float) -> float:
+    return (angle + np.pi) % (2.0 * np.pi) - np.pi
+
+
+class _Minimap:
+    def __init__(self, enable_window: bool, map_size: int = 500, map_scale: float = 50.0):
         self.enable_window = enable_window
-        self.image = np.zeros((MAP_SIZE, MAP_SIZE, 3), dtype=np.uint8)
+        self.map_size = map_size
+        self.map_scale = map_scale
+        self.center = map_size // 2
+        self.window_name = "Minimap: Click to Navigate"
+        self.image = np.zeros((map_size, map_size, 3), dtype=np.uint8)
         self.trajectory = deque(maxlen=1000)
-        self.target = None # (x, y) world coords
-        
-        # Interaction
+        self.target: Optional[np.ndarray] = None
+
         if self.enable_window:
-            cv2.namedWindow(self.name)
-            cv2.setMouseCallback(self.name, self._mouse_callback)
+            cv2.namedWindow(self.window_name)
+            cv2.setMouseCallback(self.window_name, self._mouse_callback)
 
-    def _world_to_map(self, x, y):
-        # World X -> Map U (Right)
-        # World Y -> Map V (Up? Usually Map Y is Down)
-        # Let's align: World X+ is Right, World Y+ is Up.
-        # Map U = Center + X * Scale
-        # Map V = Center - Y * Scale (Flip Y for image coords)
-        u = int(MAP_CENTER_X + x * MAP_SCALE)
-        v = int(MAP_CENTER_Y - y * MAP_SCALE)
-        return u, v
+    def _world_to_map(self, x: float, y: float) -> tuple[int, int]:
+        return int(self.center + x * self.map_scale), int(self.center - y * self.map_scale)
 
-    def _map_to_world(self, u, v):
-        x = (u - MAP_CENTER_X) / MAP_SCALE
-        y = (MAP_CENTER_Y - v) / MAP_SCALE
-        return x, y
+    def _map_to_world(self, u: int, v: int) -> tuple[float, float]:
+        return (u - self.center) / self.map_scale, (self.center - v) / self.map_scale
 
-    def _mouse_callback(self, event, x, y, flags, param):
+    def _mouse_callback(self, event, x, y, _flags, _param):
         if event == cv2.EVENT_LBUTTONDOWN:
             wx, wy = self._map_to_world(x, y)
-            self.set_target(wx, wy)
-            print(f"[Minimap] Target set to: ({wx:.2f}, {wy:.2f})")
+            self.target = np.array([wx, wy], dtype=np.float32)
 
-    def set_target(self, x, y):
-        self.target = np.array([x, y])
+    def update(self, robot_pos: np.ndarray, yaw: float) -> None:
+        if not self.enable_window:
+            return
 
-    def update(self, robot_pos, robot_yaw):
-        # Clear background
-        self.image.fill(240) # Light gray
-        
-        # 1. Draw Grid (every 1 meter)
+        self.image.fill(240)
         for i in range(-5, 6):
-            # Vertical lines
-            u, _ = self._world_to_map(i, 0)
-            cv2.line(self.image, (u, 0), (u, MAP_SIZE), (200, 200, 200), 1)
-            # Horizontal lines
-            _, v = self._world_to_map(0, i)
-            cv2.line(self.image, (0, v), (MAP_SIZE, v), (200, 200, 200), 1)
-            
-        # 2. Draw Trajectory
-        self.trajectory.append(robot_pos[:2])
-        if len(self.trajectory) > 1:
-            pts = [self._world_to_map(p[0], p[1]) for p in self.trajectory]
-            cv2.polylines(self.image, [np.array(pts)], False, (0, 0, 255), 2) # Red
+            u, _ = self._world_to_map(float(i), 0.0)
+            cv2.line(self.image, (u, 0), (u, self.map_size), (200, 200, 200), 1)
+            _, v = self._world_to_map(0.0, float(i))
+            cv2.line(self.image, (0, v), (self.map_size, v), (200, 200, 200), 1)
 
-        # 3. Draw Target
+        self.trajectory.append(robot_pos[:2].copy())
+        if len(self.trajectory) > 1:
+            pts = [self._world_to_map(float(p[0]), float(p[1])) for p in self.trajectory]
+            cv2.polylines(self.image, [np.array(pts)], False, (0, 0, 255), 2)
+
         if self.target is not None:
-            tx, ty = self._world_to_map(self.target[0], self.target[1])
+            tx, ty = self._world_to_map(float(self.target[0]), float(self.target[1]))
             cv2.drawMarker(self.image, (tx, ty), (0, 100, 0), cv2.MARKER_CROSS, 20, 2)
             cv2.circle(self.image, (tx, ty), 5, (0, 100, 0), -1)
 
-        # 4. Draw Robot
-        rx, ry = self._world_to_map(robot_pos[0], robot_pos[1])
-        # Body
+        rx, ry = self._world_to_map(float(robot_pos[0]), float(robot_pos[1]))
         cv2.circle(self.image, (rx, ry), 8, (0, 0, 0), -1)
-        # Heading indicator
-        hx = int(rx + 15 * math.cos(robot_yaw))
-        hy = int(ry - 15 * math.sin(robot_yaw)) # Y-flip
+        hx = int(rx + 15 * math.cos(yaw))
+        hy = int(ry - 15 * math.sin(yaw))
         cv2.line(self.image, (rx, ry), (hx, hy), (0, 0, 0), 2)
+        cv2.imshow(self.window_name, self.image)
+        cv2.waitKey(1)
 
-        # Show
+    def close(self) -> None:
         if self.enable_window:
-            cv2.imshow(self.name, self.image)
-            cv2.waitKey(1)
+            cv2.destroyWindow(self.window_name)
 
-    def close(self):
-        if self.enable_window:
-            cv2.destroyWindow(self.name)
 
-# =============================================================================
-# Navigation Controller
-# =============================================================================
-class NavigationStateMachine:
-    # States
-    IDLE = "IDLE"
-    ALIGNING = "ALIGNING"
-    MOVING = "MOVING"
-    BRAKING = "BRAKING"
+class _WaypointController:
+    def __init__(self, goal_tolerance: float, angle_tolerance: float):
+        self.goal_tolerance = goal_tolerance
+        self.angle_tolerance = angle_tolerance
+        self.target: Optional[np.ndarray] = None
+        self._state = "IDLE"
+        self._brake_steps = 0
 
-    def __init__(self, visualizer):
-        self.state = self.IDLE
-        self.vis = visualizer
-        self.current_target = None
-        self.brake_counter = 0
-        self.next_state_after_brake = None
-        
-    def step(self, robot_pos, robot_yaw):
-        # Check for new target from UI
-        if self.vis.target is not None:
-            # Check if target changed significantly
-            if self.current_target is None or np.linalg.norm(self.vis.target - self.current_target) > 0.01:
-                print("[Nav] New target received. BRAKING.")
-                self.current_target = self.vis.target.copy()
-                self._enter_braking(self.ALIGNING)
+    def set_target(self, xy: Optional[np.ndarray]) -> None:
+        self.target = None if xy is None else np.asarray(xy, dtype=np.float32)
+        if self.target is not None:
+            self._state = "BRAKE_ALIGN"
+            self._brake_steps = 10
 
-        if self.current_target is None:
-            return np.zeros(3)
+    def step(self, pos: np.ndarray, yaw: float, max_linear: float, max_angular: float) -> np.ndarray:
+        cmd = np.zeros(3, dtype=np.float32)
+        if self.target is None:
+            return cmd
 
-        # Compute errors
-        error_pos = self.current_target - robot_pos[:2]
-        dist = np.linalg.norm(error_pos)
-        target_angle = math.atan2(error_pos[1], error_pos[0])
-        angle_error = normalize_angle(target_angle - robot_yaw)
+        delta = self.target - pos[:2]
+        dist = float(np.linalg.norm(delta))
+        heading = math.atan2(float(delta[1]), float(delta[0]))
+        err = _normalize_angle(heading - yaw)
 
-        # State Machine
-        cmd = np.zeros(3)
+        if self._state.startswith("BRAKE"):
+            self._brake_steps -= 1
+            if self._brake_steps <= 0:
+                self._state = "ALIGN" if self._state == "BRAKE_ALIGN" else "MOVE"
+            return cmd
 
-        if self.state == self.BRAKING:
-            self.brake_counter -= 1
-            if self.brake_counter <= 0:
-                print(f"[Nav] Braking done. Transition to {self.next_state_after_brake}")
-                self.state = self.next_state_after_brake
-            return np.zeros(3) # Stop
+        if self._state == "ALIGN":
+            if abs(err) < self.angle_tolerance:
+                self._state = "BRAKE_MOVE"
+                self._brake_steps = 10
+                return cmd
+            cmd[2] = float(np.clip(err * 2.0, -max_angular, max_angular))
+            return cmd
 
-        elif self.state == self.IDLE:
-             # If we have a target but in IDLE, start moving (via brake->align)
-             if self.current_target is not None and dist > GOAL_TOLERANCE:
-                 self._enter_braking(self.ALIGNING)
+        if dist < self.goal_tolerance:
+            self.target = None
+            self._state = "IDLE"
+            return cmd
 
-        elif self.state == self.ALIGNING:
-            if abs(angle_error) < ANGLE_TOLERANCE:
-                print("[Nav] Aligned. BRAKING before Moving.")
-                self._enter_braking(self.MOVING)
-            else:
-                # Turn in place
-                cmd[2] = np.clip(angle_error * 2.0, -MAX_ANGULAR_VEL, MAX_ANGULAR_VEL)
+        if abs(err) > 0.5:
+            self._state = "BRAKE_ALIGN"
+            self._brake_steps = 10
+            return cmd
 
-        elif self.state == self.MOVING:
-            if dist < GOAL_TOLERANCE:
-                print("[Nav] Target Reached. BRAKING -> IDLE.")
-                self.current_target = None
-                self.vis.target = None # Clear target visual
-                self._enter_braking(self.IDLE)
-            elif abs(angle_error) > 0.5: # If we drifted too much / overshot
-                print("[Nav] Large angle error. BRAKING -> ALIGNING.")
-                self._enter_braking(self.ALIGNING)
-            else:
-                # Move forward with heading correction
-                cmd[0] = np.clip(dist * 1.0, -MAX_LINEAR_VEL, MAX_LINEAR_VEL)
-                cmd[2] = np.clip(angle_error * 1.5, -MAX_ANGULAR_VEL, MAX_ANGULAR_VEL)
-
+        cmd[0] = float(np.clip(dist, -max_linear, max_linear))
+        cmd[2] = float(np.clip(err * 1.5, -max_angular, max_angular))
+        self._state = "MOVE"
         return cmd
 
-    def _enter_braking(self, next_state):
-        self.state = self.BRAKING
-        self.brake_counter = BRAKE_DURATION
-        self.next_state_after_brake = next_state
 
-# =============================================================================
-# Main
-# =============================================================================
-def main():
+def _build_overrides(show_viewer: bool, fast_mode: bool) -> list[str]:
+    overrides = [f"simulation.show_viewer={str(show_viewer)}"]
+    if fast_mode:
+        overrides.extend([
+            "simulation.backend=cpu",
+            "simulation.substeps=1",
+            "simulation.dt=0.02",
+        ])
+    return overrides
+
+
+def main() -> int:
     parser = argparse.ArgumentParser(description="Go2w waypoint navigation demo")
-    parser.add_argument("--test-mode", action="store_true", help="Run scripted target updates and exit")
-    parser.add_argument("--max-steps", type=int, default=500, help="Max steps in test mode")
+    parser.add_argument("--test-mode", action="store_true")
+    parser.add_argument("--smoke-fast", action="store_true", help="Use lighter simulation settings for smoke tests")
+    parser.add_argument("--max-steps", type=int, default=500)
     parser.add_argument("--show-viewer", action=argparse.BooleanOptionalAction, default=True)
     args = parser.parse_args()
 
-    print("=" * 60)
-    print("  OmniNav Demo 05: Enhanced Navigation")
-    print("  Controls: LEFT CLICK on Minimap to navigate.")
-    print("=" * 60)
+    if args.smoke_fast and args.max_steps > 40:
+        args.max_steps = 40
 
-    # 1. Config
-    cfg = OmegaConf.create({
-        "simulation": {
-            "dt": 0.01,
-            "substeps": 1 if args.test_mode else 2,
-            "backend": "cpu" if args.test_mode else "gpu",
-            "show_viewer": args.show_viewer,
-            "camera_pos": [0.0, 0.0, 5.0],
-            "camera_lookat": [0.0, 0.0, 0.0],
-            "disable_keyboard_shortcuts": True,
-        },
-        "scene": {
-            "ground_plane": {"enabled": True},
-            "obstacles": []
-        },
-        "robot": OmegaConf.load("configs/robot/go2w.yaml"),
-        "control": OmegaConf.load("configs/locomotion/wheel.yaml"),
-    })
+    overrides = _build_overrides(args.show_viewer, args.test_mode or args.smoke_fast)
 
-    # 2. Init
-    sim = GenesisSimulationManager()
-    sim.initialize(cfg)
-    
-    # 3. Setup Robot
-    robot = Go2wRobot(cfg.robot, sim.scene)
-    sim.add_robot(robot)
-    
-    # 4. Build
-    sim.load_scene(cfg.scene)
-    sim.build()
-    
-    robot.reset()
-    
-    # 5. Controller
-    controller = WheelController(cfg.control, robot)
-    controller.reset()
-    
-    # 6. Navigation System
-    minimap = MinimapVisualizer(enable_window=not args.test_mode)
-    nav_sm = NavigationStateMachine(minimap)
-    
-    # Set initial waypoint
-    initial_wp = [2.0, 0.0]
-    minimap.set_target(initial_wp[0], initial_wp[1])
-    print(f"[Main] Initial target set to: {initial_wp}")
+    with OmniNavEnv(config_path="configs", config_name="demo/waypoint_navigation", overrides=overrides) as env:
+        obs_list = env.reset()
+        if not obs_list:
+            return 1
 
-    # 7. Loop
-    try:
-        step_count = 0
-        while True:
-            # A. Get State
-            state = robot.get_state()
-            pos = state["position"][0]  # [x, y, z]
-            
-            # Quat to Yaw
-            q = state["orientation"][0]
-            siny_cosp = 2 * (q[0] * q[3] + q[1] * q[2])
-            cosy_cosp = 1 - 2 * (q[2] * q[2] + q[3] * q[3])
-            yaw = math.atan2(siny_cosp, cosy_cosp)
-            
-            # B. Update UI
-            if not args.test_mode:
+        demo_cfg = env.cfg.get("demo", {})
+        max_linear = float(demo_cfg.get("max_linear_vel", 0.5))
+        max_angular = float(demo_cfg.get("max_angular_vel", 0.5))
+
+        minimap = _Minimap(enable_window=not args.test_mode)
+        controller = _WaypointController(
+            goal_tolerance=float(demo_cfg.get("goal_tolerance", 0.15)),
+            angle_tolerance=float(demo_cfg.get("angle_tolerance", 0.05)),
+        )
+
+        init_target = demo_cfg.get("initial_target", None)
+        if init_target is not None:
+            target = np.asarray(init_target, dtype=np.float32)
+            controller.set_target(target)
+            minimap.target = target.copy()
+
+        step = 0
+        try:
+            while True:
+                state = obs_list[0]["robot_state"]
+                pos = np.asarray(state["position"])[0]
+                quat = np.asarray(state["orientation"])[0]
+                yaw = _quat_to_yaw_wxyz(quat)
+
+                if minimap.target is not None:
+                    if controller.target is None or np.linalg.norm(minimap.target - controller.target) > 1e-2:
+                        controller.set_target(minimap.target)
+
+                if args.test_mode and step in (0, args.max_steps // 3, (2 * args.max_steps) // 3):
+                    scripted_targets = demo_cfg.get("scripted_targets", [[2.0, 0.0], [2.0, 2.0], [0.0, 1.0]])
+                    idx = 0 if step == 0 else (1 if step == args.max_steps // 3 else 2)
+                    target = np.asarray(scripted_targets[idx], dtype=np.float32)
+                    controller.set_target(target)
+                    minimap.target = target.copy()
+
+                cmd = controller.step(pos, yaw, max_linear=max_linear, max_angular=max_angular)
+                action = Action(cmd_vel=np.asarray(cmd, dtype=np.float32).reshape(1, 3))
+
                 minimap.update(pos, yaw)
-            elif step_count in (0, args.max_steps // 3, (2 * args.max_steps) // 3):
-                scripted_targets = [(2.0, 0.0), (2.0, 2.0), (0.0, 1.0)]
-                idx = 0 if step_count == 0 else (1 if step_count == args.max_steps // 3 else 2)
-                tx, ty = scripted_targets[idx]
-                minimap.set_target(tx, ty)
-                nav_sm.current_target = np.array([tx, ty], dtype=np.float32)
-            
-            # C. Compute Control
-            cmd_vel = nav_sm.step(pos, yaw)
-            
-            # D. Act
-            controller.step(cmd_vel)
-            sim.step()
-            step_count += 1
-            if args.test_mode and step_count >= args.max_steps:
-                break
-            
-    except KeyboardInterrupt:
-        pass
-    finally:
-        minimap.close()
+                obs_list, _info = env.step(actions=[action])
+                step += 1
+
+                if env.is_done:
+                    break
+                if args.test_mode and step >= args.max_steps:
+                    break
+        finally:
+            minimap.close()
+            cv2.destroyAllWindows()
+
+    return 0
+
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

@@ -1,0 +1,10 @@
+# Waypoint navigation arena scene
+# @package _group_
+
+type: waypoint_arena
+name: waypoint_arena_scene
+
+ground_plane:
+  enabled: true
+
+obstacles: []

@@ -9,6 +9,36 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 
+def pytest_addoption(parser):
+    """Add OmniNav test-level selector."""
+    group = parser.getgroup("omninav")
+    group.addoption(
+        "--level",
+        action="store",
+        default="full",
+        choices=("fast", "full"),
+        help="Test level: fast skips smoke/integration tests, full runs everything.",
+    )
+
+
+def pytest_configure(config):
+    """Register custom markers used by OmniNav test tiers."""
+    config.addinivalue_line("markers", "smoke: marks heavyweight example smoke tests")
+    config.addinivalue_line("markers", "slow: marks slow tests")
+
+
+def pytest_collection_modifyitems(config, items):
+    """Apply test-level filtering without changing test source lists."""
+    level = config.getoption("--level")
+    if level != "fast":
+        return
+
+    skip_fast = pytest.mark.skip(reason="Skipped by --level=fast (smoke/integration tier)")
+    for item in items:
+        if "smoke" in item.keywords or "integration" in item.keywords or "slow" in item.keywords:
+            item.add_marker(skip_fast)
+
+
 # =============================================================================
 # Mock Genesis Objects
 # =============================================================================

@@ -9,11 +9,17 @@
 2. `TaskResult` 单一真源：`omninav/core/types.py`
 3. Algorithm/Task 生命周期接入 `LifecycleMixin`
 4. ROS2 Bridge 修复：TypedDict 访问统一、`/tf` 发布补齐、批量传感器去 batch
-5. `examples/` 全脚本 smoke 测试通过（`--test-mode --no-show-viewer`）
+5. `examples/` 全脚本 smoke 测试通过（`--test-mode --smoke-fast --no-show-viewer`）
+6. 示例架构改为“每个脚本保留实例化与业务逻辑”，不再引入统一 `demo_runner`
 
 进行中：
-1. Nav2 最小闭环样例（9C.3）
+1. Nav2 最小闭环样例（9C.3，map_server + AMCL 实测待完成）
 2. PointNav/ObjectNav + SR/SPL 指标体系（Phase 10）
+
+新增（2026-02-19）：
+1. ROS2 配置契约升级：`control_source/profile/topics/frames/publish/qos`
+2. `control_source=python|ros2` 单源控制路径落地（默认 python）
+3. Nav2 对接职责边界固定：OmniNav 不替代 AMCL / Nav2，仅提供桥接接口
 
 ## 1. 架构目标与现状差距
 
@@ -196,6 +202,14 @@ class TaskBase(ABC, LifecycleMixin):
 交付：
 1. ROS2 bridge 测试补齐
 2. 文档化的 topic/frame 规范
+3. profile 化开关：`all_off | nav2_minimal | nav2_full`
+4. `examples/06_ros2_nav2_bridge.py` 最小桥接脚本
+
+Nav2 责任边界（固定）：
+1. OmniNav 发布：`/clock`、`/odom`、`/tf(odom->base_link)`、`/tf_static(base_link->laser)`、`/scan`
+2. OmniNav 订阅：`/cmd_vel`（仅 `control_source=ros2`）
+3. map_server 发布：`/map`
+4. AMCL 发布：`map->odom`
 
 ### Phase 9D (P0): 文档与发布冻结
 
@@ -228,6 +242,7 @@ class TaskBase(ABC, LifecycleMixin):
 
 1. `tests/integration/test_full_pipeline.py` 持续保持可运行
 2. 增加 `n_envs=4` 及 ROS2 场景
+3. `tests/examples/test_examples_smoke.py` 默认全量运行，但统一使用 `--smoke-fast` 降载
 
 ### 6.3 性能与稳定性
 

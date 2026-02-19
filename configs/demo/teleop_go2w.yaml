@@ -1,0 +1,28 @@
+# @package _global_
+defaults:
+  - /robot: go2w
+  - /sensor: default
+  - /locomotion: wheel
+  - /scene: empty
+  - _self_
+
+simulation:
+  dt: 0.01
+  substeps: 2
+  backend: gpu
+  show_viewer: true
+  camera_pos: [2.0, 2.0, 1.5]
+  camera_lookat: [0.0, 0.0, 0.3]
+  disable_keyboard_shortcuts: true
+
+demo:
+  mode: keyboard
+  max_linear_vel: 0.5
+  max_lateral_vel: 0.0
+  max_angular_vel: 0.5
+  allow_lateral: false
+
+# Pure teleop should not pay camera/lidar rendering cost.
+sensor:
+  depth_camera: null
+  lidar_2d: null

@@ -13,12 +13,14 @@ from pathlib import Path
 from omninav.core.runtime import SimulationRuntime
 from omninav.core.hooks import HookManager
 from omninav.core.types import Observation, Action, TaskResult
+from omninav.interfaces.ros2.adapter import Ros2Adapter
 
 if TYPE_CHECKING:
     from omninav.robots.base import RobotBase
     from omninav.locomotion.base import LocomotionControllerBase
     from omninav.algorithms.base import AlgorithmBase
     from omninav.evaluation.base import TaskBase
+    from omninav.interfaces.ros2.bridge import ROS2Bridge
 
 
 class OmniNavEnv:
@@ -76,6 +78,7 @@ class OmniNavEnv:
         self.cfg = self._load_config(cfg, config_path, config_name, overrides)
         self._runtime: Optional[SimulationRuntime] = None
         self._initialized = False
+        self._ros2_bridge: Optional["ROS2Bridge"] = None
 
     @classmethod
     def from_config(cls, config_path: str, overrides: Optional[List[str]] = None) -> "OmniNavEnv":
@@ -153,6 +156,12 @@ class OmniNavEnv:
         sim = GenesisSimulationManager()
         sim.initialize(self.cfg)
         self._runtime.sim = sim
+
+        ros2_cfg = self.cfg.get("ros2", {})
+        if ros2_cfg.get("enabled", False):
+            from omninav.interfaces.ros2.bridge import ROS2Bridge
+
+            self._ros2_bridge = ROS2Bridge(ros2_cfg, sim)
 
         # 2. Load scene
         if "scene" in self.cfg:
@@ -243,6 +252,9 @@ class OmniNavEnv:
             
         # 8. Build Simulation
         self._runtime.build()
+
+        if self._ros2_bridge is not None and hasattr(self, "robot") and self.robot is not None:
+            self._ros2_bridge.setup(self.robot)
         
         self._initialized = True
 
@@ -272,7 +284,24 @@ class OmniNavEnv:
             observations: List of Observation (one per robot)
             info: Step metadata
         """
-        return self._runtime.step(actions)
+        if self._ros2_bridge is not None and self._ros2_bridge.enabled:
+            self._ros2_bridge.spin_once()
+            if actions is None and self._ros2_bridge.control_source == "ros2":
+                cmd_vel = self._ros2_bridge.get_external_cmd_vel()
+                if cmd_vel is None:
+                    cmd_vel = np.zeros(3, dtype=np.float32)
+                actions = [Action(cmd_vel=Ros2Adapter.normalize_cmd_vel_batch(cmd_vel, "ros2_input"))]
+
+        observations, info = self._runtime.step(actions)
+
+        if self._ros2_bridge is not None and self._ros2_bridge.enabled:
+            for obs in observations:
+                self._ros2_bridge.publish_observation(obs)
+            # Optional mirror output when running python-side control.
+            if actions and self._ros2_bridge.control_source == "python":
+                self._ros2_bridge.publish_cmd_vel(actions[0]["cmd_vel"])
+
+        return observations, info
 
     @property
     def hooks(self) -> HookManager:
@@ -306,6 +335,9 @@ class OmniNavEnv:
 
     def close(self) -> None:
         """Close environment and release resources."""
+        if self._ros2_bridge is not None:
+            self._ros2_bridge.shutdown()
+            self._ros2_bridge = None
         self._initialized = False
         self._runtime = None
 

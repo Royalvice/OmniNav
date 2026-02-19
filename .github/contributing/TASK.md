@@ -10,6 +10,8 @@
 - [x] 巡检任务链路：`Observation -> Algorithm -> Locomotion -> Task`
 - [x] Hydra 配置体系与 `OmniNavEnv.from_config(...)`
 - [x] 单元测试 + 基础集成测试骨架
+- [x] examples 重构为“脚本内业务逻辑 + `configs/demo/*.yaml` 组合驱动”（移除统一 demo runner）
+- [x] example smoke 提速：统一 `--smoke-fast` 降载参数与分脚本 `max_steps`
 
 ### 与需求文档的关键差距 (需补齐)
 - [x] **Batch-First 一致性**：主链路统一为 `(B,3)`，兼容输入 `(3,)` 并在 runtime 归一化
@@ -40,6 +42,9 @@
 - [x] 9C.1 完成 `/tf` 与 `/clock` 对齐，补齐 frame 约定文档
 - [x] 9C.2 修正 `RobotState` 读取方式，统一 TypedDict 访问
 - [ ] 9C.3 建立 Nav2 最小闭环样例（发布 + 订阅 + 时钟同步）
+  - [x] 9C.3.a ROS2 Bridge 配置契约升级（`control_source/profile/topics/frames/publish/qos`）
+  - [x] 9C.3.b 提供 Nav2 对接示例脚本 `examples/06_ros2_nav2_bridge.py`
+  - [ ] 9C.3.c map_server + AMCL + Nav2 真实闭环验收（`/map` + `map->odom`）
 - [x] 9C.4 增加 `tests/interfaces/test_ros2_bridge.py` 的端到端断言
 
 ### Phase 9D: 文档冻结前清理 (P0 - Critical)

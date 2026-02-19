@@ -106,3 +106,8 @@ exclude = ["external/", "build/", "dist/"]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
 addopts = "-v --tb=short"
+markers = [
+    "integration: marks integration tests that may run slower than unit tests",
+    "smoke: marks heavyweight example smoke tests",
+    "slow: marks intentionally slow tests",
+]

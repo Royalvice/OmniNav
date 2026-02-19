@@ -1,265 +1,156 @@
 #!/usr/bin/env python3
-"""
-Demo 01: Go2 Quadruped Teleoperation (Kinematic Controller)
+"""Demo 01: Go2 teleoperation driven by demo config."""
 
-A game-quality demonstration of quadruped locomotion:
-- Pure kinematic control (won't fall)
-- Procedural animation with foot locking
-- Terrain adaptation (stairs)
-- Obstacle avoidance
+from __future__ import annotations
 
-Scene includes:
-- Ground plane
-- 3-step staircase
-- Obstacle cube
-
-Controls:
-    WASD  - Move forward/backward/left/right
-    Q/E   - Rotate left/right
-    Space - Stop
-    Esc   - Exit
-"""
-
-import sys
 import argparse
+import sys
+from typing import Optional
+
 import numpy as np
-from omegaconf import OmegaConf
 
-from omninav.core import GenesisSimulationManager
-from omninav.robots import Go2Robot
-from omninav.locomotion import KinematicController
+from omninav.core.types import Action
+from omninav.interfaces import OmniNavEnv
 
-# =============================================================================
-# Keyboard Input
-# =============================================================================
-current_cmd = np.zeros(3)  # [vx, vy, wz]
-running = True
 
-LINEAR_VEL = 0.5
-LATERAL_VEL = 0.3
-ANGULAR_VEL = 1.0
+class _KeyboardInput:
+    def __init__(self, allow_lateral: bool, linear_vel: float, lateral_vel: float, angular_vel: float):
+        self.allow_lateral = allow_lateral
+        self.linear_vel = linear_vel
+        self.lateral_vel = lateral_vel
+        self.angular_vel = angular_vel
+        self.running = True
+        self._cmd = np.zeros(3, dtype=np.float32)
+        self._key_state: dict[str, bool] = {}
+        self._listener = None
+        self._keyboard = None
 
-_USE_POLLING = sys.platform == "win32"
-
-if _USE_POLLING:
-    import ctypes
-    _user32 = ctypes.windll.user32
-    _VK = {"w": 0x57, "a": 0x41, "s": 0x53, "d": 0x44,
-           "q": 0x51, "e": 0x45, "space": 0x20, "escape": 0x1B}
-
-    def poll_keyboard():
-        global current_cmd, running
-        def down(name):
-            return (_user32.GetAsyncKeyState(_VK[name]) & 0x8000) != 0
-        if down("escape"):
-            running = False
-            return
-        if down("space"):
-            current_cmd[:] = 0
-            return
-        current_cmd[0] = LINEAR_VEL if down("w") else (-LINEAR_VEL if down("s") else 0.0)
-        current_cmd[1] = LATERAL_VEL if down("a") else (-LATERAL_VEL if down("d") else 0.0)
-        current_cmd[2] = ANGULAR_VEL if down("q") else (-ANGULAR_VEL if down("e") else 0.0)
-else:
-    from pynput import keyboard
-    _listener = None
-    def on_press(key):
-        global current_cmd, running
         try:
-            if key.char == "w": current_cmd[0] = LINEAR_VEL
-            elif key.char == "s": current_cmd[0] = -LINEAR_VEL
-            elif key.char == "a": current_cmd[1] = LATERAL_VEL
-            elif key.char == "d": current_cmd[1] = -LATERAL_VEL
-            elif key.char == "q": current_cmd[2] = ANGULAR_VEL
-            elif key.char == "e": current_cmd[2] = -ANGULAR_VEL
-        except AttributeError:
-            if key == keyboard.Key.space: current_cmd[:] = 0
-            elif key == keyboard.Key.esc: running = False
-    def on_release(key):
-        global current_cmd
-        try:
-            if key.char in ["w", "s"]: current_cmd[0] = 0.0
-            elif key.char in ["a", "d"]: current_cmd[1] = 0.0
-            elif key.char in ["q", "e"]: current_cmd[2] = 0.0
-        except AttributeError: pass
+            from pynput import keyboard
+
+            self._keyboard = keyboard
+        except Exception as exc:
+            raise RuntimeError("pynput is required for interactive teleop") from exc
+
+    def start(self) -> None:
+        def on_press(key):
+            try:
+                self._key_state[key.char.lower()] = True
+            except Exception:
+                if key == self._keyboard.Key.space:
+                    self._key_state["space"] = True
+                elif key == self._keyboard.Key.esc:
+                    self._key_state["escape"] = True
+
+        def on_release(key):
+            try:
+                self._key_state[key.char.lower()] = False
+            except Exception:
+                if key == self._keyboard.Key.space:
+                    self._key_state["space"] = False
+                elif key == self._keyboard.Key.esc:
+                    self._key_state["escape"] = False
+
+        self._listener = self._keyboard.Listener(on_press=on_press, on_release=on_release)
+        self._listener.start()
+
+    def read(self) -> np.ndarray:
+        if self._key_state.get("escape", False):
+            self.running = False
+            return self._cmd
+
+        if self._key_state.get("space", False):
+            self._cmd.fill(0.0)
+            return self._cmd
+
+        self._cmd[0] = self.linear_vel if self._key_state.get("w", False) else (-self.linear_vel if self._key_state.get("s", False) else 0.0)
+        self._cmd[1] = (
+            self.lateral_vel if self._key_state.get("a", False) else (-self.lateral_vel if self._key_state.get("d", False) else 0.0)
+        ) if self.allow_lateral else 0.0
+        self._cmd[2] = self.angular_vel if self._key_state.get("q", False) else (-self.angular_vel if self._key_state.get("e", False) else 0.0)
+        return self._cmd
+
+    def stop(self) -> None:
+        if self._listener is not None:
+            self._listener.stop()
+            self._listener = None
 
 
-# =============================================================================
-# Scene Building
-# =============================================================================
-def build_scene(sim):
-    """Add stairs and obstacle to scene."""
-    import genesis as gs
-    
-    # Staircase: 3 steps, ascending height
-    step_depths = [0.4, 0.4, 0.4]
-    step_heights = [0.05, 0.10, 0.15]
-    stair_start_x = 1.5
-    stair_width = 1.2
-    
-    for i, (depth, height) in enumerate(zip(step_depths, step_heights)):
-        x = stair_start_x + i * depth
-        sim.scene.add_entity(
-            morph=gs.morphs.Box(
-                pos=(x, 0.0, height / 2),
-                size=(depth, stair_width, height),
-                fixed=True,
-            ),
-            surface=gs.surfaces.Default(color=(0.6, 0.6, 0.6, 1.0)),
-        )
-    
-    # Obstacle cube
-    sim.scene.add_entity(
-        morph=gs.morphs.Box(
-            pos=(-1.0, 1.5, 0.25),
-            size=(0.5, 0.5, 0.5),
-            fixed=True,
-        ),
-        surface=gs.surfaces.Default(color=(0.8, 0.2, 0.2, 1.0)),
-    )
+def _build_overrides(show_viewer: bool, fast_mode: bool) -> list[str]:
+    overrides = [f"simulation.show_viewer={str(show_viewer)}"]
+    if fast_mode:
+        overrides.extend([
+            "simulation.backend=cpu",
+            "simulation.substeps=1",
+            "simulation.dt=0.02",
+        ])
+    return overrides
 
 
-# =============================================================================
-# Main
-# =============================================================================
-def main():
-    global running, _listener, current_cmd
+def _scripted_cmd(step: int, max_steps: int, vx: float, vy: float, wz: float) -> np.ndarray:
+    cmd = np.zeros(3, dtype=np.float32)
+    if step < max_steps // 3:
+        cmd[0] = vx
+    elif step < (2 * max_steps) // 3:
+        cmd[1] = vy
+    else:
+        cmd[2] = wz
+    return cmd
+
+
+def main() -> int:
     parser = argparse.ArgumentParser(description="Go2 teleop demo")
-    parser.add_argument("--test-mode", action="store_true", help="Run deterministic scripted controls and exit")
-    parser.add_argument("--max-steps", type=int, default=400, help="Max steps in test mode")
+    parser.add_argument("--test-mode", action="store_true")
+    parser.add_argument("--smoke-fast", action="store_true", help="Use lighter simulation settings for smoke tests")
+    parser.add_argument("--max-steps", type=int, default=400)
     parser.add_argument("--show-viewer", action=argparse.BooleanOptionalAction, default=True)
     args = parser.parse_args()
 
-    running = True
-    current_cmd[:] = 0.0
-    
-    print("=" * 60)
-    print("  OmniNav Demo 01: Go2 Teleop (Kinematic Controller)")
-    print("=" * 60)
-    print("Features: Procedural animation, foot locking, stair climbing")
-    print("Controls: WASD=move, Q/E=rotate, Space=stop, Esc=exit")
-    print("=" * 60)
-    
-    # -------------------------------------------------------------------------
-    # 1. Configuration
-    # -------------------------------------------------------------------------
-    cfg = OmegaConf.create({
-        "simulation": {
-            "dt": 0.01,
-            "substeps": 2,
-            "backend": "gpu",
-            "show_viewer": args.show_viewer,
-            "camera_pos": [3.0, 3.0, 2.0],
-            "camera_lookat": [1.0, 0.0, 0.3],
-            "camera_fov": 40,
-            "disable_keyboard_shortcuts": True,
-        },
-        "scene": {
-            "ground_plane": {"enabled": True},
-        },
-    })
-    
-    robot_cfg = OmegaConf.load("configs/robot/go2.yaml")
-    loco_cfg = OmegaConf.load("configs/locomotion/kinematic_gait.yaml")
-    
-    # -------------------------------------------------------------------------
-    # 2. Initialize Simulation
-    # -------------------------------------------------------------------------
-    sim = GenesisSimulationManager()
-    sim.initialize(cfg)
-    
-    # -------------------------------------------------------------------------
-    # 3. Create and Add Robot
-    # -------------------------------------------------------------------------
-    robot = Go2Robot(robot_cfg, sim.scene)
-    sim.add_robot(robot)
-    
-    # -------------------------------------------------------------------------
-    # 4. Build Scene with Stairs and Obstacles
-    # -------------------------------------------------------------------------
-    build_scene(sim)
-    sim.load_scene(cfg.scene) # Restore ground plane
-    # -------------------------------------------------------------------------
-    # 5. Create Locomotion Controller (Before build to add sensors)
-    # -------------------------------------------------------------------------
-    controller = KinematicController(loco_cfg, robot)
-    
-    # NEW: Add controller-specific sensors (Raycasters for terrain)
-    # This must be done before sim.build()!
-    if hasattr(controller, "recover_cursor_lock"): # Dummy check, real method is add_sensors
-        pass 
-    try:
-        controller.add_sensors(sim.scene)
-    except AttributeError:
-        # Fallback if method not defined yet (during refactor)
-        print("Controller does not support add_sensors yet.")
+    if args.smoke_fast and args.max_steps > 40:
+        args.max_steps = 40
 
-    # -------------------------------------------------------------------------
-    # 6. Build Scene
-    # -------------------------------------------------------------------------
-    sim.build()
-    
-    controller.reset()
-    
-    # -------------------------------------------------------------------------
-    # 6. Start Keyboard Listener
-    # -------------------------------------------------------------------------
-    if not _USE_POLLING and not args.test_mode:
-        _listener = keyboard.Listener(on_press=on_press, on_release=on_release)
-        _listener.start()
-    
-    print("\nSimulation started. Walk towards the stairs at X=1.5.")
-    print("The robot should climb them without falling.\n")
-    
-    # -------------------------------------------------------------------------
-    # 7. Initial Stabilization
-    # -------------------------------------------------------------------------
-    print("Stabilizing...")
-    for _ in range(50):
-        controller.step(np.zeros(3))
-        sim.step()
-    print("Ready!\n")
-    
-    # -------------------------------------------------------------------------
-    # 8. Main Simulation Loop
-    # -------------------------------------------------------------------------
-    step_count = 0
-    try:
-        while running:
-            if args.test_mode:
-                # Scripted behavior: forward -> strafe -> rotate -> stop
-                if step_count < args.max_steps // 4:
-                    current_cmd[:] = [LINEAR_VEL, 0.0, 0.0]
-                elif step_count < args.max_steps // 2:
-                    current_cmd[:] = [0.0, LATERAL_VEL, 0.0]
-                elif step_count < (3 * args.max_steps) // 4:
-                    current_cmd[:] = [0.0, 0.0, ANGULAR_VEL]
+    keyboard: Optional[_KeyboardInput] = None
+    overrides = _build_overrides(args.show_viewer, args.test_mode or args.smoke_fast)
+
+    with OmniNavEnv(config_path="configs", config_name="demo/teleop_go2", overrides=overrides) as env:
+        obs_list = env.reset()
+        if not obs_list:
+            return 1
+
+        demo_cfg = env.cfg.get("demo", {})
+        vx = float(demo_cfg.get("max_linear_vel", 0.5))
+        vy = float(demo_cfg.get("max_lateral_vel", 0.3))
+        wz = float(demo_cfg.get("max_angular_vel", 1.0))
+        allow_lateral = bool(demo_cfg.get("allow_lateral", True))
+
+        if not args.test_mode:
+            keyboard = _KeyboardInput(allow_lateral=allow_lateral, linear_vel=vx, lateral_vel=vy, angular_vel=wz)
+            keyboard.start()
+
+        step = 0
+        try:
+            while True:
+                if args.test_mode:
+                    cmd = _scripted_cmd(step, args.max_steps, vx, vy if allow_lateral else 0.0, wz)
                 else:
-                    current_cmd[:] = 0.0
-            elif _USE_POLLING:
-                poll_keyboard()
-            
-            controller.step(current_cmd)
-            sim.step()
-            
-            step_count += 1
-            if step_count % 200 == 0:
-                state = robot.get_state()
-                pos = state["position"]
-                if pos.ndim > 1:
-                    pos = pos[0]
-                print(f"Step {step_count}: Pos=[{pos[0]:.2f}, {pos[1]:.2f}], Height={pos[2]:.3f}")
-            if args.test_mode and step_count >= args.max_steps:
-                break
-    
-    except KeyboardInterrupt:
-        pass
-    finally:
-        if not _USE_POLLING and _listener is not None:
-            _listener.stop()
-    
-    print("\nDemo finished.")
+                    cmd = keyboard.read() if keyboard is not None else np.zeros(3, dtype=np.float32)
+                    if keyboard is not None and not keyboard.running:
+                        break
+
+                action = Action(cmd_vel=np.asarray(cmd, dtype=np.float32).reshape(1, 3))
+                obs_list, _info = env.step(actions=[action])
+
+                step += 1
+                if env.is_done:
+                    break
+                if args.test_mode and step >= args.max_steps:
+                    break
+        finally:
+            if keyboard is not None:
+                keyboard.stop()
+
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())
