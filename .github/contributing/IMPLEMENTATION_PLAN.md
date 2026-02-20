@@ -203,7 +203,8 @@ class TaskBase(ABC, LifecycleMixin):
 1. ROS2 bridge 测试补齐
 2. 文档化的 topic/frame 规范
 3. profile 化开关：`all_off | nav2_minimal | nav2_full`
-4. `examples/06_ros2_nav2_bridge.py` 最小桥接脚本
+4. `examples/ros2/omninav_ros2_examples` install-space 演示包（`ros2 run/launch`）
+5. RViz 传感器话题补齐：`/camera/rgb/image_raw` + `/camera/depth/image_raw`
 
 Nav2 责任边界（固定）：
 1. OmniNav 发布：`/clock`、`/odom`、`/tf(odom->base_link)`、`/tf_static(base_link->laser)`、`/scan`

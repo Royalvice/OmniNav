@@ -200,14 +200,28 @@ class OmniNavEnv:
         self.locomotion = locomotion
         
         # 5. Create and mount sensors
-        # Merge config sensors and locomotion required sensors
+        # Single source of truth rule:
+        # - If `sensor` group exists in composed cfg, use that group only.
+        # - Otherwise, fall back to `robot.sensors`.
+        # - Then merge locomotion.required_sensors (if any).
         sensors_to_create = {}
-        
-        # From config
-        if "sensor" in self.cfg:
+
+        sensor_group_present = "sensor" in self.cfg and self.cfg.sensor is not None
+        if sensor_group_present:
             for name, s_cfg in self.cfg.sensor.items():
-                if isinstance(s_cfg, (dict, DictConfig, dict)) and "type" in s_cfg:
+                if isinstance(s_cfg, (dict, DictConfig)) and "type" in s_cfg:
                     sensors_to_create[name] = s_cfg
+        else:
+            robot_sensors = robot_cfg.get("sensors", [])
+            if robot_sensors:
+                for s_cfg in robot_sensors:
+                    if not isinstance(s_cfg, (dict, DictConfig)):
+                        continue
+                    s_name = s_cfg.get("name", None)
+                    s_type = s_cfg.get("type", None)
+                    if not s_name or not s_type:
+                        continue
+                    sensors_to_create[s_name] = s_cfg
         
         # From locomotion
         if hasattr(locomotion, "required_sensors"):

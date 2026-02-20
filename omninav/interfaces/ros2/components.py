@@ -15,6 +15,10 @@ class TopicConfig:
     tf_static: str
     odom: str
     scan: str
+    rgb_image: str
+    depth_image: str
+    rgb_camera_info: str
+    depth_camera_info: str
     cmd_vel_in: str
     cmd_vel_out: str
 
@@ -24,7 +28,9 @@ class FrameConfig:
     map: str
     odom: str
     base_link: str
-    laser: str
+    lidar: str
+    rgb_camera: str
+    depth_camera: str
 
 
 class ClockPublisher:
@@ -113,10 +119,7 @@ class ScanPublisher:
         self._publisher = node.create_publisher(LaserScan, topic, qos)
 
     def publish(self, data: dict, stamp, frame_id: str):
-        ranges = np.asarray(data.get("ranges", np.array([], dtype=np.float32)), dtype=np.float32)
-        if ranges.ndim == 2:
-            ranges = ranges[0]
-
+        ranges = np.asarray(data.get("ranges", np.array([], dtype=np.float32)), dtype=np.float32).reshape(-1)
         msg = self._LaserScan()
         msg.header.stamp = stamp
         msg.header.frame_id = frame_id
@@ -125,10 +128,68 @@ class ScanPublisher:
         msg.angle_increment = float(data.get("angle_increment", 0.0))
         msg.time_increment = float(data.get("time_increment", 0.0))
         msg.scan_time = float(data.get("scan_time", 0.0))
-        msg.range_min = float(data.get("range_min", 0.0))
-        msg.range_max = float(data.get("range_max", 100.0))
+        msg.range_min = float(data.get("range_min", 0.1))
+        msg.range_max = float(data.get("range_max", 30.0))
         msg.ranges = ranges.tolist()
 
+        self._publisher.publish(msg)
+
+
+class ImagePublisher:
+    def __init__(self, node, topic: str, qos: Any):
+        from sensor_msgs.msg import Image
+
+        self._Image = Image
+        self._publisher = node.create_publisher(Image, topic, qos)
+
+    def publish_rgb8(self, image: np.ndarray, stamp, frame_id: str):
+        height, width = image.shape[0], image.shape[1]
+        msg = self._Image()
+        msg.header.stamp = stamp
+        msg.header.frame_id = frame_id
+        msg.height = int(height)
+        msg.width = int(width)
+        msg.encoding = "rgb8"
+        msg.is_bigendian = 0
+        msg.step = int(width * 3)
+        msg.data = image.tobytes()
+        self._publisher.publish(msg)
+
+    def publish_depth32f(self, image: np.ndarray, stamp, frame_id: str):
+        height, width = image.shape[0], image.shape[1]
+        msg = self._Image()
+        msg.header.stamp = stamp
+        msg.header.frame_id = frame_id
+        msg.height = int(height)
+        msg.width = int(width)
+        msg.encoding = "32FC1"
+        msg.is_bigendian = 0
+        msg.step = int(width * 4)
+        msg.data = image.tobytes()
+        self._publisher.publish(msg)
+
+
+class CameraInfoPublisher:
+    def __init__(self, node, topic: str, qos: Any):
+        from sensor_msgs.msg import CameraInfo
+
+        self._CameraInfo = CameraInfo
+        self._publisher = node.create_publisher(CameraInfo, topic, qos)
+
+    def publish(self, height: int, width: int, stamp, frame_id: str, fov_deg: float):
+        fx = (width / 2.0) / np.tan(np.deg2rad(fov_deg) / 2.0) if fov_deg > 0 else float(width)
+        fy = fx
+        cx = width / 2.0
+        cy = height / 2.0
+
+        msg = self._CameraInfo()
+        msg.header.stamp = stamp
+        msg.header.frame_id = frame_id
+        msg.height = int(height)
+        msg.width = int(width)
+        msg.k = [fx, 0.0, cx, 0.0, fy, cy, 0.0, 0.0, 1.0]
+        msg.r = [1.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 1.0]
+        msg.p = [fx, 0.0, cx, 0.0, 0.0, fy, cy, 0.0, 0.0, 0.0, 1.0, 0.0]
         self._publisher.publish(msg)
 
 

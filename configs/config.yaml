@@ -28,7 +28,7 @@ ros2:
   enabled: false
   node_name: "omninav"
   control_source: "python"      # "python" | "ros2"
-  profile: "all_off"            # "all_off" | "nav2_minimal" | "nav2_full" | "custom"
+  profile: "all_off"            # "all_off" | "nav2_minimal" | "nav2_full" | "rviz_sensors" | "custom"
   namespace_mode: "single"      # "single" | "per_env"
   env_namespace_prefix: "/env"
   cmd_vel_timeout_sec: 0.5
@@ -38,19 +38,28 @@ ros2:
     tf_static: "/tf_static"
     odom: "/odom"
     scan: "/scan"
+    rgb_image: "/camera/rgb/image_raw"
+    depth_image: "/camera/depth/image_raw"
+    rgb_camera_info: "/camera/rgb/camera_info"
+    depth_camera_info: "/camera/depth/camera_info"
     cmd_vel_in: "/cmd_vel"
     cmd_vel_out: "/omninav/cmd_vel"
   frames:
     map: "map"
     odom: "odom"
     base_link: "base_link"
-    laser: "laser_frame"
-  publish:
-    clock: false
-    tf: false
-    tf_static: false
-    odom: false
-    scan: false
+    lidar: "lidar_frame"
+    rgb_camera: "camera_rgb_frame"
+    depth_camera: "camera_depth_frame"
+  # Optional explicit per-topic switches.
+  # Keep empty by default so `ros2.profile` remains the single source of truth.
+  publish: {}
+  # Optional publish down-sampling (1 = publish every step).
+  publish_rate:
+    scan_every_n_steps: 1
+    rgb_every_n_steps: 1
+    depth_every_n_steps: 1
+    camera_info_every_n_steps: 1
   qos: {}
 
 # Hydra configuration

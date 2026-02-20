@@ -60,6 +60,7 @@ class SimulationRuntime:
         self._built: bool = False
         self._dt: float = cfg.get("simulation", {}).get("dt", 0.01)
         self._last_done_mask: Optional[np.ndarray] = None
+        self._sensor_error_once: set[tuple[int, str]] = set()
 
     def build(self) -> None:
         """
@@ -139,7 +140,11 @@ class SimulationRuntime:
         """
         self.hooks.emit(EventType.PRE_STEP, step=self._step_count)
 
-        observations = self._get_observations()
+        # External-control path (keyboard/ROS2 cmd_vel) does not need full sensor
+        # reads before physics stepping. This avoids expensive double rendering
+        # for camera sensors in a single simulation step.
+        read_pre_sensors = actions is None
+        observations = self._get_observations(read_sensors=read_pre_sensors)
 
         # Compute actions from algorithms if not provided
         if actions is None:
@@ -197,23 +202,26 @@ class SimulationRuntime:
 
         return new_observations, info
 
-    def _get_observations(self) -> List[Observation]:
+    def _get_observations(self, read_sensors: bool = True) -> List[Observation]:
         """Build observation list from all robots."""
         observations = []
-        for robot in self.robots:
+        for robot_idx, robot in enumerate(self.robots):
             obs = Observation(
                 robot_state=robot.get_state(),
                 sim_time=self._sim_time,
                 sensors={},
             )
             # Collect sensor data
-            if hasattr(robot, 'sensors'):
+            if read_sensors and hasattr(robot, 'sensors'):
                 for name, sensor in robot.sensors.items():
                     if hasattr(sensor, 'get_data'):
                         try:
                             obs["sensors"][name] = sensor.get_data()
-                        except Exception:
-                            pass
+                        except Exception as exc:
+                            err_key = (robot_idx, name)
+                            if err_key not in self._sensor_error_once:
+                                logger.warning("Sensor get_data failed for robot[%d].%s: %s", robot_idx, name, exc)
+                                self._sensor_error_once.add(err_key)
 
             observations.append(obs)
         return observations

@@ -1,0 +1,5 @@
+#!/usr/bin/env python3
+from omninav_ros2_examples.nav2_bridge_demo import main
+
+if __name__ == "__main__":
+    raise SystemExit(main())

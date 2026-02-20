@@ -43,7 +43,8 @@
 - [x] 9C.2 修正 `RobotState` 读取方式，统一 TypedDict 访问
 - [ ] 9C.3 建立 Nav2 最小闭环样例（发布 + 订阅 + 时钟同步）
   - [x] 9C.3.a ROS2 Bridge 配置契约升级（`control_source/profile/topics/frames/publish/qos`）
-  - [x] 9C.3.b 提供 Nav2 对接示例脚本 `examples/06_ros2_nav2_bridge.py`
+  - [x] 9C.3.b 提供 install-space 可运行示例包 `examples/ros2/omninav_ros2_examples`（`ros2 run/launch`）
+  - [x] 9C.3.b.1 新增 RViz 传感器演示（`rgb+depth+scan`）
   - [ ] 9C.3.c map_server + AMCL + Nav2 真实闭环验收（`/map` + `map->odom`）
 - [x] 9C.4 增加 `tests/interfaces/test_ros2_bridge.py` 的端到端断言
 

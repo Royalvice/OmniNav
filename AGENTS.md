@@ -21,6 +21,8 @@
 2. 推荐命令前缀（PowerShell）：
 `& E:\miniconda\shell\condabin\conda-hook.ps1; conda activate torch; <command>`
 3. 若 `conda run -n torch` 出现编码/插件异常，允许切换为 `conda activate torch` 方案
+4. 若当前机器缺少可用环境，必须先按 `INSTALL.md` 完成安装；并在 Linux 下先辨别是否为 Ubuntu 且是否存在 ROS2 Humble（`/opt/ros/humble/setup.bash`）。若是，则默认执行：
+`source ~/omninav_ros_env/bin/activate && source /opt/ros/humble/setup.bash`
 
 ---
 

@@ -5,6 +5,8 @@ from __future__ import annotations
 from typing import Optional, Dict, Any, TYPE_CHECKING
 import time
 import warnings
+import logging
+import math
 
 import numpy as np
 from omegaconf import DictConfig
@@ -17,6 +19,8 @@ from omninav.interfaces.ros2.components import (
     TfPublisher,
     OdomPublisher,
     ScanPublisher,
+    ImagePublisher,
+    CameraInfoPublisher,
     CmdVelSubscriber,
     CmdVelPublisher,
 )
@@ -28,15 +32,56 @@ if TYPE_CHECKING:
 
 _PROFILE_DEFAULTS = {
     "all_off": {
-        "publish": {"clock": False, "tf": False, "tf_static": False, "odom": False, "scan": False},
+        "publish": {
+            "clock": False,
+            "tf": False,
+            "tf_static": False,
+            "odom": False,
+            "scan": False,
+            "rgb_image": False,
+            "depth_image": False,
+            "camera_info": False,
+        },
     },
     "nav2_minimal": {
-        "publish": {"clock": True, "tf": True, "tf_static": True, "odom": True, "scan": True},
+        "publish": {
+            "clock": True,
+            "tf": True,
+            "tf_static": True,
+            "odom": True,
+            "scan": True,
+            "rgb_image": False,
+            "depth_image": False,
+            "camera_info": False,
+        },
     },
     "nav2_full": {
-        "publish": {"clock": True, "tf": True, "tf_static": True, "odom": True, "scan": True},
+        "publish": {
+            "clock": True,
+            "tf": True,
+            "tf_static": True,
+            "odom": True,
+            "scan": True,
+            "rgb_image": False,
+            "depth_image": False,
+            "camera_info": False,
+        },
+    },
+    "rviz_sensors": {
+        "publish": {
+            "clock": True,
+            "tf": True,
+            "tf_static": True,
+            "odom": True,
+            "scan": True,
+            "rgb_image": True,
+            "depth_image": True,
+            "camera_info": True,
+        },
     },
 }
+
+logger = logging.getLogger(__name__)
 
 
 class ROS2Bridge:
@@ -56,18 +101,31 @@ class ROS2Bridge:
         self._cmd_vel_timeout_sec = float(cfg.get("cmd_vel_timeout_sec", 0.5))
 
         self._publish = self._resolve_publish_switches()
+        publish_rate_cfg = cfg.get("publish_rate", {})
+        self._publish_every_n_steps = {
+            "scan": max(1, int(publish_rate_cfg.get("scan_every_n_steps", 1))),
+            "rgb_image": max(1, int(publish_rate_cfg.get("rgb_every_n_steps", 1))),
+            "depth_image": max(1, int(publish_rate_cfg.get("depth_every_n_steps", 1))),
+            "camera_info": max(1, int(publish_rate_cfg.get("camera_info_every_n_steps", 1))),
+        }
+        self._publish_step = 0
 
         self._robot: Optional["RobotBase"] = None
         self._clock_pub: Optional[ClockPublisher] = None
         self._tf_pub: Optional[TfPublisher] = None
         self._odom_pub: Optional[OdomPublisher] = None
         self._scan_pub: Optional[ScanPublisher] = None
+        self._rgb_pub: Optional[ImagePublisher] = None
+        self._depth_pub: Optional[ImagePublisher] = None
+        self._rgb_info_pub: Optional[CameraInfoPublisher] = None
+        self._depth_info_pub: Optional[CameraInfoPublisher] = None
         self._cmd_sub: Optional[CmdVelSubscriber] = None
         self._cmd_pub: Optional[CmdVelPublisher] = None
 
         self._cmd_vel: Optional[np.ndarray] = None
         self._last_cmd_vel_ts: Optional[float] = None
         self._published_static_tf = False
+        self._warned_no_camera_data = False
 
         if self._enabled:
             self._init_ros2()
@@ -80,6 +138,10 @@ class ROS2Bridge:
             tf_static=topics.get("tf_static", "/tf_static"),
             odom=topics.get("odom", self.cfg.get("odom_topic", "/odom")),
             scan=topics.get("scan", "/scan"),
+            rgb_image=topics.get("rgb_image", "/camera/rgb/image_raw"),
+            depth_image=topics.get("depth_image", "/camera/depth/image_raw"),
+            rgb_camera_info=topics.get("rgb_camera_info", "/camera/rgb/camera_info"),
+            depth_camera_info=topics.get("depth_camera_info", "/camera/depth/camera_info"),
             cmd_vel_in=topics.get("cmd_vel_in", self.cfg.get("cmd_vel_topic", "/cmd_vel")),
             cmd_vel_out=topics.get("cmd_vel_out", "/omninav/cmd_vel"),
         )
@@ -90,14 +152,16 @@ class ROS2Bridge:
             map=frames.get("map", "map"),
             odom=frames.get("odom", "odom"),
             base_link=frames.get("base_link", "base_link"),
-            laser=frames.get("laser", "laser_frame"),
+            lidar=frames.get("lidar", frames.get("laser", "laser_frame")),
+            rgb_camera=frames.get("rgb_camera", "camera_rgb_frame"),
+            depth_camera=frames.get("depth_camera", "camera_depth_frame"),
         )
 
     def _resolve_publish_switches(self) -> Dict[str, bool]:
         profile_defaults = _PROFILE_DEFAULTS.get(self._profile, _PROFILE_DEFAULTS["all_off"])
         publish_cfg = dict(profile_defaults.get("publish", {}))
         publish_override = self.cfg.get("publish", {})
-        for key in ["clock", "tf", "tf_static", "odom", "scan"]:
+        for key in ["clock", "tf", "tf_static", "odom", "scan", "rgb_image", "depth_image", "camera_info"]:
             if key in publish_override:
                 publish_cfg[key] = bool(publish_override.get(key))
         return publish_cfg
@@ -116,7 +180,20 @@ class ROS2Bridge:
     def _build_qos(self, key: str):
         from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy, HistoryPolicy
 
-        defaults = {"history": "keep_last", "depth": 10, "reliability": "reliable", "durability": "volatile"}
+        default_by_key = {
+            "tf_static": {"history": "keep_last", "depth": 1, "reliability": "reliable", "durability": "transient_local"},
+            "tf": {"history": "keep_last", "depth": 50, "reliability": "reliable", "durability": "volatile"},
+            "clock": {"history": "keep_last", "depth": 10, "reliability": "reliable", "durability": "volatile"},
+            "odom": {"history": "keep_last", "depth": 20, "reliability": "reliable", "durability": "volatile"},
+            "scan": {"history": "keep_last", "depth": 10, "reliability": "reliable", "durability": "volatile"},
+            "rgb_image": {"history": "keep_last", "depth": 5, "reliability": "reliable", "durability": "volatile"},
+            "depth_image": {"history": "keep_last", "depth": 5, "reliability": "reliable", "durability": "volatile"},
+            "rgb_camera_info": {"history": "keep_last", "depth": 5, "reliability": "reliable", "durability": "volatile"},
+            "depth_camera_info": {"history": "keep_last", "depth": 5, "reliability": "reliable", "durability": "volatile"},
+            "cmd_vel_in": {"history": "keep_last", "depth": 10, "reliability": "reliable", "durability": "volatile"},
+            "cmd_vel_out": {"history": "keep_last", "depth": 10, "reliability": "reliable", "durability": "volatile"},
+        }
+        defaults = default_by_key.get(key, {"history": "keep_last", "depth": 10, "reliability": "reliable", "durability": "volatile"})
         qos_cfg = self.cfg.get("qos", {}).get(key, {})
         merged = {**defaults, **qos_cfg}
 
@@ -160,6 +237,17 @@ class ROS2Bridge:
                 self._odom_pub = OdomPublisher(self._node, self._topics.odom, self._build_qos("odom"))
             if self._publish.get("scan", False):
                 self._scan_pub = ScanPublisher(self._node, self._topics.scan, self._build_qos("scan"))
+            if self._publish.get("rgb_image", False):
+                self._rgb_pub = ImagePublisher(self._node, self._topics.rgb_image, self._build_qos("rgb_image"))
+            if self._publish.get("depth_image", False):
+                self._depth_pub = ImagePublisher(self._node, self._topics.depth_image, self._build_qos("depth_image"))
+            if self._publish.get("camera_info", False):
+                self._rgb_info_pub = CameraInfoPublisher(
+                    self._node, self._topics.rgb_camera_info, self._build_qos("rgb_camera_info")
+                )
+                self._depth_info_pub = CameraInfoPublisher(
+                    self._node, self._topics.depth_camera_info, self._build_qos("depth_camera_info")
+                )
 
             # Subscriptions / optional mirror publisher
             if self._control_source == "ros2":
@@ -240,24 +328,89 @@ class ROS2Bridge:
         tf.transform.rotation.z = float(orient[3])
         return tf
 
+    def _get_sensor_mount(self, sensor_type: str, preferred_names: tuple[str, ...] = ()) -> Optional[tuple[list[float], list[float]]]:
+        if self._robot is None or not hasattr(self._robot, "sensors"):
+            return None
+
+        named_sensor = None
+        for name in preferred_names:
+            candidate = self._robot.sensors.get(name, None)
+            if candidate is not None:
+                named_sensor = candidate
+                break
+
+        chosen = named_sensor
+        if chosen is None:
+            for sensor in self._robot.sensors.values():
+                sensor_id = str(getattr(sensor, "SENSOR_TYPE", "")).lower()
+                cfg = getattr(sensor, "cfg", {})
+                cfg_type = str(cfg.get("type", "")).lower() if hasattr(cfg, "get") else ""
+                if sensor_id == sensor_type or cfg_type == sensor_type:
+                    chosen = sensor
+                    break
+
+        if chosen is None:
+            return None
+
+        cfg = getattr(chosen, "cfg", {})
+        pos = cfg.get("position", [0.0, 0.0, 0.0])
+        ori = cfg.get("orientation", [0.0, 0.0, 0.0])
+
+        if hasattr(pos, "tolist"):
+            pos = pos.tolist()
+        else:
+            pos = list(pos)
+        if hasattr(ori, "tolist"):
+            ori = ori.tolist()
+        else:
+            ori = list(ori)
+        return pos, ori
+
     def _publish_static_tf(self) -> None:
         if self._published_static_tf or self._tf_pub is None or not self._publish.get("tf_static", False):
             return
 
         from geometry_msgs.msg import TransformStamped
 
-        static_tf = TransformStamped()
-        static_tf.header.stamp = self._get_ros_time()
-        static_tf.header.frame_id = self._frames.base_link
-        static_tf.child_frame_id = self._frames.laser
-        static_tf.transform.translation.x = 0.0
-        static_tf.transform.translation.y = 0.0
-        static_tf.transform.translation.z = 0.0
-        static_tf.transform.rotation.w = 1.0
-        static_tf.transform.rotation.x = 0.0
-        static_tf.transform.rotation.y = 0.0
-        static_tf.transform.rotation.z = 0.0
-        self._tf_pub.publish_static(static_tf)
+        def _quat_from_euler_deg(roll_deg: float, pitch_deg: float, yaw_deg: float) -> tuple[float, float, float, float]:
+            roll = math.radians(roll_deg)
+            pitch = math.radians(pitch_deg)
+            yaw = math.radians(yaw_deg)
+            cy = math.cos(yaw * 0.5)
+            sy = math.sin(yaw * 0.5)
+            cp = math.cos(pitch * 0.5)
+            sp = math.sin(pitch * 0.5)
+            cr = math.cos(roll * 0.5)
+            sr = math.sin(roll * 0.5)
+            w = cr * cp * cy + sr * sp * sy
+            x = sr * cp * cy - cr * sp * sy
+            y = cr * sp * cy + sr * cp * sy
+            z = cr * cp * sy - sr * sp * cy
+            return w, x, y, z
+
+        static_mounts = [
+            (self._get_sensor_mount("lidar_2d", preferred_names=("front_lidar", "lidar_2d")), self._frames.lidar),
+            (self._get_sensor_mount("camera", preferred_names=("front_camera", "depth_camera", "camera")), self._frames.rgb_camera),
+            (self._get_sensor_mount("camera", preferred_names=("front_camera", "depth_camera", "camera")), self._frames.depth_camera),
+        ]
+        stamp = self._get_ros_time()
+        for mount, child_frame in static_mounts:
+            if mount is None:
+                continue
+            pos, ori = mount
+            qw, qx, qy, qz = _quat_from_euler_deg(float(ori[0]), float(ori[1]), float(ori[2]))
+            static_tf = TransformStamped()
+            static_tf.header.stamp = stamp
+            static_tf.header.frame_id = self._frames.base_link
+            static_tf.child_frame_id = child_frame
+            static_tf.transform.translation.x = float(pos[0])
+            static_tf.transform.translation.y = float(pos[1])
+            static_tf.transform.translation.z = float(pos[2])
+            static_tf.transform.rotation.w = float(qw)
+            static_tf.transform.rotation.x = float(qx)
+            static_tf.transform.rotation.y = float(qy)
+            static_tf.transform.rotation.z = float(qz)
+            self._tf_pub.publish_static(static_tf)
         self._published_static_tf = True
 
     def publish_observation(self, obs: "Observation") -> None:
@@ -267,6 +420,7 @@ class ROS2Bridge:
         self._publish_clock()
         robot_state = obs.get("robot_state", None)
         stamp = self._get_ros_time()
+        self._publish_step += 1
 
         if robot_state is not None and self._odom_pub is not None and self._publish.get("odom", False):
             odom_msg = self._odom_pub.publish(robot_state, stamp, self._frames)
@@ -276,8 +430,46 @@ class ROS2Bridge:
 
         if self._scan_pub is not None and self._publish.get("scan", False):
             scan_data = Ros2Adapter.pick_scan_data(obs.get("sensors", {}))
-            if scan_data is not None:
-                self._scan_pub.publish(scan_data, stamp, self._frames.laser)
+            if scan_data is not None and (self._publish_step % self._publish_every_n_steps["scan"] == 0):
+                scan_data = Ros2Adapter.enrich_scan_data(scan_data)
+                self._scan_pub.publish(scan_data, stamp, self._frames.lidar)
+
+        cam_data = Ros2Adapter.pick_camera_data(obs.get("sensors", {}))
+        if cam_data is not None:
+            self._warned_no_camera_data = False
+            if (
+                self._rgb_pub is not None
+                and self._publish.get("rgb_image", False)
+                and "rgb" in cam_data
+                and (self._publish_step % self._publish_every_n_steps["rgb_image"] == 0)
+            ):
+                rgb = Ros2Adapter.normalize_rgb_image(cam_data["rgb"])
+                self._rgb_pub.publish_rgb8(rgb, stamp, self._frames.rgb_camera)
+                if (
+                    self._rgb_info_pub is not None
+                    and self._publish.get("camera_info", False)
+                    and (self._publish_step % self._publish_every_n_steps["camera_info"] == 0)
+                ):
+                    fov = float(cam_data.get("fov", 60.0))
+                    self._rgb_info_pub.publish(rgb.shape[0], rgb.shape[1], stamp, self._frames.rgb_camera, fov)
+            if (
+                self._depth_pub is not None
+                and self._publish.get("depth_image", False)
+                and "depth" in cam_data
+                and (self._publish_step % self._publish_every_n_steps["depth_image"] == 0)
+            ):
+                depth = Ros2Adapter.normalize_depth_image(cam_data["depth"])
+                self._depth_pub.publish_depth32f(depth, stamp, self._frames.depth_camera)
+                if (
+                    self._depth_info_pub is not None
+                    and self._publish.get("camera_info", False)
+                    and (self._publish_step % self._publish_every_n_steps["camera_info"] == 0)
+                ):
+                    fov = float(cam_data.get("fov", 60.0))
+                    self._depth_info_pub.publish(depth.shape[0], depth.shape[1], stamp, self._frames.depth_camera, fov)
+        elif (self._publish.get("rgb_image", False) or self._publish.get("depth_image", False)) and not self._warned_no_camera_data:
+            self._warned_no_camera_data = True
+            logger.warning("ROS2Bridge camera publish enabled, but no camera data found. sensor keys=%s", list(obs.get("sensors", {}).keys()))
 
     def publish_cmd_vel(self, cmd_vel: np.ndarray) -> None:
         if not self._enabled or self._cmd_pub is None:

@@ -126,7 +126,6 @@ class GenesisSimulationManager(SimulationManagerBase):
             raise RuntimeError("Scene already built. Cannot build twice.")
         
         # Get environment spacing configuration
-        ensure_tuple = lambda x: tuple(x) if isinstance(x, (list, pd.Series, np.ndarray, ListConfig)) else x
         try:
              from omegaconf import ListConfig
         except ImportError:
@@ -173,7 +172,9 @@ class GenesisSimulationManager(SimulationManagerBase):
         """
         if self._scene is None:
             return 0.0
-        return self._scene.t
+        # Genesis scene.t is step-like in our runtime path; convert to seconds.
+        dt = float(self.cfg.get("simulation", {}).get("dt", 0.01)) if self.cfg is not None else 0.01
+        return float(self._scene.t) * dt
     
     def add_robot(self, robot: "RobotBase") -> None:
         """

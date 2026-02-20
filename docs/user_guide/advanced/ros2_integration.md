@@ -1,6 +1,7 @@
 # ROS2 Integration
 
 OmniNav provides an optional ROS2 bridge. You can run pure Python simulation, or switch to Nav2-driven control.
+The recommended quick-start demos are packaged under `examples/ros2/omninav_ros2_examples` and run from ROS2 install space.
 
 ## Integration Modes
 
@@ -15,6 +16,8 @@ OmniNav publishes:
 - `/tf` (`odom -> base_link`)
 - `/tf_static` (`base_link -> laser`)
 - `/scan`
+- `/camera/rgb/image_raw`
+- `/camera/depth/image_raw`
 
 OmniNav subscribes:
 - `/cmd_vel` (only when `control_source=ros2`)
@@ -43,6 +46,8 @@ ros2:
     cmd_vel_in: /cmd_vel
     odom: /odom
     scan: /scan
+    rgb_image: /camera/rgb/image_raw
+    depth_image: /camera/depth/image_raw
   frames:
     map: map
     odom: odom
@@ -64,20 +69,30 @@ ros2:
 
 ## Bringup Order (Humble)
 
-1. Start OmniNav bridge:
+1. Build and source the ROS2 example package:
 
 ```bash
-python examples/06_ros2_nav2_bridge.py
+~/omninav_ros_env/bin/python -m colcon build --symlink-install --packages-select omninav_ros2_examples
+source install/setup.bash
 ```
 
-2. Start map server and AMCL (with `use_sim_time:=true`).
-3. Start Nav2 bringup and RViz (also `use_sim_time:=true`).
-4. Publish initial pose (`/initialpose`) and send goal (`/goal_pose` or action API).
+Use the same Python interpreter as OmniNav (`~/omninav_ros_env/bin/python`) for colcon build.
+This keeps `ros2 run` entrypoints bound to the correct dependency environment.
+
+2. Start full closed-loop demo:
+
+```bash
+ros2 launch omninav_ros2_examples nav2_full_stack.launch.py
+```
+
+3. In RViz, publish initial pose (`/initialpose`) then send goal (`/goal_pose`).
 
 Minimum checks:
 - `ros2 topic echo /clock` has data
 - `ros2 topic echo /map` has data
 - `ros2 topic echo /scan` has data
+- `ros2 topic echo /camera/rgb/image_raw --once` has data
+- `ros2 topic echo /camera/depth/image_raw --once` has data
 - `ros2 run tf2_tools view_frames` includes `map -> odom -> base_link -> laser_frame`
 
 ## Safety Behavior

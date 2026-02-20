@@ -16,7 +16,8 @@ def test_demo_configs_exist():
         "camera_visualization.yaml",
         "waypoint_navigation.yaml",
         "inspection.yaml",
-        "nav2_bridge.yaml",
+        "ros2_rviz_sensor.yaml",
+        "ros2_nav2_full.yaml",
     }
     existing = {p.name for p in DEMO_CONFIG_DIR.glob("*.yaml")}
     assert expected.issubset(existing)

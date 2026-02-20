@@ -97,3 +97,64 @@ class TestRos2BridgeLogic:
         bridge._cmd_vel_fresh = lambda: False
         cmd_vel = bridge.get_external_cmd_vel()
         assert np.allclose(cmd_vel, np.zeros(3, dtype=np.float32))
+
+    def test_sensor_mount_resolution_by_type(self):
+        """Static TF mount lookup should not depend on hard-coded sensor names."""
+        from omninav.interfaces.ros2.bridge import ROS2Bridge
+
+        class _DummySensor:
+            SENSOR_TYPE = "camera"
+
+            def __init__(self, cfg):
+                self.cfg = cfg
+
+        cfg = OmegaConf.create({"enabled": False})
+        bridge = ROS2Bridge(cfg, MagicMock())
+        bridge._robot = MagicMock()
+        bridge._robot.sensors = {
+            "depth_camera": _DummySensor(
+                {
+                    "type": "camera",
+                    "position": [0.45, 0.0, 0.2],
+                    "orientation": [90.0, 0.0, -90.0],
+                }
+            )
+        }
+
+        mount = bridge._get_sensor_mount("camera", preferred_names=("front_camera", "depth_camera"))
+        assert mount is not None
+        assert mount[0] == [0.45, 0.0, 0.2]
+        assert mount[1] == [90.0, 0.0, -90.0]
+
+
+class TestRos2Adapter:
+    """Pure data adapter tests (no ROS runtime required)."""
+
+    def test_enrich_scan_data_fills_angle_increment(self):
+        from omninav.interfaces.ros2.adapter import Ros2Adapter
+
+        scan_data = {"ranges": np.linspace(0.1, 3.0, 720, dtype=np.float32)}
+        enriched = Ros2Adapter.enrich_scan_data(scan_data)
+
+        assert enriched["ranges"].shape == (720,)
+        assert np.isclose(enriched["angle_min"], -np.pi)
+        assert np.isclose(enriched["angle_max"], np.pi)
+        assert enriched["angle_increment"] > 0.0
+
+    def test_pick_camera_data_prefers_sensor_with_rgb_or_depth(self):
+        from omninav.interfaces.ros2.adapter import Ros2Adapter
+
+        sensors = {
+            "lidar_2d": {"ranges": np.zeros((1, 360), dtype=np.float32)},
+            "depth_camera": {"rgb": np.zeros((1, 8, 8, 3), dtype=np.uint8)},
+        }
+        data = Ros2Adapter.pick_camera_data(sensors)
+        assert data is not None
+        assert "rgb" in data
+
+    def test_normalize_depth_image_accepts_batched_input(self):
+        from omninav.interfaces.ros2.adapter import Ros2Adapter
+
+        depth = np.zeros((1, 16, 32), dtype=np.float32)
+        normalized = Ros2Adapter.normalize_depth_image(depth)
+        assert normalized.shape == (16, 32)

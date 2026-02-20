@@ -1,0 +1,30 @@
+# Default sensor configuration
+# @package _group_
+
+# Depth Camera
+depth_camera:
+  type: camera
+  link_name: base
+  position: [0.45, 0.0, 0.2]
+  orientation: [90.0, 0.0, -90.0]
+  width: 640
+  height: 480
+  fov: 60
+  near: 0.1
+  far: 10.0
+  camera_types:
+    - rgb
+    - depth
+
+# 2D LiDAR
+lidar_2d:
+  type: lidar_2d
+  link_name: base
+  position: [0.25, 0.0, 0.15]
+  orientation: [0.0, 0.0, 0.0]
+  num_rays: 360
+  min_angle: -3.14159  # -π
+  max_angle: 3.14159   # π
+  min_range: 0.1
+  max_range: 12.0
+  height: 0.0  # Scan plane height offset

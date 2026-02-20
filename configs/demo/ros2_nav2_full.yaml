@@ -1,0 +1,42 @@
+# @package _global_
+defaults:
+  - /robot: go2w
+  - /sensor: default
+  - /locomotion: wheel
+  - /scene: complex_flat_obstacles
+  - _self_
+
+simulation:
+  dt: 0.02
+  substeps: 1
+  backend: gpu
+  show_viewer: false
+
+# Nav2 provides cmd_vel in this demo.
+demo:
+  mode: algorithm
+
+ros2:
+  enabled: true
+  control_source: ros2
+  profile: nav2_full
+  cmd_vel_timeout_sec: 0.5
+  frames:
+    base_link: base
+    lidar: lidar_frame
+    rgb_camera: camera_rgb_frame
+    depth_camera: camera_depth_frame
+  publish_rate:
+    scan_every_n_steps: 1
+    rgb_every_n_steps: 2
+    depth_every_n_steps: 2
+    camera_info_every_n_steps: 10
+
+sensor:
+  depth_camera: null
+
+robot:
+  initial_pos: [0.0, -1.2, 0.35]
+
+locomotion:
+  max_wheel_speed: 35.0

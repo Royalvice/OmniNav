@@ -7,6 +7,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 import pytest
@@ -20,7 +21,8 @@ EXAMPLE_SCRIPTS = [
     "04_camera_visualization.py",
     "05_waypoint_navigation.py",
     "run_inspection.py",
-    "06_ros2_nav2_bridge.py",
+    "ros2/omninav_ros2_examples/omninav_ros2_examples/rviz_sensor_demo.py",
+    "ros2/omninav_ros2_examples/omninav_ros2_examples/nav2_bridge_demo.py",
 ]
 
 EXAMPLE_TIMEOUT_SEC = {
@@ -34,7 +36,8 @@ EXAMPLE_MAX_STEPS = {
     "04_camera_visualization.py": 30,
     "05_waypoint_navigation.py": 40,
     "run_inspection.py": 30,
-    "06_ros2_nav2_bridge.py": 30,
+    "ros2/omninav_ros2_examples/omninav_ros2_examples/rviz_sensor_demo.py": 20,
+    "ros2/omninav_ros2_examples/omninav_ros2_examples/nav2_bridge_demo.py": 20,
 }
 
 
@@ -77,6 +80,10 @@ def test_example_script_smoke(script_name: str):
     if env.get("PYTHONPATH"):
         pythonpath_items.append(env["PYTHONPATH"])
     env["PYTHONPATH"] = os.pathsep.join(pythonpath_items)
+    smoke_home = Path(tempfile.mkdtemp(prefix="omninav_smoke_home_", dir="/tmp"))
+    env["HOME"] = str(smoke_home)
+    env["XDG_CACHE_HOME"] = str(smoke_home / ".cache")
+    env["TI_CACHE_PATH"] = str(smoke_home / ".cache" / "gstaichi" / "ticache")
     env["GS_ENABLE_FASTCACHE"] = "0"
     env["TI_OFFLINE_CACHE"] = "0"
     env["GS_ENABLE_NDARRAY"] = "0"

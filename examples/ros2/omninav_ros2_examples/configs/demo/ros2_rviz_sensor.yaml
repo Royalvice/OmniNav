@@ -1,0 +1,52 @@
+# @package _global_
+defaults:
+  - /robot: go2w
+  - /sensor: default
+  - /locomotion: wheel
+  - /scene: complex_flat_obstacles
+  - _self_
+
+simulation:
+  dt: 0.02
+  substeps: 1
+  backend: gpu
+  show_viewer: true
+  camera_pos: [4.0, 4.0, 2.5]
+  camera_lookat: [0.0, 0.0, 0.4]
+  disable_keyboard_shortcuts: true
+
+demo:
+  mode: keyboard
+  max_linear_vel: 1.2
+  max_lateral_vel: 0.0
+  max_angular_vel: 1.5
+  allow_lateral: false
+
+ros2:
+  enabled: true
+  control_source: python
+  profile: rviz_sensors
+  frames:
+    base_link: base
+    lidar: lidar_frame
+    rgb_camera: camera_rgb_frame
+    depth_camera: camera_depth_frame
+  publish_rate:
+    scan_every_n_steps: 1
+    rgb_every_n_steps: 2
+    depth_every_n_steps: 2
+    camera_info_every_n_steps: 10
+
+sensor:
+  lidar_2d:
+    update_every_n_steps: 1
+  depth_camera:
+    width: 320
+    height: 240
+    update_every_n_steps: 2
+
+robot:
+  initial_pos: [0.0, -1.2, 0.35]
+
+locomotion:
+  max_wheel_speed: 35.0

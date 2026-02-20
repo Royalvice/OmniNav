@@ -56,39 +56,32 @@ class CameraSensor(SensorBase):
         self._near = cfg.get("near", 0.1)
         self._far = cfg.get("far", 100.0)
         self._camera_types: List[str] = list(cfg.get("camera_types", ["rgb"]))
+        self._update_every_n_steps = max(1, int(cfg.get("update_every_n_steps", 1)))
+        self._cached_data: SensorData = {}
+        self._last_render_step: int = -1
 
     def create(self) -> None:
         """
         Create camera in Genesis scene.
-        
-        Refactored to use scene.add_camera() which shares the visualizer's context.
-        This is more stable on Windows systems than the standalone Rasterizer sensor.
         """
         import genesis as gs
 
         link = self._get_link()
-
-        # Compute camera pose from offset
-        # Note: add_camera uses [pos, lookat, up]. 
-        # We assume lookat is forward looking relative to camera pos.
-        lookat_local = np.array([1.0, 0.0, 0.0])
-        
-        # We add the camera to the scene visualizer
+        # Create a neutral camera first and then attach it with mount offset.
+        # This follows Genesis attached-camera usage and avoids ambiguous world pose.
         self._gs_sensor = self.scene.add_camera(
             res=(self._width, self._height),
-            pos=tuple(self._pos_offset.tolist()),
-            lookat=tuple((self._pos_offset + lookat_local).tolist()),
+            pos=(0.0, 0.0, 0.0),
+            lookat=(1.0, 0.0, 0.0),
             up=(0.0, 0.0, 1.0),
             fov=self._fov,
             near=self._near,
             far=self._far,
             GUI=False,
         )
-        
-        # Attach the camera to the robot link
-        # In Genesis, Camera.attach(link, offset_T)
+
         offset_T = gs.utils.geom.trans_quat_to_T(
-            self._pos_offset, 
+            self._pos_offset,
             gs.utils.geom.euler_to_quat(self._euler_offset)
         )
         self._gs_sensor.attach(link, offset_T)
@@ -116,6 +109,15 @@ class CameraSensor(SensorBase):
                 )
             return result
 
+        scene_step = int(getattr(self.scene, "t", 0))
+        if (
+            self._cached_data
+            and self._update_every_n_steps > 1
+            and scene_step > self._last_render_step
+            and (scene_step % self._update_every_n_steps) != 0
+        ):
+            return self._cached_data
+
         # Render and read from Genesis camera object
         # Camera.render() returns (rgb, depth, segmentation, normal)
         rgb, depth, _, _ = self._gs_sensor.render(
@@ -134,6 +136,8 @@ class CameraSensor(SensorBase):
             depth_arr = _to_numpy_batch(depth, target_shape_after_batch=(self._height, self._width))
             result["depth"] = depth_arr.astype(np.float32)
 
+        self._cached_data = result
+        self._last_render_step = scene_step
         return result
 
     @property

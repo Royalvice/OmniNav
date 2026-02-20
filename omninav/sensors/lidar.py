@@ -56,6 +56,9 @@ class Lidar2DSensor(SensorBase):
         self._min_range = cfg.get("min_range", 0.1)
         self._max_range = cfg.get("max_range", 30.0)
         self._draw_debug = cfg.get("draw_debug", False)
+        self._update_every_n_steps = max(1, int(cfg.get("update_every_n_steps", 1)))
+        self._cached_data: SensorData = {}
+        self._last_read_step: int = -1
 
     def create(self) -> None:
         """
@@ -108,6 +111,15 @@ class Lidar2DSensor(SensorBase):
                 points=np.zeros((1, self._num_rays, 3), dtype=np.float32),
             )
 
+        scene_step = int(getattr(self.scene, "t", 0))
+        if (
+            self._cached_data
+            and self._update_every_n_steps > 1
+            and scene_step > self._last_read_step
+            and (scene_step % self._update_every_n_steps) != 0
+        ):
+            return self._cached_data
+
         # Read from Genesis sensor - returns NamedTuple with points, distances
         data = self._gs_sensor.read()
 
@@ -125,10 +137,13 @@ class Lidar2DSensor(SensorBase):
         if ranges.ndim == 3 and ranges.shape[2] == 1:
             ranges = ranges.squeeze(2)
 
-        return SensorData(
+        result = SensorData(
             ranges=ranges.astype(np.float32),
             points=hit_pos.astype(np.float32),
         )
+        self._cached_data = result
+        self._last_read_step = scene_step
+        return result
 
     @property
     def angle_min(self) -> float:

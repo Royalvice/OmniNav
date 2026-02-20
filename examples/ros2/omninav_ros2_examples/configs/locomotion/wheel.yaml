@@ -1,0 +1,20 @@
+# Wheel Controller Configuration (Go2w)
+#
+# For wheeled quadruped locomotion.
+
+type: wheel_controller
+
+# Wheel geometry
+wheel_radius: 0.05       # Wheel radius in meters
+wheel_base: 0.4          # Distance between front and rear axles
+track_width: 0.3         # Distance between left and right wheels
+
+# Limits
+max_wheel_speed: 20.0    # Maximum wheel angular velocity (rad/s)
+
+# Wheel joint names (must match URDF)
+wheel_joints:
+  - FL_foot_joint
+  - FR_foot_joint
+  - RL_foot_joint
+  - RR_foot_joint

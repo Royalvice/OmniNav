@@ -94,7 +94,9 @@ python examples/03_lidar_visualization.py
 3. profile 化发布策略：
    - `all_off`: 默认不发布 ROS2 topic
    - `nav2_minimal` / `nav2_full`: 发布 `clock/tf/tf_static/odom/scan`
+   - `rviz_sensors`: 在 `nav2_full` 基础上增加 `rgb/depth image + camera_info`
 4. 增加命令超时保护：`cmd_vel_timeout_sec`
+5. examples 迁移为 ROS2 install-space 包：`examples/ros2/omninav_ros2_examples`
 
 对接边界明确为：
 1. OmniNav 负责仿真数据与控制桥接
@@ -109,3 +111,4 @@ python examples/03_lidar_visualization.py
 1. 删除统一 demo runner，恢复为每个 `examples/*.py` 保留自身实例化与业务逻辑
 2. 示例仍通过 `configs/demo/*.yaml` 组合标准模块配置（robot/sensor/locomotion/algorithm/task/scene）
 3. 新增统一测试降载参数 `--smoke-fast`，用于 `tests/examples/test_examples_smoke.py` 的全量默认执行提速
+4. ROS2 示例以 `ros2 run/launch` 为主，不再使用单文件 `examples/06_ros2_nav2_bridge.py`
