@@ -64,6 +64,20 @@ class TfPublisher:
         msg.transforms.append(transform)
         self._pub_tf_static.publish(msg)
 
+    def publish_static_batch(self, transforms: list):
+        """Publish all static transforms in a single TFMessage.
+
+        With keep_last/depth=1 QoS, publishing separate messages causes only
+        the last one to be retained for late-joining subscribers.  Batching
+        into one message ensures all transforms survive.
+        """
+        if not transforms:
+            return
+        msg = self._TFMessage()
+        for t in transforms:
+            msg.transforms.append(t)
+        self._pub_tf_static.publish(msg)
+
 
 class OdomPublisher:
     def __init__(self, node, topic: str, qos: Any):

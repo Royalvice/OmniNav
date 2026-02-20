@@ -32,6 +32,9 @@ ros2:
   namespace_mode: "single"      # "single" | "per_env"
   env_namespace_prefix: "/env"
   cmd_vel_timeout_sec: 0.5
+  spin_timeout_sec: 0.001
+  warmup_sec: 2.0
+  static_tf_republish_steps: 50
   topics:
     clock: "/clock"
     tf: "/tf"

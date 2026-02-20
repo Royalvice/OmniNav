@@ -112,3 +112,38 @@ python examples/03_lidar_visualization.py
 2. 示例仍通过 `configs/demo/*.yaml` 组合标准模块配置（robot/sensor/locomotion/algorithm/task/scene）
 3. 新增统一测试降载参数 `--smoke-fast`，用于 `tests/examples/test_examples_smoke.py` 的全量默认执行提速
 4. ROS2 示例以 `ros2 run/launch` 为主，不再使用单文件 `examples/06_ros2_nav2_bridge.py`
+
+---
+
+## ROS2 Bridge 可靠性修复 (2026-02-20)
+
+修复了 RViz 启动后传感器数据不可见、需要外部命令触发才刷新的问题。根因有二：
+
+### 1. Static TF depth=1 批量丢失
+`/tf_static` 的 QoS 为 `keep_last, depth=1, transient_local`，但之前对
+lidar/rgb_camera/depth_camera 三个 static TF 分别调用 `publish_static()`，
+每次发一条独立 `TFMessage`。由于 depth=1，只有最后一条被保留给迟到订阅者，
+导致 `lidar_frame` 和 `camera_rgb_frame` 对 RViz 永远不可见。
+
+**修复**：`TfPublisher.publish_static_batch()` 将所有静态变换打包到单条
+`TFMessage` 中发布，depth=1 也能完整保留全部变换。
+
+### 2. WSL2 上 DDS 发现竞态
+OmniNav 节点在 `setup()` 后立即进入高频仿真循环（spin_once timeout=0），
+在 WSL2 多播受限的环境下，DDS endpoint 发现来不及完成，RViz 无法匹配到
+publisher。
+
+**修复**：
+- `setup()` 后增加可配置的 warmup 期（默认 2s），持续发布 `/clock` +
+  static TF 并 spin，让 DDS 充分完成发现。
+- 主循环 `spin_once` 改为 `timeout_sec=0.001`（可配置）。
+- 前 50 步（`static_tf_republish_steps`）持续重发 static TF，作为
+  双保险应对极端延迟场景。
+
+### 新增配置项
+```yaml
+ros2:
+  spin_timeout_sec: 0.001        # spin_once 最小 timeout
+  warmup_sec: 2.0                # DDS 发现预热时长
+  static_tf_republish_steps: 50  # 前 N 步重发 static TF
+```

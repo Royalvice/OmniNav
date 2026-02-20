@@ -99,6 +99,9 @@ class ROS2Bridge:
         self._profile = str(cfg.get("profile", "all_off"))
         self._namespace_mode = str(cfg.get("namespace_mode", "single"))
         self._cmd_vel_timeout_sec = float(cfg.get("cmd_vel_timeout_sec", 0.5))
+        self._spin_timeout_sec = max(0.0, float(cfg.get("spin_timeout_sec", 0.001)))
+        self._warmup_sec = float(cfg.get("warmup_sec", 2.0))
+        self._static_tf_republish_steps = int(cfg.get("static_tf_republish_steps", 50))
 
         self._publish = self._resolve_publish_switches()
         publish_rate_cfg = cfg.get("publish_rate", {})
@@ -124,6 +127,7 @@ class ROS2Bridge:
 
         self._cmd_vel: Optional[np.ndarray] = None
         self._last_cmd_vel_ts: Optional[float] = None
+        self._static_tf_transforms: list = []
         self._published_static_tf = False
         self._warned_no_camera_data = False
 
@@ -265,6 +269,7 @@ class ROS2Bridge:
         if not self._enabled or self._node is None:
             return
         self._publish_static_tf()
+        self._warmup_discovery()
 
     def _get_ros_time(self):
         from builtin_interfaces.msg import Time
@@ -298,7 +303,7 @@ class ROS2Bridge:
 
         import rclpy
 
-        rclpy.spin_once(self._node, timeout_sec=0)
+        rclpy.spin_once(self._node, timeout_sec=self._spin_timeout_sec)
 
     def _publish_clock(self) -> None:
         if self._clock_pub is None:
@@ -366,27 +371,24 @@ class ROS2Bridge:
             ori = list(ori)
         return pos, ori
 
-    def _publish_static_tf(self) -> None:
-        if self._published_static_tf or self._tf_pub is None or not self._publish.get("tf_static", False):
-            return
+    @staticmethod
+    def _quat_from_euler_deg(roll_deg: float, pitch_deg: float, yaw_deg: float) -> tuple[float, float, float, float]:
+        roll = math.radians(roll_deg)
+        pitch = math.radians(pitch_deg)
+        yaw = math.radians(yaw_deg)
+        cy, sy = math.cos(yaw * 0.5), math.sin(yaw * 0.5)
+        cp, sp = math.cos(pitch * 0.5), math.sin(pitch * 0.5)
+        cr, sr = math.cos(roll * 0.5), math.sin(roll * 0.5)
+        return (
+            cr * cp * cy + sr * sp * sy,
+            sr * cp * cy - cr * sp * sy,
+            cr * sp * cy + sr * cp * sy,
+            cr * cp * sy - sr * sp * cy,
+        )
 
+    def _build_static_tf_transforms(self):
+        """Build the list of static TransformStamped once; reuse for re-publish."""
         from geometry_msgs.msg import TransformStamped
-
-        def _quat_from_euler_deg(roll_deg: float, pitch_deg: float, yaw_deg: float) -> tuple[float, float, float, float]:
-            roll = math.radians(roll_deg)
-            pitch = math.radians(pitch_deg)
-            yaw = math.radians(yaw_deg)
-            cy = math.cos(yaw * 0.5)
-            sy = math.sin(yaw * 0.5)
-            cp = math.cos(pitch * 0.5)
-            sp = math.sin(pitch * 0.5)
-            cr = math.cos(roll * 0.5)
-            sr = math.sin(roll * 0.5)
-            w = cr * cp * cy + sr * sp * sy
-            x = sr * cp * cy - cr * sp * sy
-            y = cr * sp * cy + sr * cp * sy
-            z = cr * cp * sy - sr * sp * cy
-            return w, x, y, z
 
         static_mounts = [
             (self._get_sensor_mount("lidar_2d", preferred_names=("front_lidar", "lidar_2d")), self._frames.lidar),
@@ -394,24 +396,58 @@ class ROS2Bridge:
             (self._get_sensor_mount("camera", preferred_names=("front_camera", "depth_camera", "camera")), self._frames.depth_camera),
         ]
         stamp = self._get_ros_time()
+        transforms = []
         for mount, child_frame in static_mounts:
             if mount is None:
                 continue
             pos, ori = mount
-            qw, qx, qy, qz = _quat_from_euler_deg(float(ori[0]), float(ori[1]), float(ori[2]))
-            static_tf = TransformStamped()
-            static_tf.header.stamp = stamp
-            static_tf.header.frame_id = self._frames.base_link
-            static_tf.child_frame_id = child_frame
-            static_tf.transform.translation.x = float(pos[0])
-            static_tf.transform.translation.y = float(pos[1])
-            static_tf.transform.translation.z = float(pos[2])
-            static_tf.transform.rotation.w = float(qw)
-            static_tf.transform.rotation.x = float(qx)
-            static_tf.transform.rotation.y = float(qy)
-            static_tf.transform.rotation.z = float(qz)
-            self._tf_pub.publish_static(static_tf)
+            qw, qx, qy, qz = self._quat_from_euler_deg(float(ori[0]), float(ori[1]), float(ori[2]))
+            tf_msg = TransformStamped()
+            tf_msg.header.stamp = stamp
+            tf_msg.header.frame_id = self._frames.base_link
+            tf_msg.child_frame_id = child_frame
+            tf_msg.transform.translation.x = float(pos[0])
+            tf_msg.transform.translation.y = float(pos[1])
+            tf_msg.transform.translation.z = float(pos[2])
+            tf_msg.transform.rotation.w = float(qw)
+            tf_msg.transform.rotation.x = float(qx)
+            tf_msg.transform.rotation.y = float(qy)
+            tf_msg.transform.rotation.z = float(qz)
+            transforms.append(tf_msg)
+        return transforms
+
+    def _publish_static_tf(self) -> None:
+        if self._tf_pub is None or not self._publish.get("tf_static", False):
+            return
+
+        if not self._static_tf_transforms:
+            self._static_tf_transforms = self._build_static_tf_transforms()
+
+        if self._static_tf_transforms:
+            self._tf_pub.publish_static_batch(self._static_tf_transforms)
         self._published_static_tf = True
+
+    def _warmup_discovery(self) -> None:
+        """Spin for a short period so DDS can complete endpoint discovery.
+
+        On WSL2 the multicast-based discovery is slow; without this warmup,
+        RViz may miss the initial static TF and volatile topic data.
+        """
+        if self._warmup_sec <= 0:
+            return
+
+        import rclpy
+
+        logger.info(
+            "ROS2Bridge: warming up DDS discovery for %.1fs …", self._warmup_sec,
+        )
+        deadline = time.monotonic() + self._warmup_sec
+        while time.monotonic() < deadline:
+            self._publish_clock()
+            if self._static_tf_transforms and self._tf_pub is not None:
+                self._tf_pub.publish_static_batch(self._static_tf_transforms)
+            rclpy.spin_once(self._node, timeout_sec=0.05)
+        logger.info("ROS2Bridge: warmup done")
 
     def publish_observation(self, obs: "Observation") -> None:
         if not self._enabled or self._node is None:
@@ -421,6 +457,13 @@ class ROS2Bridge:
         robot_state = obs.get("robot_state", None)
         stamp = self._get_ros_time()
         self._publish_step += 1
+
+        if (
+            self._publish_step <= self._static_tf_republish_steps
+            and self._static_tf_transforms
+            and self._tf_pub is not None
+        ):
+            self._tf_pub.publish_static_batch(self._static_tf_transforms)
 
         if robot_state is not None and self._odom_pub is not None and self._publish.get("odom", False):
             odom_msg = self._odom_pub.publish(robot_state, stamp, self._frames)

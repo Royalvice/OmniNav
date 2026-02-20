@@ -32,10 +32,10 @@ ros2:
     rgb_camera: camera_rgb_frame
     depth_camera: camera_depth_frame
   publish_rate:
-    scan_every_n_steps: 1
-    rgb_every_n_steps: 2
-    depth_every_n_steps: 2
-    camera_info_every_n_steps: 10
+    scan_every_n_steps: 2
+    rgb_every_n_steps: 4
+    depth_every_n_steps: 4
+    camera_info_every_n_steps: 20
 
 sensor:
   lidar_2d:
