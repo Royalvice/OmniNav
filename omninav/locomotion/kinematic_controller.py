@@ -41,7 +41,7 @@ class KinematicController(LocomotionControllerBase):
     """
     Ultra-simple game-style kinematic controller.
     
-    No IK, no physics, just:
+    No IK, no physics, just: 
     1. Move base manually (kinematic)
     2. Animate legs with sine waves
     3. Raycast for terrain height
@@ -589,3 +589,147 @@ class KinematicController(LocomotionControllerBase):
     def compute_action(self, cmd_vel: np.ndarray) -> np.ndarray:
         """Not used in kinematic mode."""
         return np.zeros(12, dtype=np.float32)
+
+
+@LOCOMOTION_REGISTRY.register("kinematic_wheel_position")
+class KinematicWheelPositionController(LocomotionControllerBase):
+    """Pure kinematic Go2w controller using direct position updates."""
+
+    CONTROLLER_TYPE = "kinematic_wheel_position"
+
+    def __init__(self, cfg: DictConfig, robot: "RobotBase"):
+        super().__init__(cfg, robot)
+        self._dt = float(cfg.get("dt", 0.02))
+        self._cmd_alpha = float(cfg.get("cmd_alpha", 0.25))
+        self._max_linear_vel = float(cfg.get("max_linear_vel", 1.2))
+        self._max_angular_vel = float(cfg.get("max_angular_vel", 1.5))
+        self._wheel_radius = float(cfg.get("wheel_radius", 0.05))
+        self._wheel_base = float(cfg.get("wheel_base", 0.4))
+        self._track_width = float(cfg.get("track_width", 0.3))
+        self._wheel_joints = list(
+            cfg.get(
+                "wheel_joints",
+                ["FL_foot_joint", "FR_foot_joint", "RL_foot_joint", "RR_foot_joint"],
+            )
+        )
+        self._fixed_height = cfg.get("fixed_height", None)
+
+        self._smoothed_cmd = np.zeros(3, dtype=np.float32)
+        self._base_pos = np.zeros(3, dtype=np.float32)
+        self._base_yaw = 0.0
+        self._joint_indices = None
+        self._joint_targets = None
+        self._wheel_target_indices = None
+        self._wheel_target_angles = None
+
+    @staticmethod
+    def _quat_to_yaw(quat: np.ndarray) -> float:
+        w, x, y, z = quat
+        return float(np.arctan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z)))
+
+    @staticmethod
+    def _yaw_to_quat(yaw: float) -> np.ndarray:
+        half = 0.5 * yaw
+        return np.array([np.cos(half), 0.0, 0.0, np.sin(half)], dtype=np.float32)
+
+    def _ensure_joint_targets(self) -> None:
+        if self._joint_indices is not None:
+            return
+
+        default_dof_pos = self.robot.cfg.get("default_dof_pos", {})
+        indices = []
+        targets = []
+        wheel_idx_to_local = {}
+        for name, pos in default_dof_pos.items():
+            try:
+                joint = self.robot.entity.get_joint(name)
+                if joint is None:
+                    continue
+                dof_idx = int(joint.dofs_idx_local[0])
+                indices.append(dof_idx)
+                targets.append(float(pos))
+                wheel_idx_to_local[name] = len(indices) - 1
+            except Exception:
+                continue
+
+        self._joint_indices = np.asarray(indices, dtype=np.int32)
+        self._joint_targets = np.asarray(targets, dtype=np.float32)
+
+        wheel_target_indices = []
+        wheel_target_angles = []
+        for wheel_name in self._wheel_joints:
+            local_idx = wheel_idx_to_local.get(wheel_name, None)
+            if local_idx is None:
+                continue
+            wheel_target_indices.append(local_idx)
+            wheel_target_angles.append(self._joint_targets[local_idx])
+        self._wheel_target_indices = np.asarray(wheel_target_indices, dtype=np.int32)
+        self._wheel_target_angles = np.asarray(wheel_target_angles, dtype=np.float32)
+
+    def reset(self) -> None:
+        self._smoothed_cmd.fill(0.0)
+        pos = self.robot.entity.get_pos()
+        quat = self.robot.entity.get_quat()
+        if hasattr(pos, "cpu"):
+            pos = pos.cpu().numpy()
+        if hasattr(quat, "cpu"):
+            quat = quat.cpu().numpy()
+        if np.asarray(pos).ndim > 1:
+            pos = pos[0]
+        if np.asarray(quat).ndim > 1:
+            quat = quat[0]
+        self._base_pos = np.asarray(pos, dtype=np.float32).copy()
+        if self._fixed_height is None:
+            self._fixed_height = float(self._base_pos[2])
+        self._base_pos[2] = float(self._fixed_height)
+        self._base_yaw = self._quat_to_yaw(np.asarray(quat, dtype=np.float32))
+        self._ensure_joint_targets()
+        if self._joint_indices.size > 0:
+            self.robot.entity.set_dofs_position(self._joint_targets, self._joint_indices)
+
+    def compute_action(self, cmd_vel: np.ndarray) -> np.ndarray:
+        return np.asarray(cmd_vel, dtype=np.float32)
+
+    def step(self, cmd_vel: np.ndarray, obs: Optional["Observation"] = None) -> None:
+        self._ensure_joint_targets()
+        cmd = np.asarray(cmd_vel, dtype=np.float32).reshape(-1)[:3]
+        if cmd.shape[0] < 3:
+            cmd = np.pad(cmd, (0, 3 - cmd.shape[0]))
+        self._smoothed_cmd = self._cmd_alpha * cmd + (1.0 - self._cmd_alpha) * self._smoothed_cmd
+
+        vx = float(np.clip(self._smoothed_cmd[0], -self._max_linear_vel, self._max_linear_vel))
+        vy = float(np.clip(self._smoothed_cmd[1], -self._max_linear_vel, self._max_linear_vel))
+        wz = float(np.clip(self._smoothed_cmd[2], -self._max_angular_vel, self._max_angular_vel))
+
+        c = float(np.cos(self._base_yaw))
+        s = float(np.sin(self._base_yaw))
+        self._base_pos[0] += (c * vx - s * vy) * self._dt
+        self._base_pos[1] += (s * vx + c * vy) * self._dt
+        self._base_pos[2] = float(self._fixed_height)
+        self._base_yaw += wz * self._dt
+
+        self.robot.entity.set_pos(self._base_pos)
+        self.robot.entity.set_quat(self._yaw_to_quat(self._base_yaw))
+
+        # Keep all joints in position control and integrate wheel angle targets.
+        if self._wheel_target_indices.size > 0:
+            L = self._wheel_base * 0.5
+            W = self._track_width * 0.5
+            R = max(self._wheel_radius, 1e-4)
+            wheel_omega = np.array(
+                [
+                    (vx - vy - (L + W) * wz) / R,
+                    (vx + vy + (L + W) * wz) / R,
+                    (vx + vy - (L + W) * wz) / R,
+                    (vx - vy + (L + W) * wz) / R,
+                ],
+                dtype=np.float32,
+            )
+            count = min(self._wheel_target_angles.shape[0], wheel_omega.shape[0])
+            self._wheel_target_angles[:count] += wheel_omega[:count] * self._dt
+            for i in range(count):
+                local_idx = int(self._wheel_target_indices[i])
+                self._joint_targets[local_idx] = float(self._wheel_target_angles[i])
+
+        if self._joint_indices.size > 0:
+            self.robot.entity.set_dofs_position(self._joint_targets, self._joint_indices)

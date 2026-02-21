@@ -1,0 +1,18 @@
+type: kinematic_wheel_position
+
+# Keep deterministic kinematic stepping for Nav2 bridge demos.
+dt: 0.02
+cmd_alpha: 0.3
+max_linear_vel: 1.5
+max_angular_vel: 2.0
+fixed_height: 0.35
+
+# Wheel geometry for visual wheel angle integration.
+wheel_radius: 0.05
+wheel_base: 0.4
+track_width: 0.3
+wheel_joints:
+  - FL_foot_joint
+  - FR_foot_joint
+  - RL_foot_joint
+  - RR_foot_joint

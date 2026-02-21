@@ -2,8 +2,8 @@
 defaults:
   - /robot: go2w
   - /sensor: default
-  - /locomotion: wheel
-  - /scene: nav_open_space
+  - /locomotion: kinematic_wheel_position
+  - /scene: complex_flat_obstacles
   - _self_
 
 simulation:
@@ -41,6 +41,9 @@ sensor:
 
 robot:
   initial_pos: [0.0, -1.2, 0.35]
+  fixed_base: true
 
 locomotion:
-  max_wheel_speed: 35.0
+  dt: 0.02
+  max_linear_vel: 1.5
+  max_angular_vel: 2.0

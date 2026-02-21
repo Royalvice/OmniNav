@@ -6,12 +6,13 @@ Provides abstract interface for converting high-level velocity commands to joint
 
 from omninav.locomotion.base import LocomotionControllerBase
 from omninav.locomotion.wheel_controller import WheelController
-from omninav.locomotion.kinematic_controller import KinematicController
+from omninav.locomotion.kinematic_controller import KinematicController, KinematicWheelPositionController
 from omninav.locomotion.rl_controller import RLController
 
 __all__ = [
     "LocomotionControllerBase",
     "WheelController",
     "KinematicController",
+    "KinematicWheelPositionController",
     "RLController",
 ]

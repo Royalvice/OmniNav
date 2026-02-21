@@ -99,6 +99,7 @@ class Go2wRobot(RobotBase):
                 file=urdf_path,
                 pos=initial_pos,
                 quat=initial_quat,
+                fixed=bool(self.cfg.get("fixed_base", False)),
             )
         )
 

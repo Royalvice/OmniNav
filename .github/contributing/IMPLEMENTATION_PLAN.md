@@ -21,6 +21,10 @@
 2. `control_source=python|ros2` 单源控制路径落地（默认 python）
 3. Nav2 对接职责边界固定：OmniNav 不替代 AMCL / Nav2，仅提供桥接接口
 
+新增（2026-02-20）：
+1. Nav2 demo 场景重构为“方形边界 + 3x3 圆柱障碍”，并将 `maps/nav_open_space.pgm` 与场景几何保持一致
+2. 新增 `kinematic_wheel_position` 控制器，Go2w 在 Nav2 示例中使用纯位置学驱动（固定基座、弱化物理影响）
+
 ## 1. 架构目标与现状差距
 
 ### 1.1 目标架构原则

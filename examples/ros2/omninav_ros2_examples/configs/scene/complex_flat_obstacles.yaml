@@ -1,4 +1,4 @@
-# Complex flat scene with dense static obstacles for ROS2/Nav2 demos
+# Sandbox-like flat scene for ROS2/Nav2 demos
 # @package _group_
 
 type: complex_flat_obstacles
@@ -8,40 +8,54 @@ ground_plane:
   enabled: true
 
 obstacles:
+  # Outer square sandbox walls (inner area about 8m x 8m).
   - type: box
-    position: [2.0, 0.0, 0.35]
-    size: [0.6, 3.5, 0.7]
+    position: [0.0, 4.0, 0.5]
+    size: [8.6, 0.3, 1.0]
   - type: box
-    position: [-2.0, 0.0, 0.35]
-    size: [0.6, 3.5, 0.7]
+    position: [0.0, -4.0, 0.5]
+    size: [8.6, 0.3, 1.0]
   - type: box
-    position: [0.0, 2.4, 0.35]
-    size: [3.5, 0.6, 0.7]
+    position: [-4.0, 0.0, 0.5]
+    size: [0.3, 8.6, 1.0]
   - type: box
-    position: [0.0, -2.4, 0.35]
-    size: [3.5, 0.6, 0.7]
-  - type: box
-    position: [0.0, 0.0, 0.35]
-    size: [0.8, 0.8, 0.7]
+    position: [4.0, 0.0, 0.5]
+    size: [0.3, 8.6, 1.0]
+
+  # 3x3 evenly spaced cylinders, with enough corridor width for Go2w.
   - type: cylinder
-    position: [3.5, 3.0, 0.45]
-    radius: 0.4
-    height: 0.9
+    position: [-2.0, -2.0, 0.5]
+    radius: 0.45
+    height: 1.0
   - type: cylinder
-    position: [3.5, -3.0, 0.45]
-    radius: 0.4
-    height: 0.9
+    position: [0.0, -2.0, 0.5]
+    radius: 0.45
+    height: 1.0
   - type: cylinder
-    position: [-3.5, 3.0, 0.45]
-    radius: 0.4
-    height: 0.9
+    position: [2.0, -2.0, 0.5]
+    radius: 0.45
+    height: 1.0
   - type: cylinder
-    position: [-3.5, -3.0, 0.45]
-    radius: 0.4
-    height: 0.9
-  - type: box
-    position: [5.0, 0.0, 0.5]
-    size: [0.6, 2.0, 1.0]
-  - type: box
-    position: [-5.0, 0.0, 0.5]
-    size: [0.6, 2.0, 1.0]
+    position: [-2.0, 0.0, 0.5]
+    radius: 0.45
+    height: 1.0
+  - type: cylinder
+    position: [0.0, 0.0, 0.5]
+    radius: 0.45
+    height: 1.0
+  - type: cylinder
+    position: [2.0, 0.0, 0.5]
+    radius: 0.45
+    height: 1.0
+  - type: cylinder
+    position: [-2.0, 2.0, 0.5]
+    radius: 0.45
+    height: 1.0
+  - type: cylinder
+    position: [0.0, 2.0, 0.5]
+    radius: 0.45
+    height: 1.0
+  - type: cylinder
+    position: [2.0, 2.0, 0.5]
+    radius: 0.45
+    height: 1.0
