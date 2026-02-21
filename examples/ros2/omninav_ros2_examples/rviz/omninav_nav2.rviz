@@ -23,25 +23,64 @@ Visualization Manager:
       Enabled: true
       Topic:
         Value: /map
+        Durability Policy: Transient Local
+      Color Scheme: map
+    - Class: rviz_default_plugins/Map
+      Name: Global Costmap
+      Enabled: true
+      Topic:
+        Value: /global_costmap/costmap
+        Durability Policy: Transient Local
+      Color Scheme: costmap
+      Alpha: 0.7
+    - Class: rviz_default_plugins/Map
+      Name: Local Costmap
+      Enabled: true
+      Topic:
+        Value: /local_costmap/costmap
+        Durability Policy: Transient Local
+      Color Scheme: costmap
+      Alpha: 0.7
     - Class: rviz_default_plugins/LaserScan
       Name: LaserScan
       Enabled: true
       Topic:
         Value: /scan
-      Size (m): 0.03
+        Reliability Policy: Best Effort
+      Size (m): 0.05
       Color: 255; 85; 0
+    - Class: rviz_default_plugins/RobotModel
+      Name: RobotModel
+      Enabled: true
+      Description Source: Topic
+      Description Topic:
+        Value: /robot_description
     - Class: rviz_default_plugins/Image
       Name: RGB Image
       Enabled: true
       Topic:
         Value: /camera/rgb/image_raw
+        Reliability Policy: Best Effort
       Normalize Range: true
     - Class: rviz_default_plugins/Image
       Name: Depth Image
       Enabled: true
       Topic:
         Value: /camera/depth/image_raw
+        Reliability Policy: Best Effort
       Normalize Range: true
+    - Class: rviz_default_plugins/Path
+      Name: Global Plan
+      Enabled: true
+      Topic:
+        Value: /plan
+      Color: 0; 255; 0
+    - Class: rviz_default_plugins/Path
+      Name: Local Plan
+      Enabled: true
+      Topic:
+        Value: /local_plan
+      Color: 255; 0; 0
   Global Options:
     Fixed Frame: map
     Background Color: 48; 48; 48
@@ -59,13 +98,13 @@ Visualization Manager:
   Views:
     Current:
       Class: rviz_default_plugins/Orbit
-      Distance: 12
+      Distance: 10
       Focal Point:
         X: 0
         Y: 0
         Z: 0
-      Pitch: 0.7
-      Yaw: 0.7
+      Pitch: 0.78
+      Yaw: 0.78
 Window Geometry:
   Height: 900
   Width: 1440

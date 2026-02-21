@@ -30,8 +30,8 @@ setup(
             "rviz/omninav_sensor.rviz",
         ]),
         (f"share/{package_name}/maps", [
-            "maps/complex_flat.yaml",
-            "maps/complex_flat.pgm",
+            "maps/nav_open_space.yaml",
+            "maps/nav_open_space.pgm",
         ]),
         (f"share/{package_name}/params", ["params/nav2_params.yaml"]),
         *config_data_files,

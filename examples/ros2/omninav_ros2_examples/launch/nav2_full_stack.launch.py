@@ -20,6 +20,7 @@ def generate_launch_description():
         package="omninav_ros2_examples",
         executable="nav2_bridge_demo",
         output="screen",
+        arguments=["--show-viewer"],
     )
 
     nav2_bringup = IncludeLaunchDescription(
@@ -47,7 +48,7 @@ def generate_launch_description():
         [
             DeclareLaunchArgument(
                 "map",
-                default_value=str(pkg_share / "maps" / "complex_flat.yaml"),
+                default_value=str(pkg_share / "maps" / "nav_open_space.yaml"),
                 description="Static occupancy map for Nav2",
             ),
             DeclareLaunchArgument(

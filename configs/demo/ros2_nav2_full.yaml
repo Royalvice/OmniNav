@@ -3,7 +3,7 @@ defaults:
   - /robot: go2w
   - /sensor: default
   - /locomotion: wheel
-  - /scene: complex_flat_obstacles
+  - /scene: nav_open_space
   - _self_
 
 simulation:
@@ -22,10 +22,14 @@ ros2:
   profile: nav2_full
   cmd_vel_timeout_sec: 0.5
   frames:
-    base_link: base
+    base_link: base_link
     lidar: lidar_frame
     rgb_camera: camera_rgb_frame
     depth_camera: camera_depth_frame
+  publish:
+    rgb_image: true
+    depth_image: true
+    camera_info: true
   publish_rate:
     scan_every_n_steps: 1
     rgb_every_n_steps: 2

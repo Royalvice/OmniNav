@@ -1,0 +1,39 @@
+# Open space scene for Nav2 testing
+# @package _group_
+
+type: complex_flat_obstacles
+name: nav_open_space
+
+ground_plane:
+  enabled: true
+
+obstacles:
+  # Outer walls (10x10m area)
+  - type: box
+    position: [5.0, 0.0, 0.5]
+    size: [0.2, 10.0, 1.0] # Right wall
+  - type: box
+    position: [-5.0, 0.0, 0.5]
+    size: [0.2, 10.0, 1.0] # Left wall
+  - type: box
+    position: [0.0, 5.0, 0.5]
+    size: [10.0, 0.2, 1.0] # Top wall
+  - type: box
+    position: [0.0, -5.0, 0.5]
+    size: [10.0, 0.2, 1.0] # Bottom wall
+
+  # Sparse obstacles
+  - type: cylinder
+    position: [2.5, 2.5, 0.45]
+    radius: 0.3
+    height: 0.9
+  - type: cylinder
+    position: [-2.5, -2.5, 0.45]
+    radius: 0.3
+    height: 0.9
+  - type: box
+    position: [2.5, -2.5, 0.35]
+    size: [0.6, 0.6, 0.7]
+  - type: box
+    position: [-2.5, 2.5, 0.35]
+    size: [0.6, 0.6, 0.7]
