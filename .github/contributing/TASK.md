@@ -41,13 +41,13 @@
 ### Phase 9C: ROS2 Bridge 可用性达标 (P0 - Critical)
 - [x] 9C.1 完成 `/tf` 与 `/clock` 对齐，补齐 frame 约定文档
 - [x] 9C.2 修正 `RobotState` 读取方式，统一 TypedDict 访问
-- [ ] 9C.3 建立 Nav2 最小闭环样例（发布 + 订阅 + 时钟同步）
+- [x] 9C.3 建立 Nav2 最小闭环样例（发布 + 订阅 + 时钟同步）
   - [x] 9C.3.a ROS2 Bridge 配置契约升级（`control_source/profile/topics/frames/publish/qos`）
   - [x] 9C.3.b 提供 install-space 可运行示例包 `examples/ros2/omninav_ros2_examples`（`ros2 run/launch`）
   - [x] 9C.3.b.1 新增 RViz 传感器演示（`rgb+depth+scan`）
   - [x] 9C.3.b.2 Nav2 示例场景升级为“方形沙盘 + 3x3 圆柱障碍”，并同步生成匹配 `nav_open_space.pgm`
   - [x] 9C.3.b.3 Go2w Nav2 控制链路切换为纯位置学控制（`kinematic_wheel_position`，固定基座）
-  - [ ] 9C.3.c map_server + AMCL + Nav2 真实闭环验收（`/map` + `map->odom`）
+  - [x] 9C.3.c map_server + AMCL + Nav2 真实闭环验收（`/map` + `map->odom`）
 - [x] 9C.4 增加 `tests/interfaces/test_ros2_bridge.py` 的端到端断言
 
 ### Phase 9D: 文档冻结前清理 (P0 - Critical)
