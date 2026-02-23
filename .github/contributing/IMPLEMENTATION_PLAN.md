@@ -1,55 +1,62 @@
 # OmniNav 详细实现计划 (v0.1)
 
-本文档基于 `REQUIREMENTS.md` 与当前代码状态制定，目标是在 `v0.1` 周期内将现有架构收敛为需求一致、接口稳定、可持续扩展的工程版本。
+本文档用于给出 `v0.1` 的分层实施框架与验收边界。
 
-## 0. 执行快照 (2026-02-12)
-
-已完成：
-1. Batch-First 主链路收敛：`cmd_vel` 统一 `(B,3)`，`Task.is_terminated` 统一 `(B,)`
-2. `TaskResult` 单一真源：`omninav/core/types.py`
-3. Algorithm/Task 生命周期接入 `LifecycleMixin`
-4. ROS2 Bridge 修复：TypedDict 访问统一、`/tf` 发布补齐、批量传感器去 batch
-5. `examples/` 全脚本 smoke 测试通过（`--test-mode --smoke-fast --no-show-viewer`）
-6. 示例架构改为“每个脚本保留实例化与业务逻辑”，不再引入统一 `demo_runner`
-
-进行中：
-1. Nav2 最小闭环样例（9C.3，map_server + AMCL 实测待完成）
-2. PointNav/ObjectNav + SR/SPL 指标体系（Phase 10）
-
-新增（2026-02-19）：
-1. ROS2 配置契约升级：`control_source/profile/topics/frames/publish/qos`
-2. `control_source=python|ros2` 单源控制路径落地（默认 python）
-3. Nav2 对接职责边界固定：OmniNav 不替代 AMCL / Nav2，仅提供桥接接口
-
-新增（2026-02-20）：
-1. Nav2 demo 场景重构为“方形边界 + 3x3 圆柱障碍”，并将 `maps/nav_open_space.pgm` 与场景几何保持一致
-2. 新增 `kinematic_wheel_position` 控制器，Go2w 在 Nav2 示例中使用纯位置学驱动（固定基座、弱化物理影响）
-
-## 1. 架构目标与现状差距
-
-### 1.1 目标架构原则
-
-1. **Batch-First Everything**：所有 Observation/Action/State 统一 `(B, ...)`
-2. **Single Source of Truth for Types**：跨层类型只允许定义在 `omninav/core/types.py`
-3. **Registry-Driven Construction**：组件创建统一通过 Registry + BuildContext
-4. **Lifecycle-Managed Components**：Robot/Sensor/Locomotion/Algorithm/Task 全部状态机管理
-5. **Runtime-Orchestrated Loop**：`OmniNavEnv` 只负责配置与生命周期入口
-
-### 1.2 当前主要差距 (需优先修复)
-
-1. Batch 语义存在 `(3,)` 与 `(B,3)` 混用
-2. `TaskResult` 重复定义导致契约分叉
-3. Algorithm/Task 未完全纳入生命周期状态流
-4. ROS2 Bridge 与 TypedDict 访问方式不一致
-5. 评测与任务体系尚未覆盖 PointNav/ObjectNav/SR/SPL
+约束：
+1. 编号统一使用 `M*`（主功能）与 `P*`（插件功能）。
+2. `IMPLEMENTATION_PLAN.md` 只描述分层目标与边界，不展开逐项实现细节。
+3. 详细未完成事项只写在 `TASK.md`；已完成事项只写在 `WALKTHROUGH.md`。
 
 ---
 
-## 2. 目标架构图 (v0.1 目标态)
+## 0. 编号与分层规范
+
+### 0.1 编号规范
+- 主功能：`M1`、`M2`、`M3`
+- 插件功能：`P1`、`P2`、`P3`
+- 子项：`M1.1`、`P2.3`（仅在 TASK/WALKTHROUGH 细化）
+
+### 0.1.1 功能标题标准（与 TASK/WALKTHROUGH 逐字一致）
+- `M1（L0）基础框架与导航原子能力`
+- `M2（L1）巡检任务与覆盖评测能力`
+- `M3（L2）复杂场景与可通行性能力`
+- `P1 插件功能：ROS2 Bridge 能力`
+- `P2 插件功能：示例工程化能力`
+- `P3 插件功能：文档与发布冻结能力`
+
+### 0.2 能力分层
+- `L0`：导航原子能力（PointNav/ObjectNav/Waypoint）
+- `L1`：巡检任务能力（覆盖率与遍历性、巡检评测闭环）
+- `L2`：复杂场景能力（静态复杂场景与可通行性评估）
+
+### 0.3 三文档映射规则
+- `IMPLEMENTATION_PLAN`：定义边界与阶段目标
+- `TASK`：仅记录未完成、可执行项
+- `WALKTHROUGH`：仅记录已完成、含源码证据
+
+---
+
+## 1. 架构目标与执行边界
+
+### 1.1 架构原则（保持不变）
+1. **Batch-First Everything**：全链路 `(B, ...)`
+2. **Single Source of Truth for Types**：跨层类型只在 `omninav/core/types.py`
+3. **Registry-Driven Construction**：组件通过 Registry 构建
+4. **Lifecycle-Managed Components**：统一生命周期状态机
+5. **Runtime-Orchestrated Loop**：Runtime 编排主循环
+
+### 1.2 v0.1 目标边界
+1. 主线聚焦：`M1 + M2 + M3`
+2. 插件归档：`P1 + P2` 已有能力压缩归类，作为基础支撑
+3. 暂不作为 v0.1 主目标：热力专用链路、遥操作运维、网络退化硬门禁
+
+---
+
+## 2. 目标架构图 (v0.1)
 
 ```mermaid
 graph TD
-    User["User / ROS2 / Trainer"] --> Env["OmniNavEnv.from_config(...)"]
+    User["User / Trainer / Plugin"] --> Env["OmniNavEnv.from_config(...)"]
     Env --> Runtime["SimulationRuntime"]
 
     subgraph Registry
@@ -75,6 +82,18 @@ graph TD
     Sim --> Obs
     Runtime --> Task["Task.step(obs, action)"]
     Task --> Metrics["Metric.update/compute"]
+
+    subgraph Main Features
+        M1["M1: L0 Navigation"]
+        M2["M2: L1 Inspection"]
+        M3["M3: L2 Complex Scene"]
+    end
+
+    subgraph Plugin Features
+        P1["P1: ROS2 Bridge"]
+        P2["P2: Example Engineering"]
+        P3["P3: Release & Docs"]
+    end
 ```
 
 ---
@@ -123,143 +142,71 @@ sequenceDiagram
 
 ---
 
-## 4. 标准 API 契约 (以代码落地为准)
+## 4. Feature 分层实施框架
 
-## 4.1 类型层 (`omninav/core/types.py`)
+### 4.1 M1（L0）基础框架与导航原子能力
+- 目标：构建稳定、可回归的 PointNav/ObjectNav/Waypoint 能力基线
+- 输入输出边界：统一 Observation/Action batch 契约
+- 验收口径：任务成功率、路径效率、碰撞与时间效率指标闭环
 
-```python
-class Action(TypedDict):
-    cmd_vel: np.ndarray  # (B, 3)
+### 4.2 M2（L1）巡检任务与覆盖评测能力
+- 目标：在导航能力上形成巡检任务闭环（覆盖率与遍历性）
+- 输入输出边界：任务上下文字段与巡检指标接口
+- 验收口径：巡检覆盖指标可复现，任务链路可批量运行
 
-class Observation(TypedDict, total=False):
-    robot_state: RobotState
-    sim_time: float
-    sensors: dict[str, SensorData]
-    goal_position: Optional[np.ndarray]         # (B, 3)
-    language_instruction: Optional[list[str]]   # len=B
-```
+### 4.3 M3（L2）复杂场景与可通行性能力
+- 目标：静态复杂场景构建与可通行性评估
+- 输入输出边界：场景配置、难度参数、复杂度评估输出
+- 验收口径：复杂场景复现、可通行评估和回归脚本可运行
 
-约束：
-1. 不允许在其他模块重复定义 `TaskResult` / `Observation` / `Action`
-2. 所有跨层输入输出必须显式注明 shape
+### 4.4 P1 插件功能：ROS2 Bridge 能力
+- 目标：保持插件化桥接能力，不作为 v0.1 主线驱动
+- 边界：控制源切换、topic/frame 契约、Nav2 对接边界
 
-### 4.2 Runtime 层
+### 4.5 P2 插件功能：示例工程化能力
+- 目标：保证示例可复现、可 smoke、可配置组合
+- 边界：`examples/*.py` + `configs/demo/*.yaml` 双层组织
 
-```python
-class SimulationRuntime:
-    def build(self) -> None: ...
-    def reset(self) -> list[Observation]: ...
-    def step(self, actions: Optional[list[Action]] = None) -> tuple[list[Observation], dict]: ...
-    @property
-    def is_done(self) -> bool | np.ndarray: ...
-```
-
-约束：
-1. `step()` 接受批量 action，内部不做隐式降维
-2. `info` 必含 `step`, `sim_time`
-
-### 4.3 Algorithm / Task 层
-
-```python
-class AlgorithmBase(ABC, LifecycleMixin):
-    def reset(self, task_info: Optional[dict]) -> None: ...
-    def step(self, obs: Observation) -> np.ndarray: ...  # (B, 3)
-
-class TaskBase(ABC, LifecycleMixin):
-    def reset(self) -> dict: ...
-    def step(self, obs: Observation, action: Optional[Action]) -> None: ...
-    def is_terminated(self, obs: Observation) -> np.ndarray: ...  # (B,)
-```
+### 4.6 P3 插件功能：文档与发布冻结能力
+- 目标：文档一致性与发布前检查闭环
+- 边界：文档同步、测试回归、示例可运行
 
 ---
 
-## 5. 分阶段实施计划
+## 5. 已完成基线（摘要）
 
-### Phase 9A (P0): 架构一致性修复
+说明：本节仅作为现状摘要，详细证据与完成项明细见 `WALKTHROUGH.md`。
 
-目标：
-1. 类型契约单一化
-2. Batch 接口一致化
-3. 生命周期覆盖到 Algorithm/Task
+1. M1 基础框架能力已落地：Runtime/Registry/Lifecycle/Batch-First 契约主链路
+2. M2 巡检链路已打通：Inspection planner + task + 基础指标
+3. P1 ROS2 插件关键链路已落地：配置契约、tf/clock、示例包与测试
+4. P2 示例工程化已完成：脚本自治、demo 配置组合、smoke-fast 降载
 
-交付：
-1. 合并重复类型定义
-2. Runtime/Algo/Loco/Task 的 shape 断言
-3. 回归测试通过
-
-### Phase 9B (P0): 并行语义落地
-
-目标：
-1. `n_envs>1` 稳定运行
-2. done/action/observation 的批量语义可追踪
-
-交付：
-1. `n_envs=4` 集成测试
-2. 并行性能基准脚本
-
-### Phase 9C (P0): ROS2 可用性达标
-
-目标：
-1. `/clock`、`/tf`、`/odom`、`/cmd_vel` 语义一致
-2. Nav2 最小闭环可运行
-
-交付：
-1. ROS2 bridge 测试补齐
-2. 文档化的 topic/frame 规范
-3. profile 化开关：`all_off | nav2_minimal | nav2_full`
-4. `examples/ros2/omninav_ros2_examples` install-space 演示包（`ros2 run/launch`）
-5. RViz 传感器话题补齐：`/camera/rgb/image_raw` + `/camera/depth/image_raw`
-
-Nav2 责任边界（固定）：
-1. OmniNav 发布：`/clock`、`/odom`、`/tf(odom->base_link)`、`/tf_static(base_link->laser)`、`/scan`
-2. OmniNav 订阅：`/cmd_vel`（仅 `control_source=ros2`）
-3. map_server 发布：`/map`
-4. AMCL 发布：`map->odom`
-
-### Phase 9D (P0): 文档与发布冻结
-
-目标：
-1. 文档可指导新用户完成安装、运行、扩展
-2. 版本冻结前所有核心示例可复现
-
-交付：
-1. `docs/` 用户手册完成
-2. 发布 checklist 全通过
-
-### Phase 10-14 (P1/P2): 能力扩展
-
-包含：
-1. PointNav/ObjectNav + SR/SPL
-2. 资产导入与程序化场景
-3. VLA/VLN 接口
-4. Sim2Real 高级能力与集群并行
+勘误说明（基于当前源码）：
+1. `cmd_vel` 的 Batch-First 契约已统一到 Runtime/Type 层；当前 locomotion 控制入口仍是“单机器人控制器 step 接口”，由 Runtime 在机器人维度调度。
+2. 巡检指标中的 `detection_rate` 当前为事件记录式占位实现（通过外部记录 TP/FP/FN 计算），尚非端到端自动检测链路。
 
 ---
 
-## 6. 验证策略
+## 6. v0.1 验证与发布门禁
 
-### 6.1 单元测试
+### 6.1 测试门禁
+1. 新增能力必须包含单元测试与必要集成测试
+2. Batch 相关能力必须验证 `n_envs=1` 与 `n_envs=4`
+3. 核心测试不回归，示例脚本至少一个可运行
 
-1. 每个层的新增契约必须有 `test_*.py`
-2. 所有关键数组字段做 shape 测试
-
-### 6.2 集成测试
-
-1. `tests/integration/test_full_pipeline.py` 持续保持可运行
-2. 增加 `n_envs=4` 及 ROS2 场景
-3. `tests/examples/test_examples_smoke.py` 默认全量运行，但统一使用 `--smoke-fast` 降载
-
-### 6.3 性能与稳定性
-
-1. 统计 `Obs/Algo/Loco/Sim/Task` 分段耗时
-2. 记录 100+ env 下稳定性指标（崩溃率、数值异常、吞吐）
+### 6.2 文档门禁
+1. 发生 API/架构/阶段变更时，同步更新：
+`REQUIREMENTS.md`、`IMPLEMENTATION_PLAN.md`、`TASK.md`、`WALKTHROUGH.md`、`AGENTS.md`
+2. 编号与状态必须一致：
+- `PLAN` 中出现的功能，必须在 `TASK` 或 `WALKTHROUGH` 中有对应条目
 
 ---
 
-## 7. 设计约束
+## 7. Genesis 对齐约束
 
-1. 任何 Genesis API 修改前必须查阅：
+1. 涉及 `Scene`/`Entity`/`Sensor` 改动前必须查阅：
 `external/Genesis/doc/source/api_reference`
-2. 任何接口修改必须同步更新：
-`TASK.md`、`IMPLEMENTATION_PLAN.md`、`WALKTHROUGH.md`
-3. 任何新增插件必须通过 Registry 构建，不允许硬编码实例化
+2. 行为基准优先对齐：
+`external/Genesis/examples`
+3. 禁止基于记忆臆测 Genesis API

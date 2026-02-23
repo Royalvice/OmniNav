@@ -1,100 +1,263 @@
 # OmniNav 开发任务清单 (Task List)
 
-本文件追踪 OmniNav `v0.1` 阶段（架构重构后到需求对齐与工程化收敛）的任务。
+本文件只记录**未完成**任务。
 
-## 0. 当前状态快照 (2026-02)
+说明：
+1. 已完成事项不在本文件重复，详见 `WALKTHROUGH.md`。
+2. 编号与 `IMPLEMENTATION_PLAN.md`、`WALKTHROUGH.md` 一一对应。
+3. 当前版本目标为 `v0.1`。
 
-### 已完成能力 (代码已存在)
-- [x] Core 分层、Registry、Hook、Runtime 主循环
-- [x] Go2 / Go2w 机器人与基础传感器挂载
-- [x] 巡检任务链路：`Observation -> Algorithm -> Locomotion -> Task`
-- [x] Hydra 配置体系与 `OmniNavEnv.from_config(...)`
-- [x] 单元测试 + 基础集成测试骨架
-- [x] examples 重构为“脚本内业务逻辑 + `configs/demo/*.yaml` 组合驱动”（移除统一 demo runner）
-- [x] example smoke 提速：统一 `--smoke-fast` 降载参数与分脚本 `max_steps`
-
-### 与需求文档的关键差距 (需补齐)
-- [x] **Batch-First 一致性**：主链路统一为 `(B,3)`，兼容输入 `(3,)` 并在 runtime 归一化
-- [x] **强类型单一真源**：`TaskResult` 统一到 `omninav/core/types.py`
-- [x] **Lifecycle 全覆盖**：Algorithm / Task 已纳入生命周期管理
-- [ ] **ROS2 工程化闭环**：`/tf` 与批量语义已补齐，Nav2 对接仍需补充验证
-- [ ] **评测体系完整性**：PointNav/ObjectNav + SR/SPL/Collision 未完整落地
-- [ ] **程序化场景与复杂度评估**：尚未形成可复现实验流水线
+功能标题标准（与 IMPLEMENTATION_PLAN/WALKTHROUGH 逐字一致）：
+- `M1（L0）基础框架与导航原子能力`
+- `M2（L1）巡检任务与覆盖评测能力`
+- `M3（L2）复杂场景与可通行性能力`
+- `P1 插件功能：ROS2 Bridge 能力`
+- `P2 插件功能：示例工程化能力`
+- `P3 插件功能：文档与发布冻结能力`
 
 ---
 
-## 1. P0 收敛阶段（正在进行）
+## 0. 当前未完成焦点 (2026-02-23)
 
-### Phase 9A: 架构一致性修复 (P0 - Critical)
-- [x] 9A.1 统一 `Action.cmd_vel` 契约为 `(B, 3)`，清理 runtime/algo/loco 单样本分支
-- [x] 9A.2 统一 `TaskResult` 定义到 `omninav/core/types.py`，删除重复实现
-- [x] 9A.3 `AlgorithmBase`、`TaskBase` 引入 `LifecycleMixin` 并补足状态迁移
-- [x] 9A.4 在 Runtime 和关键层加入 batch shape 校验（`validate_batch_shape`）
-- [x] 9A.5 补充回归测试：`tests/core/test_types.py`、`tests/interfaces/test_env.py`
+### 主功能主线
+- `M1`：L0 导航原子能力（PointNav/ObjectNav/Waypoint）仍需完整评测闭环
+- `M2`：L1 巡检能力需从“到点覆盖”升级到“质量覆盖”
+- `M3`：L2 复杂场景需形成可复现实验与复杂度评估
 
-### Phase 9B: Runtime 并行语义落地 (P0 - Critical)
-- [x] 9B.1 明确 `num_envs` 与 `B` 的映射规则（单机器人/多机器人）
-- [x] 9B.2 `SimulationRuntime.step` 支持批量 action 输入与批量 done 输出
-- [x] 9B.3 `TaskBase.is_terminated` 升级为批量布尔数组接口
-- [x] 9B.4 增加 `n_envs=4` 集成测试与基准脚本（Genesis 实测由开关控制）
-
-### Phase 9C: ROS2 Bridge 可用性达标 (P0 - Critical)
-- [x] 9C.1 完成 `/tf` 与 `/clock` 对齐，补齐 frame 约定文档
-- [x] 9C.2 修正 `RobotState` 读取方式，统一 TypedDict 访问
-- [x] 9C.3 建立 Nav2 最小闭环样例（发布 + 订阅 + 时钟同步）
-  - [x] 9C.3.a ROS2 Bridge 配置契约升级（`control_source/profile/topics/frames/publish/qos`）
-  - [x] 9C.3.b 提供 install-space 可运行示例包 `examples/ros2/omninav_ros2_examples`（`ros2 run/launch`）
-  - [x] 9C.3.b.1 新增 RViz 传感器演示（`rgb+depth+scan`）
-  - [x] 9C.3.b.2 Nav2 示例场景升级为“方形沙盘 + 3x3 圆柱障碍”，并同步生成匹配 `nav_open_space.pgm`
-  - [x] 9C.3.b.3 Go2w Nav2 控制链路切换为纯位置学控制（`kinematic_wheel_position`，固定基座）
-  - [x] 9C.3.c map_server + AMCL + Nav2 真实闭环验收（`/map` + `map->odom`）
-- [x] 9C.4 增加 `tests/interfaces/test_ros2_bridge.py` 的端到端断言
-
-### Phase 9D: 文档冻结前清理 (P0 - Critical)
-- [ ] 9D.1 完善 `docs/` 用户手册（安装、配置、运行、扩展）
-- [ ] 9D.2 更新公开 API docstring 与最小示例
-- [ ] 9D.3 发布前 checklist（测试、示例、配置、文档）并冻结 `v0.1`
+### 插件功能主线
+- `P3`：文档与发布冻结流程未收口
 
 ---
 
-## 2. P1 扩展阶段（需求高优先）
+## 1. M1（L0）基础框架与导航原子能力
+状态：未完成
 
-### Phase 10: 评测体系扩展 (P1 - High)
-- [ ] 10.1 新增 `PointNavTask` 与 `ObjectNavTask`
-- [ ] 10.2 指标库标准化：SR、SPL、Collision、Time Efficiency
-- [ ] 10.3 任务/指标注册与 Hydra 配置模板补齐
-- [ ] 10.4 对齐报告导出格式（json/csv）
+### M1.1 PointNavTask 落地
+目标：新增标准 PointNav 任务并纳入注册与配置体系。
 
-### Phase 11: 资产与场景生成 (P1 - High)
-- [ ] 11.1 多格式资产导入最小闭环（USD/GLB/OBJ）
-- [ ] 11.2 程序化场景生成器（规则 + 随机化）
-- [ ] 11.3 场景复杂度评估器（障碍密度/曲率/遮挡）
-- [ ] 11.4 场景基准集与复现实验脚本
+实施触点：
+- `omninav/evaluation/tasks/`
+- `omninav/evaluation/__init__.py`
+- `configs/task/`
 
-### Phase 12: VLA/VLN 接口预留 (P1 - High)
-- [ ] 12.1 在 `Observation` 中规范语言字段与多模态输入格式
-- [ ] 12.2 增加算法插件模板：视觉编码器 + 文本指令 + `cmd_vel`
-- [ ] 12.3 提供最小 fake-policy demo 与 smoke test
+验收标准：
+1. `task=point_nav` 可运行
+2. 任务结束条件、成功判定、结果汇总完整
+3. `TaskResult.metrics` 含基础导航指标
+
+测试要求：
+- 单元测试：`tests/evaluation/`
+- 集成测试：`tests/integration/`
+- Batch 验证：`n_envs=1` 与 `n_envs=4`
+
+勘误说明（基于当前源码）：
+1. `configs/task/point_nav.yaml` 已存在，但当前 `omninav/evaluation/tasks/` 下尚无对应已注册的 `PointNavTask` 实现。
+
+### M1.2 ObjectNavTask 落地
+目标：新增语义目标导航任务，支持目标类别驱动。
+
+实施触点：
+- `omninav/evaluation/tasks/`
+- `configs/task/`
+- `omninav/core/types.py`（若需新增观察字段）
+
+验收标准：
+1. `task=object_nav` 可运行
+2. 目标类别输入与终止条件有效
+3. 指标输出与 PointNav 可并列比较
+
+测试要求：
+- 单元测试：`tests/evaluation/`
+- 集成测试：`tests/integration/`
+- Batch 验证：`n_envs=1` 与 `n_envs=4`
+
+勘误说明（基于当前源码）：
+1. 当前仓库尚无 `ObjectNavTask` 对应已注册任务实现，需要补齐任务类与注册入口。
+
+### M1.3 导航指标标准化
+目标：统一 SR/SPL/Collision/Time Efficiency 指标库。
+
+实施触点：
+- `omninav/evaluation/metrics/`
+- `omninav/evaluation/base.py`
+- `configs/task/*.yaml`
+
+验收标准：
+1. 指标实现可注册、可配置、可复用
+2. 指标输出字段命名统一
+3. 可导出对比结果（json/csv）
+
+测试要求：
+- 单元测试：指标逐项验证
+- 集成测试：任务运行后指标一致性验证
+
+### M1.4 Waypoint 导航稳健性回归
+目标：在现有 waypoint 流程上补齐边界行为测试。
+
+实施触点：
+- `omninav/algorithms/inspection_planner.py`
+- `omninav/algorithms/local_planner.py`
+- `tests/algorithms/`
+
+验收标准：
+1. waypoint 列表为空、单点、重复点场景可稳定运行
+2. waypoint 容差参数变化不破坏任务终止逻辑
+3. pipeline 在批量 env 下行为一致
+
+测试要求：
+- 单元测试 + 集成测试
+- `n_envs=1/4` 对比
 
 ---
 
-## 3. P2 高级能力阶段
+## 2. M2（L1）巡检任务与覆盖评测能力
+状态：未完成
 
-### Phase 13: Sim2Real 高级链路 (P2 - Medium)
-- [ ] 13.1 场景重建导入（Gaussian Splatting / NeRF）
-- [ ] 13.2 轨迹回放（ROSbag / 自定义格式）
-- [ ] 13.3 参数标定工具（摩擦/阻尼/质量）
+### M2.1 覆盖率从“到点”升级到“质量覆盖”
+目标：将巡检成功标准从 waypoint 命中扩展为质量覆盖判定。
 
-### Phase 14: 大规模并行与集群 (P2 - Medium)
-- [ ] 14.1 Headless 模式批量运行
-- [ ] 14.2 100+/1000+ env 吞吐统计与稳定性报告
-- [ ] 14.3 多机任务编排与结果聚合
+实施触点：
+- `omninav/evaluation/tasks/inspection_task.py`
+- `omninav/evaluation/metrics/inspection_metrics.py`
+- `configs/task/inspection.yaml`
+
+验收标准：
+1. 覆盖指标包含质量阈值参数（角度/距离/可见性等至少一类）
+2. 成功判定可配置地使用“覆盖率 + 质量覆盖率”
+3. 与现有 coverage_rate 保持向后兼容配置
+
+测试要求：
+- 单元测试：覆盖统计边界条件
+- 集成测试：巡检示例结果一致性
+
+### M2.2 巡检结果导出规范
+目标：统一巡检任务结果字段，便于后处理和报告。
+
+实施触点：
+- `omninav/core/types.py`（`TaskResult.metrics/info` 字段约定）
+- `omninav/evaluation/tasks/inspection_task.py`
+
+验收标准：
+1. 指标键名稳定（文档化）
+2. 结果结构可用于 json/csv 导出
+3. 与 M1 导航任务结果格式兼容
+
+测试要求：
+- 单元测试：结果结构完整性
+- 集成测试：示例脚本结果可解析
+
+### M2.3 巡检任务配置模板扩展
+目标：形成可复用的巡检任务模板配置。
+
+实施触点：
+- `configs/task/`
+- `configs/demo/`
+
+验收标准：
+1. 至少一个新增巡检模板可直接运行
+2. 所有参数可通过 overrides 覆盖
+3. 文档示例命令可复现
+
+测试要求：
+- `tests/examples/test_demo_config_contract.py`
+- `tests/examples/test_examples_smoke.py`
 
 ---
 
-## 4. 验收标准 (Definition of Done)
+## 3. M3（L2）复杂场景与可通行性能力
+状态：未完成
 
-- [x] 所有新增能力具备 `n_envs=1` 与 `n_envs=4` 测试（Genesis 实测默认可跳过，开关启用）
-- [x] 接口文档、实现、测试三者一致（无契约分叉）
-- [x] 每个 Phase 至少有一个可运行 Demo
-- [x] 关键流程在 `examples/` 与 `docs/` 中有可复现指令
+### M3.1 程序化场景生成器
+目标：支持规则化生成复杂静态障碍场景。
+
+实施触点：
+- `omninav/assets/`（或新增 scene 生成模块）
+- `configs/scene/`
+
+验收标准：
+1. 同一随机种子可复现实例场景
+2. 支持障碍密度、走廊宽度、布局规则参数
+3. 输出可直接被现有 runtime 加载
+
+测试要求：
+- 单元测试：生成器参数有效性
+- 集成测试：生成场景可运行
+
+### M3.2 场景复杂度评估器
+目标：提供复杂场景难度量化指标。
+
+实施触点：
+- `omninav/evaluation/metrics/`（新增复杂度相关指标）
+- `configs/scene/`
+
+验收标准：
+1. 至少输出三类复杂度指标（如障碍密度/曲率/遮挡）
+2. 指标可用于场景筛选与回归
+
+测试要求：
+- 单元测试：指标计算正确性
+- 集成测试：不同场景指标可区分
+
+### M3.3 复杂场景基准与复现实验脚本
+目标：建立复杂场景最小基准集与实验脚本。
+
+实施触点：
+- `configs/scene/`
+- `examples/`
+- `tests/integration/`
+
+验收标准：
+1. 至少 1 个复杂场景 demo 可运行
+2. 实验脚本输出关键指标与配置快照
+
+测试要求：
+- 集成测试：脚本可跑通
+- Batch 验证：`n_envs=1/4`
+
+---
+
+## 4. P3 插件功能：文档与发布冻结能力
+状态：未完成
+
+### P3.1 用户文档收口
+目标：补齐安装、配置、运行、扩展手册。
+
+实施触点：
+- `docs/`
+- `README.md`
+
+验收标准：
+1. 新用户可按文档完成最小运行
+2. 关键配置与 overrides 示例准确
+
+### P3.2 API 文档收口
+目标：公开 API docstring 与最小示例对齐当前代码。
+
+实施触点：
+- `omninav/interfaces/python_api.py`
+- 相关公开模块 docstring
+
+验收标准：
+1. 公开 API 输入输出 shape 明确
+2. 示例路径与命令无过时引用
+
+### P3.3 v0.1 发布前检查
+目标：形成固定发布 checklist。
+
+实施触点：
+- `.github/contributing/`
+- `tests/`
+- `examples/`
+
+验收标准：
+1. 新增测试通过、核心测试不回归
+2. 至少一个示例可运行
+3. 文档与实现与测试一致
+
+---
+
+## 5. 状态迁移规则
+
+1. 任务完成后，从 `TASK.md` 移至 `WALKTHROUGH.md` 对应编号。
+2. 若任务导致 API/架构/阶段变化，必须同步更新：
+`REQUIREMENTS.md`、`IMPLEMENTATION_PLAN.md`、`TASK.md`、`WALKTHROUGH.md`、`AGENTS.md`。

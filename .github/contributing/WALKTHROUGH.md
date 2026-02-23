@@ -1,149 +1,239 @@
 # OmniNav 项目进展与技术手册 (Walkthrough)
 
-本文档记录 OmniNav 仿真平台的功能演进、重大重构录以及技术实现方案。
+本文档只记录**已完成**能力，不记录未完成事项。
+
+编号规则：
+- 主功能：`M*`
+- 插件功能：`P*`
+- 与 `IMPLEMENTATION_PLAN.md`、`TASK.md` 一一对应
+
+功能标题标准（与 IMPLEMENTATION_PLAN/TASK 逐字一致）：
+- `M1（L0）基础框架与导航原子能力`
+- `M2（L1）巡检任务与覆盖评测能力`
+- `M3（L2）复杂场景与可通行性能力`
+- `P1 插件功能：ROS2 Bridge 能力`
+- `P2 插件功能：示例工程化能力`
+- `P3 插件功能：文档与发布冻结能力`
 
 ---
 
-## 🚀 最新进展：V0.1.0 架构重构 (2026-02)
+## 0. 完成态快照 (2026-02-23)
 
-我们完成了一次从底层到顶层的全量架构重构，目标是将 OmniNav 从一个简单的 Demo 集合演进为具有**商业级稳定性**和**高度可扩展性**的仿真研究平台。
+### 已完成主功能
+- `M1` 基础框架与导航原子链路已完成核心骨架
+- `M2` 巡检任务主链路已打通（导航到巡检闭环）
+- `M3` 复杂场景基础能力已有可运行基线（静态障碍场景）
 
-### 1. 核心改进：从过程式到编排式
-重构前，仿真逻辑散落在 `OmniNavEnv` 中，存在严重的组件耦合。
-重构后，我们引入了 `SimulationRuntime` 作为核心编排器，通过 **Registry (注册器)** 系统动态构建组件。
-
-#### 重构亮点：
-- **Registry 系统**: 所有 Robot, Sensor, Locomotion, Algorithm, Task 均通过注册器发现。
-- **Lifecycle 状态机**: 每个组件拥有 `CREATED -> SPAWNED -> BUILT -> READY` 的明确状态流转。
-- **解耦的传感器系统**: 传感器不再硬编码在机器人中，而是通过配置动态挂载。
-- **标准化数据流**: 所有观测和动作统一使用 `TypedDict`，且强制执行 **Batch-First** 维度。
-
-### 2. 巡检任务自动化 (Inspection Automation)
-基于新架构，我们实现了第一个复杂的全链路任务：**封闭环境自动巡检**。
-
-- **算法层**: 实现了 `InspectionPipeline`，集成全局规划与 DWA 避障。
-- **评测层**: 实现了覆盖率计算和 SPL 路径指标监测。
-- **配置系统**: 全面迁移至 **Hydra**，支持命令行快速覆盖（如：`robot=go2w locomotion=kinematic_gait`）。
-
-#### 运行新巡检示例：
-```bash
-python examples/run_inspection.py
-```
+### 已完成插件功能
+- `P1` ROS2 Bridge 插件能力可用并完成关键可靠性修复
+- `P2` examples 工程化与 smoke 测试链路完成
 
 ---
 
-## 🛠️ 技术深度：Kinematic Controller 重构与性能优化
+## 1. M1（L0）基础框架与导航原子能力
+状态：已完成
 
-> [!NOTE]
-> 这是本项目在 V0.1 开发初期最重要的技术突破，将步态仿真效率提升了近 100 倍。
+### M1.1 Runtime 编排主循环
+已完成内容：
+1. 建立 `SimulationRuntime` 统一编排：reset/step/build 生命周期管理
+2. 主循环打通 `Observation -> Algorithm -> Locomotion -> Task`
+3. 统一输出 `info.step/sim_time/done_mask`
 
-### 问题诊断
-原有的 Go2 运动控制器每帧调用 IK 求解器，导致 10Hz 的严重卡顿和物理不稳定性。
+源码证据：
+- `omninav/core/runtime.py`
+- `omninav/interfaces/python_api.py`
 
-### 解决方案：预烘焙动画系统 (Pre-Baked)
-参考游戏行业最佳实践（如 Naughty Dog, Unreal Engine）：
-1. **初始化推断**: 在 `reset()` 时一次性预计算 32 帧步态关键帧。
-2. **运行时查找**: 使用快速插值查找（Cubic Interpolation）。
-3. **物理感知**: 使用 PD 控制器 (`control_dofs_position`) 代替硬设置位置。
+测试证据：
+- `tests/interfaces/test_env.py`
+- `tests/integration/test_full_pipeline.py`
 
-**性能对比：**
-- **原生 IK**: 5-10ms/帧 (100 FPS 系统下无法维持)
-- **预烘焙插值**: 0.1ms/帧 (轻松支持 100+ 环境并行)
+### M1.2 Registry 驱动构建
+已完成内容：
+1. Robot/Sensor/Locomotion/Algorithm/Task/Metric 全部注册构建
+2. 通过配置驱动实例化，避免硬编码创建
 
----
+源码证据：
+- `omninav/core/registry.py`
+- `omninav/interfaces/python_api.py`
 
-## 📊 成果概览 (v0.1.0)
+测试证据：
+- `tests/core/test_registry.py`
 
-| 模块           | 重构成果                                          | 状态   |
-| -------------- | ------------------------------------------------- | ------ |
-| **Core**       | `SimulationRuntime`, `Registry`, `LifecycleMixin` | ✅ 稳定 |
-| **Robot**      | Go2/Go2w 统一接口，支持 Batch 调用                | ✅ 完成 |
-| **Sensor**     | 支持相机、激光雷达批量数据采集                    | ✅ 完成 |
-| **Locomotion** | 预烘焙动力学步态，0.1ms 延迟                      | ✅ 卓越 |
-| **Interface**  | Gym-compatible Wrapper, ROS2 Bridge               | ✅ 可用 |
-| **Test**       | 端到端集成测试覆盖                                | ✅ 通过 |
+### M1.3 Lifecycle 状态机接入
+已完成内容：
+1. `CREATED -> SPAWNED -> BUILT -> READY` 生命周期统一
+2. Algorithm 与 Task 纳入生命周期体系
 
----
+源码证据：
+- `omninav/core/lifecycle.py`
+- `omninav/algorithms/base.py`
+- `omninav/evaluation/base.py`
+- `omninav/robots/base.py`
 
-## 📂 历史运行示例 (Legacy Demos)
+测试证据：
+- `tests/core/test_lifecycle.py`
 
-```bash
-# Go2 四足机器人遥控 (步态优化展示)
-python examples/01_teleop_go2.py
+### M1.4 Batch-First 与类型单一真源
+已完成内容：
+1. `Action.cmd_vel` 统一 `(B,3)`
+2. `TaskResult/Observation/Action` 集中到 `omninav/core/types.py`
+3. 关键路径加入 batch shape 校验
+4. Runtime 侧支持批量 `cmd_vel` 契约输入与 `done_mask` 输出
 
-# Go2w 轮式导航 (点到点状态机演示)
-python examples/05_waypoint_navigation.py
+源码证据：
+- `omninav/core/types.py`
+- `omninav/core/runtime.py`
 
-# 激光雷达可视化
-python examples/03_lidar_visualization.py
-```
+测试证据：
+- `tests/core/test_types.py`
+- `tests/interfaces/test_env.py`
+- `tests/integration/test_batch_pipeline.py`
 
----
-
-## 总结
-通过本次重构，OmniNav 已经具备了作为科研平台的基础实力。后续我们将在此基础上，探索 VLA (Vision-Language-Action) 模型在大规模仿真环境中的泛化性能。
-
----
-
-## ROS2 / Nav2 对接补充 (2026-02-19)
-
-我们将 ROS2 Bridge 从“单文件逻辑”升级为“契约驱动 + 组件化”模式，关键变化如下：
-
-1. 新增配置契约：`control_source/profile/topics/frames/publish/qos`
-2. 默认控制源固定为 `python`，可切换 `ros2` 以订阅 `/cmd_vel`
-3. profile 化发布策略：
-   - `all_off`: 默认不发布 ROS2 topic
-   - `nav2_minimal` / `nav2_full`: 发布 `clock/tf/tf_static/odom/scan`
-   - `rviz_sensors`: 在 `nav2_full` 基础上增加 `rgb/depth image + camera_info`
-4. 增加命令超时保护：`cmd_vel_timeout_sec`
-5. examples 迁移为 ROS2 install-space 包：`examples/ros2/omninav_ros2_examples`
-
-对接边界明确为：
-1. OmniNav 负责仿真数据与控制桥接
-2. Nav2 负责规划与控制
-3. AMCL 负责定位（`map->odom`）
-4. map_server 负责 `/map`
+勘误说明（基于当前源码）：
+1. 当前 locomotion 控制器接口仍以单机器人 `step(cmd_vel, obs)` 为入口，Runtime 在机器人维度调度；因此“批量语义”当前主要体现在数据契约与任务终止掩码层。
 
 ---
 
-## Examples 工程化重构补充 (2026-02-19)
+## 2. M2（L1）巡检任务与覆盖评测能力
+状态：已完成（基础版）
 
-1. 删除统一 demo runner，恢复为每个 `examples/*.py` 保留自身实例化与业务逻辑
-2. 示例仍通过 `configs/demo/*.yaml` 组合标准模块配置（robot/sensor/locomotion/algorithm/task/scene）
-3. 新增统一测试降载参数 `--smoke-fast`，用于 `tests/examples/test_examples_smoke.py` 的全量默认执行提速
-4. ROS2 示例以 `ros2 run/launch` 为主，不再使用单文件 `examples/06_ros2_nav2_bridge.py`
+### M2.1 巡检全链路（任务-算法-控制）
+已完成内容：
+1. `InspectionTask` 任务态管理与终止条件
+2. `InspectionPlanner`（全局）+ `DWAPlanner`（局部）组合 pipeline
+3. 巡检示例可运行并支持 smoke 降载
+
+源码证据：
+- `omninav/evaluation/tasks/inspection_task.py`
+- `omninav/algorithms/inspection_planner.py`
+- `omninav/algorithms/pipeline.py`
+- `configs/task/inspection.yaml`
+- `configs/algorithm/inspection.yaml`
+- `examples/06_inspection_task.py`
+
+测试证据：
+- `tests/algorithms/test_pipeline.py`
+- `tests/evaluation/test_inspection.py`
+- `tests/integration/test_full_pipeline.py`
+
+### M2.2 巡检指标基础版
+已完成内容：
+1. coverage/detection/time/safety 指标基类与注册
+2. 任务结果汇总到 `TaskResult.metrics`
+
+源码证据：
+- `omninav/evaluation/metrics/inspection_metrics.py`
+- `omninav/evaluation/base.py`
+
+测试证据：
+- `tests/evaluation/test_inspection.py`
+
+勘误说明（基于当前源码）：
+1. `detection_rate` 当前为事件记录式指标（`record_detection/record_miss`），尚未形成自动异常检测闭环。
 
 ---
 
-## ROS2 Bridge 可靠性修复 (2026-02-20)
+## 3. M3（L2）复杂场景与可通行性能力
+状态：已完成（基础基线）
 
-修复了 RViz 启动后传感器数据不可见、需要外部命令触发才刷新的问题。根因有二：
+### M3.1 静态复杂障碍场景可运行
+已完成内容：
+1. 支持多类静态障碍（box/cylinder/sphere）加载
+2. 提供巡检/导航示例场景配置
 
-### 1. Static TF depth=1 批量丢失
-`/tf_static` 的 QoS 为 `keep_last, depth=1, transient_local`，但之前对
-lidar/rgb_camera/depth_camera 三个 static TF 分别调用 `publish_static()`，
-每次发一条独立 `TFMessage`。由于 depth=1，只有最后一条被保留给迟到订阅者，
-导致 `lidar_frame` 和 `camera_rgb_frame` 对 RViz 永远不可见。
+源码证据：
+- `omninav/core/simulation_manager.py`
+- `configs/scene/complex_flat_obstacles.yaml`
+- `configs/scene/ring_obstacles.yaml`
+- `configs/scene/nav_open_space.yaml`
 
-**修复**：`TfPublisher.publish_static_batch()` 将所有静态变换打包到单条
-`TFMessage` 中发布，depth=1 也能完整保留全部变换。
+测试证据：
+- `tests/examples/test_demo_config_contract.py`
+- `tests/examples/test_examples_smoke.py`
 
-### 2. WSL2 上 DDS 发现竞态
-OmniNav 节点在 `setup()` 后立即进入高频仿真循环（spin_once timeout=0），
-在 WSL2 多播受限的环境下，DDS endpoint 发现来不及完成，RViz 无法匹配到
-publisher。
+---
 
-**修复**：
-- `setup()` 后增加可配置的 warmup 期（默认 2s），持续发布 `/clock` +
-  static TF 并 spin，让 DDS 充分完成发现。
-- 主循环 `spin_once` 改为 `timeout_sec=0.001`（可配置）。
-- 前 50 步（`static_tf_republish_steps`）持续重发 static TF，作为
-  双保险应对极端延迟场景。
+## 4. P1 插件功能：ROS2 Bridge 能力
+状态：已完成
 
-### 新增配置项
-```yaml
-ros2:
-  spin_timeout_sec: 0.001        # spin_once 最小 timeout
-  warmup_sec: 2.0                # DDS 发现预热时长
-  static_tf_republish_steps: 50  # 前 N 步重发 static TF
-```
+### P1.1 ROS2 契约化与控制源切换
+已完成内容：
+1. 配置契约升级为 `control_source/profile/topics/frames/publish/qos`
+2. 支持 `python|ros2` 控制源
+3. 明确 Nav2 对接边界
+
+源码证据：
+- `omninav/interfaces/ros2/bridge.py`
+- `omninav/interfaces/ros2/components.py`
+- `omninav/interfaces/ros2/adapter.py`
+- `configs/config.yaml`
+
+测试证据：
+- `tests/interfaces/test_ros2_bridge.py`
+- `tests/interfaces/test_ros2_adapter.py`
+- `tests/examples/test_ros2_example_config_sync.py`
+
+### P1.2 可靠性修复（TF 与 DDS 预热）
+已完成内容：
+1. static TF 批量发布修复 late-joiner 丢失
+2. 增加 warmup/spin timeout/republish 步数配置，改善 WSL2 发现竞态
+
+源码证据：
+- `omninav/interfaces/ros2/bridge.py`
+- `omninav/interfaces/ros2/components.py`
+
+测试证据：
+- `tests/interfaces/test_ros2_bridge.py`
+
+### P1.3 ROS2 示例包
+已完成内容：
+1. 提供 install-space 示例包 `examples/ros2/omninav_ros2_examples`
+2. 支持 `ros2 run/launch` 启动 Nav2/RViz 示例
+
+源码证据：
+- `examples/ros2/omninav_ros2_examples/package.xml`
+- `examples/ros2/omninav_ros2_examples/setup.py`
+- `examples/ros2/omninav_ros2_examples/launch/nav2_full_stack.launch.py`
+
+---
+
+## 5. P2 插件功能：示例工程化能力
+状态：已完成
+
+### P2.1 示例脚本自治化
+已完成内容：
+1. 移除统一 demo runner
+2. 每个 `examples/*.py` 保留自身实例化与业务逻辑
+3. 通过 `configs/demo/*.yaml` 做配置组合
+
+源码证据：
+- `examples/01_teleop_go2.py`
+- `examples/02_teleop_go2w.py`
+- `examples/03_lidar_visualization.py`
+- `examples/04_camera_visualization.py`
+- `examples/05_waypoint_navigation.py`
+- `examples/06_inspection_task.py`
+- `configs/demo/*.yaml`
+
+测试证据：
+- `tests/examples/test_examples_smoke.py`
+- `tests/examples/test_demo_config_contract.py`
+
+### P2.2 smoke 降载机制
+已完成内容：
+1. 统一 `--smoke-fast` 参数策略
+2. 全示例默认 smoke 可执行
+
+源码证据：
+- `examples/06_inspection_task.py`
+- 其他 `examples/*.py` 中 test/smoke 参数
+
+测试证据：
+- `tests/examples/test_examples_smoke.py`
+
+---
+
+## 6. 说明
+
+1. 未完成事项不在本文件记录，统一见 `TASK.md`。
+2. 本文所有条目均与 `IMPLEMENTATION_PLAN.md` 的 `M*/P*` 结构对应。

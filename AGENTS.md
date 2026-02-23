@@ -6,10 +6,10 @@
 
 在执行任何编码任务前，按以下顺序同步上下文：
 
-1. 阅读 `.github/contributing/REQUIREMENTS.md`（理解 P0/P1/P2 优先级）
-2. 阅读 `.github/contributing/TASK.md`（确认当前激活阶段和待办项）
-3. 阅读 `.github/contributing/IMPLEMENTATION_PLAN.md`（对齐 API、数据流、状态机）
-4. 阅读 `.github/contributing/WALKTHROUGH.md`（避免重复建设）
+1. 阅读 `.github/contributing/REQUIREMENTS.md`（理解愿景、范围与优先级）
+2. 阅读 `.github/contributing/TASK.md`（确认当前未完成事项）
+3. 阅读 `.github/contributing/IMPLEMENTATION_PLAN.md`（对齐分层、边界与编号）
+4. 阅读 `.github/contributing/WALKTHROUGH.md`（确认已完成能力与源码证据）
 5. 涉及 Genesis 接口时，必须查阅：
 `external/Genesis/doc/source/api_reference` 与 `external/Genesis/examples`
 
@@ -17,11 +17,12 @@
 
 ## 2. 运行环境与命令规范
 
-1. 默认在 `conda` 的 `torch` 环境执行命令
-2. 推荐命令前缀（PowerShell）：
+1. 若需要执行代码相关命令（如运行测试、脚本、构建、安装依赖），必须先向用户询问并确认“当前环境激活方式”后再执行。
+2. 在用户明确前，不得假设默认环境（如 `conda torch`、`.venv`、系统 Python）。
+3. 推荐命令前缀（PowerShell）：
 `& E:\miniconda\shell\condabin\conda-hook.ps1; conda activate torch; <command>`
-3. 若 `conda run -n torch` 出现编码/插件异常，允许切换为 `conda activate torch` 方案
-4. 若当前机器缺少可用环境，必须先按 `INSTALL.md` 完成安装；并在 Linux 下先辨别是否为 Ubuntu 且是否存在 ROS2 Humble（`/opt/ros/humble/setup.bash`）。若是，则默认执行：
+4. 若 `conda run -n torch` 出现编码/插件异常，允许切换为 `conda activate torch` 方案
+5. 若当前机器缺少可用环境，必须先按 `INSTALL.md` 完成安装；并在 Linux 下先辨别是否为 Ubuntu 且是否存在 ROS2 Humble（`/opt/ros/humble/setup.bash`）。若是，则默认执行：
 `source ~/omninav_ros_env/bin/activate && source /opt/ros/humble/setup.bash`
 
 ---
@@ -63,7 +64,7 @@
 
 2. 修改 Runtime/Interface 时必须：
 - 同步更新测试
-- 同步更新文档（TASK/PLAN/WALKTHROUGH）
+- 同步更新文档（REQUIREMENTS/PLAN/TASK/WALKTHROUGH/AGENTS）
 
 ### 4.3 Hydra 配置
 
@@ -136,10 +137,18 @@ OmniNav/
 
 ---
 
-## 9. 文档同步约定
+## 9. 文档同步与编号治理
 
-当出现以下变更时，必须同步更新 `TASK.md` 与 `IMPLEMENTATION_PLAN.md`：
+1. 当出现以下变更时，必须同步更新 5 份文档：
+- `.github/contributing/REQUIREMENTS.md`
+- `.github/contributing/IMPLEMENTATION_PLAN.md`
+- `.github/contributing/TASK.md`
+- `.github/contributing/WALKTHROUGH.md`
+- `AGENTS.md`
 
-1. API 契约（类型、shape、函数签名）变化
-2. 架构执行路径变化（Runtime 编排、生命周期、注册机制）
-3. 阶段目标或优先级变化（P0/P1/P2）
+2. 编号规则统一使用 `M*`（主功能）与 `P*`（插件功能），并在 PLAN/TASK/WALKTHROUGH 中保持一一对应。
+
+3. 防冗余约束：
+- `WALKTHROUGH.md` 只记录已完成事项
+- `TASK.md` 只记录未完成事项
+- `IMPLEMENTATION_PLAN.md` 只记录分层目标与边界，不写逐项实现细节
