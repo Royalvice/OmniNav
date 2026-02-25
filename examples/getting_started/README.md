@@ -5,19 +5,19 @@ This folder is the beginner entrypoint for OmniNav without ROS2.
 ## 1. Run
 
 ```bash
-python examples/getting_started/run_getting_started.py
+python -m examples.getting_started.run_getting_started
 ```
 
 Performance-focused launch:
 
 ```bash
-python examples/getting_started/run_getting_started.py --show-viewer --tick-ms 1 --ui-refresh-ms 200
+python -m examples.getting_started.run_getting_started --show-viewer --tick-ms 1 --ui-refresh-ms 200
 ```
 
 Smoke mode:
 
 ```bash
-python examples/getting_started/run_getting_started.py --test-mode --smoke-fast --max-steps 80 --no-show-viewer
+python -m examples.getting_started.run_getting_started --test-mode --smoke-fast --max-steps 80 --no-show-viewer
 ```
 
 ## 2. FPS Notes (Important)
@@ -52,6 +52,9 @@ If you need higher speed for debugging:
 - Local planner switching: `dwa_planner`
 - Sensor profile switching and metadata inspection
 - Route editing from minimap (waypoint list)
+- Occupancy-aware minimap:
+  - static occupancy from scene obstacles
+  - live occupancy points from lidar ranges
 - Runtime introspection:
   - task/planner states
   - robot state
@@ -65,7 +68,29 @@ Minimap controls:
 - Right click: remove last waypoint
 - Middle click: clear all waypoints
 
-## 4. Best Practice: Add A New Algorithm
+## 4. Rebuild vs Reset (Important)
+
+- `Start / Rebuild`
+  - If config/route changed: rebuild environment with new overrides
+  - If unchanged: reset current environment (reuse scene)
+- `Reset Env`
+  - Always calls `env.reset()` on current scene
+  - Does not create a new scene
+  - Fails immediately if environment is not initialized
+
+This avoids Genesis interactive-viewer multi-scene conflicts.
+
+## 5. Spawn Position
+
+`getting_started` reads spawn from scene config:
+
+- `configs/scene/<scene>.yaml -> spawn.default`
+- optional `spawn.candidates`
+
+For `complex_flat_obstacles`, default spawn is set away from the center pillar.
+If spawn config is missing, GUI fails fast with explicit error.
+
+## 6. Best Practice: Add A New Algorithm
 
 Use `algorithm_template.py`.
 
@@ -80,7 +105,7 @@ Important contract:
 - Keep logic batch-first
 - Use shape validation on critical paths
 
-## 5. Best Practice: Define A Minimal Inspection Task
+## 7. Best Practice: Define A Minimal Inspection Task
 
 Use `task_template.py`.
 
@@ -97,7 +122,7 @@ Task responsibilities:
 
 Task should **not** contain path planning logic.
 
-## 6. Architecture Reminder
+## 8. Architecture Reminder
 
 - `Task` only defines/dispatches/evaluates mission
 - `GlobalPlanner` schedules goals

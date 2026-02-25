@@ -27,3 +27,12 @@ def test_getting_started_sensor_profile_overrides():
     ov = app._build_overrides()
     assert "sensor.depth_camera=null" in ov
     assert "sensor.lidar_2d=null" in ov
+
+
+def test_getting_started_injects_scene_spawn_override():
+    app = GettingStartedApp(_args())
+    app.cfg.scene = "complex_flat_obstacles"
+    ov = app._build_overrides()
+    spawn = [x for x in ov if x.startswith("robot.initial_pos=")]
+    assert len(spawn) == 1
+    assert "robot.initial_pos=[-3.0000,-3.0000,0.3500]" == spawn[0]

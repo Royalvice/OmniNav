@@ -72,10 +72,20 @@ class DWAPlanner(LocalPlannerBase):
         # Obstacle margin (meters)
         self._obstacle_margin = cfg.get("obstacle_margin", 0.3)
         self._goal_tolerance = cfg.get("goal_tolerance", 0.5)
+        self._front_sector_width = np.deg2rad(float(cfg.get("front_sector_width_deg", 40.0)))
+        self._lookahead_gain = float(cfg.get("lookahead_gain", 0.6))
 
         # State
         self._target: Optional[np.ndarray] = None
         self._is_done = False
+        self._last_info: Dict[str, Any] = {
+            "target": None,
+            "is_done": False,
+            "selected_vx": 0.0,
+            "selected_wz": 0.0,
+            "min_front_range": float("inf"),
+            "blocked_front": False,
+        }
 
     def reset(self, task_info: Optional[Dict[str, Any]] = None) -> None:
         """Reset planner state."""
@@ -114,16 +124,26 @@ class DWAPlanner(LocalPlannerBase):
             self._is_done = True
             return np.zeros((1, 3), dtype=np.float32)
 
-        # Extract lidar ranges for obstacle check
+        # Extract lidar ranges + angular metadata for obstacle check
         sensors = obs.get("sensors", {})
         ranges = None
+        angle_min = -np.pi
+        angle_increment = 2.0 * np.pi / 360.0
         for sensor_data in sensors.values():
-            if "ranges" in sensor_data:
-                r = np.asarray(sensor_data["ranges"])
-                if r.ndim == 2:
-                    r = r[0]  # debatch
-                ranges = r
-                break
+            if "ranges" not in sensor_data:
+                continue
+            r = np.asarray(sensor_data["ranges"], dtype=np.float32)
+            if r.ndim == 2:
+                r = r[0]  # debatch
+            ranges = r
+            if "angle_min" in sensor_data:
+                angle_min = float(sensor_data["angle_min"])
+            if "angle_increment" in sensor_data:
+                angle_increment = float(sensor_data["angle_increment"])
+            elif "angle_max" in sensor_data and r.size > 1:
+                angle_max = float(sensor_data["angle_max"])
+                angle_increment = (angle_max - angle_min) / float(r.size - 1)
+            break
 
         # Goal heading
         goal_angle = np.arctan2(target[1] - pos[1], target[0] - pos[0])
@@ -135,8 +155,10 @@ class DWAPlanner(LocalPlannerBase):
         robot_yaw = self._quat_to_yaw(quat)
 
         # Simple DWA search
-        best_cmd = np.zeros(3, dtype=np.float32)
+        best_cmd = np.array([0.0, 0.0, np.clip(goal_angle - robot_yaw, -self._max_yaw_rate, self._max_yaw_rate)], dtype=np.float32)
         best_cost = -float('inf')
+        best_front_clearance = float("inf")
+        blocked_front = False
 
         for vx in np.arange(0.0, self._max_speed + 1e-6, self._speed_resolution):
             for wz in np.arange(-self._max_yaw_rate, self._max_yaw_rate + 1e-6, self._yaw_rate_resolution):
@@ -152,12 +174,24 @@ class DWAPlanner(LocalPlannerBase):
 
                 # Clearance cost: check obstacle proximity
                 clearance_cost = 0.0
+                front_clearance = float("inf")
                 if ranges is not None and len(ranges) > 0:
-                    min_range = np.min(ranges[ranges > 0.01]) if np.any(ranges > 0.01) else float('inf')
-                    if min_range < self._obstacle_margin:
-                        clearance_cost = -100.0  # Strongly penalize
+                    front_clearance = self._sector_clearance(
+                        ranges=ranges,
+                        angle_min=angle_min,
+                        angle_increment=angle_increment,
+                        center_angle=self._normalize_angle(pred_yaw - robot_yaw),
+                        width=self._front_sector_width,
+                    )
+                    safety_dist = self._obstacle_margin + max(vx, 0.0) * self._predict_time * self._lookahead_gain
+                    if front_clearance < safety_dist:
+                        if vx > 1e-4:
+                            # Candidate predicted to collide in the heading sector.
+                            continue
+                        blocked_front = True
+                        clearance_cost = -5.0 + front_clearance
                     else:
-                        clearance_cost = min(min_range, 3.0)
+                        clearance_cost = min(front_clearance, 3.0)
 
                 total_cost = (
                     self._heading_weight * heading_cost +
@@ -168,6 +202,29 @@ class DWAPlanner(LocalPlannerBase):
                 if total_cost > best_cost:
                     best_cost = total_cost
                     best_cmd = np.array([vx, 0.0, wz], dtype=np.float32)
+                    best_front_clearance = front_clearance
+
+        # If all forward candidates were infeasible, rotate in place toward goal.
+        if best_cost == -float("inf"):
+            yaw_err = self._normalize_angle(goal_angle - robot_yaw)
+            best_cmd = np.array([0.0, 0.0, np.clip(yaw_err, -self._max_yaw_rate, self._max_yaw_rate)], dtype=np.float32)
+            best_front_clearance = self._sector_clearance(
+                ranges=ranges,
+                angle_min=angle_min,
+                angle_increment=angle_increment,
+                center_angle=0.0,
+                width=self._front_sector_width,
+            ) if ranges is not None and len(ranges) > 0 else float("inf")
+            blocked_front = True
+
+        self._last_info = {
+            "target": None if target is None else np.asarray(target, dtype=np.float32),
+            "is_done": self._is_done,
+            "selected_vx": float(best_cmd[0]),
+            "selected_wz": float(best_cmd[2]),
+            "min_front_range": float(best_front_clearance),
+            "blocked_front": bool(blocked_front),
+        }
 
         return best_cmd.reshape(1, 3)
 
@@ -183,7 +240,7 @@ class DWAPlanner(LocalPlannerBase):
 
     @property
     def info(self) -> Dict[str, Any]:
-        return {"target": self._target, "is_done": self._is_done}
+        return dict(self._last_info)
 
     @staticmethod
     def _quat_to_yaw(quat: np.ndarray) -> float:
@@ -199,3 +256,26 @@ class DWAPlanner(LocalPlannerBase):
         while angle < -np.pi:
             angle += 2 * np.pi
         return angle
+
+    def _sector_clearance(
+        self,
+        ranges: Optional[np.ndarray],
+        angle_min: float,
+        angle_increment: float,
+        center_angle: float,
+        width: float,
+    ) -> float:
+        """Compute minimum valid range inside an angular sector."""
+        if ranges is None or ranges.size == 0:
+            return float("inf")
+        idx = np.arange(ranges.size, dtype=np.float32)
+        angles = angle_min + idx * angle_increment
+        rel = np.abs((angles - center_angle + np.pi) % (2.0 * np.pi) - np.pi)
+        mask = rel <= (0.5 * width)
+        if not np.any(mask):
+            return float("inf")
+        valid = np.asarray(ranges[mask], dtype=np.float32)
+        valid = valid[np.isfinite(valid) & (valid > 1e-3)]
+        if valid.size == 0:
+            return float("inf")
+        return float(np.min(valid))

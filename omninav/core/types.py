@@ -79,6 +79,15 @@ class SensorData(TypedDict, total=False):
     hit_normals: np.ndarray
     """Raycaster hit normals. Shape: (B, N_rays, 3)"""
 
+    angle_min: float
+    """Lidar minimum angle in radians."""
+
+    angle_max: float
+    """Lidar maximum angle in radians."""
+
+    angle_increment: float
+    """Lidar angular increment in radians."""
+
 
 # =============================================================================
 # Observation

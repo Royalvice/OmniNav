@@ -115,19 +115,11 @@ class OmniNavEnv:
                 with initialize_config_dir(config_dir=config_dir, version_base=None):
                     # Pass overrides to compose!
                     result = compose(config_name=config_name, overrides=overrides if overrides else [])
-            except ImportError:
-                import yaml
-                # Fallback: manual load + dotlist merge
-                config_file = Path(config_path) / f"{config_name}.yaml"
-                if config_file.exists():
-                    with open(config_file) as f:
-                        result = OmegaConf.create(yaml.safe_load(f))
-                else:
-                    result = OmegaConf.create({})
-                
-                if overrides:
-                    override_conf = OmegaConf.from_dotlist(overrides)
-                    result = OmegaConf.merge(result, override_conf)
+            except ImportError as exc:
+                raise RuntimeError(
+                    "Hydra is required to load OmniNav configs. "
+                    "Install hydra-core and retry."
+                ) from exc
         else:
             result = OmegaConf.create({})
             if overrides:
@@ -230,6 +222,7 @@ class OmniNavEnv:
                 sensors_to_create.update(req_sensors)
         
         created_sensors = {}
+        sensor_errors: list[str] = []
         for name, s_cfg in sensors_to_create.items():
             if not isinstance(s_cfg, (dict, DictConfig)):
                  # Skip invalid configs
@@ -244,7 +237,13 @@ class OmniNavEnv:
                     created_sensors[name] = sensor
                     self._runtime.sensors[name] = sensor
                 except Exception as e:
-                    print(f"Failed to create sensor {name}: {e}")
+                    sensor_errors.append(f"{name}({s_type}): {e}")
+
+        if sensor_errors:
+            raise RuntimeError(
+                "Sensor creation failed. Fix sensor config/link names before running.\n"
+                + "\n".join(sensor_errors)
+            )
         
         # Bind sensors to locomotion
         locomotion.bind_sensors(created_sensors)
@@ -352,6 +351,8 @@ class OmniNavEnv:
         if self._ros2_bridge is not None:
             self._ros2_bridge.shutdown()
             self._ros2_bridge = None
+        if self._runtime is not None:
+            self._runtime.close()
         self._initialized = False
         self._runtime = None
 

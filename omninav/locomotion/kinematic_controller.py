@@ -142,11 +142,14 @@ class KinematicController(LocomotionControllerBase):
     def required_sensors(self) -> dict:
         """Dynamically generate required sensors based on layout."""
         sensors = {}
+        # Go2/go2w base link name in current assets is `base`.
+        base_link_name = str(self.cfg.get("sensor_link_name", "base"))
         
         # 1. Foot sensors
         for name, offset in self._foot_offsets.items():
             sensors[name] = {
                 "type": "raycaster",
+                "link_name": base_link_name,
                 "resolution": 0.01,
                 "size": [0.0, 0.0],
                 "direction": [0.0, 0.0, -1.0],
@@ -157,6 +160,7 @@ class KinematicController(LocomotionControllerBase):
         # 2. Front sensor (Forward fan)
         sensors["front_ray"] = {
             "type": "raycaster",
+            "link_name": base_link_name,
             "resolution": 0.1,
             "size": [0.4, 0.2],
             "direction": [0.0, 0.0, 1.0],
@@ -170,6 +174,7 @@ class KinematicController(LocomotionControllerBase):
         side_dir_left = [0.0, 1.0, 0.0]
         sensors["side_left"] = {
             "type": "raycaster",
+            "link_name": base_link_name,
             "resolution": 0.1,
             "size": [0.0, 0.0],
             "direction": side_dir_left,
@@ -181,6 +186,7 @@ class KinematicController(LocomotionControllerBase):
         side_dir_right = [0.0, -1.0, 0.0]
         sensors["side_right"] = {
             "type": "raycaster",
+            "link_name": base_link_name,
             "resolution": 0.1,
             "size": [0.0, 0.0],
             "direction": side_dir_right,

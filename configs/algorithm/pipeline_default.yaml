@@ -19,3 +19,5 @@ local_planner:
   goal_tolerance: 0.5
   predict_time: 2.0
   dt: 0.1
+  front_sector_width_deg: 40.0
+  lookahead_gain: 0.6

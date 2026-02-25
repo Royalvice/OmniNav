@@ -61,6 +61,7 @@ class SimulationRuntime:
         self._dt: float = cfg.get("simulation", {}).get("dt", 0.01)
         self._last_done_mask: Optional[np.ndarray] = None
         self._sensor_error_once: set[tuple[int, str]] = set()
+        self._last_observations: List[Observation] = []
 
     def build(self) -> None:
         """
@@ -126,7 +127,9 @@ class SimulationRuntime:
             if isinstance(algo_state, LifecycleState) and algo_state < LifecycleState.READY:
                 algo._transition_to(LifecycleState.READY)
 
-        return self._get_observations()
+        observations = self._get_observations(read_sensors=True)
+        self._last_observations = observations
+        return observations
 
     def step(
         self,
@@ -144,18 +147,17 @@ class SimulationRuntime:
         """
         self.hooks.emit(EventType.PRE_STEP, step=self._step_count)
 
-        # External-control path (keyboard/ROS2 cmd_vel) does not need full sensor
-        # reads before physics stepping. This avoids expensive double rendering
-        # for camera sensors in a single simulation step.
-        read_pre_sensors = actions is None
-        observations = self._get_observations(read_sensors=read_pre_sensors)
+        # Use current robot state for locomotion integration, but keep sensor reads
+        # single-pass (post-step) for throughput.
+        control_observations = self._get_observations(read_sensors=False)
+        algo_observations = self._last_observations if self._last_observations else control_observations
 
         # Compute actions from algorithms if not provided
         if actions is None:
             actions = []
             for i, algo in enumerate(self.algorithms):
-                if i < len(observations):
-                    cmd_vel = algo.step(observations[i])
+                if i < len(algo_observations):
+                    cmd_vel = algo.step(algo_observations[i])
                     actions.append(Action(cmd_vel=self._ensure_cmd_vel_batch(cmd_vel, f"algo[{i}]")))
         else:
             normalized_actions: List[Action] = []
@@ -169,7 +171,7 @@ class SimulationRuntime:
             if i < len(actions):
                 cmd_vel_batch = actions[i].get("cmd_vel", np.zeros((1, 3), dtype=np.float32))
                 cmd_vel = np.asarray(cmd_vel_batch)[0]
-                obs = observations[i] if i < len(observations) else None
+                obs = control_observations[i] if i < len(control_observations) else None
                 loco.step(cmd_vel, obs)
 
         # Physics step
@@ -180,7 +182,8 @@ class SimulationRuntime:
         self._sim_time += self._dt
 
         # Get new observations
-        new_observations = self._get_observations()
+        new_observations = self._get_observations(read_sensors=True)
+        self._last_observations = new_observations
 
         # Update task
         done_mask = None
@@ -240,7 +243,7 @@ class SimulationRuntime:
         """Check if task is complete."""
         if self.task is not None and self.robots:
             if self._last_done_mask is None:
-                obs = self._get_observations()
+                obs = self._last_observations if self._last_observations else self._get_observations(read_sensors=False)
                 if obs:
                     mask = np.asarray(self.task.is_terminated(obs[0]), dtype=bool)
                     if mask.ndim == 0:
@@ -282,3 +285,19 @@ class SimulationRuntime:
     @property
     def sim_time(self) -> float:
         return self._sim_time
+
+    def close(self) -> None:
+        """Release runtime-owned resources."""
+        if self.sim is not None and hasattr(self.sim, "close"):
+            try:
+                self.sim.close()
+            except Exception:
+                logger.warning("Simulation close failed", exc_info=True)
+        self.sim = None
+        self.robots.clear()
+        self.locomotions.clear()
+        self.algorithms.clear()
+        self.sensors.clear()
+        self.task = None
+        self._last_observations = []
+        self._built = False

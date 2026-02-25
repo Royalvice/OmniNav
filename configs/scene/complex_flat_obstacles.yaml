@@ -7,6 +7,14 @@ name: complex_flat_obstacles_scene
 ground_plane:
   enabled: true
 
+spawn:
+  # Avoid center cylinder at (0, 0).
+  default: [-3.0, -3.0, 0.35]
+  candidates:
+    - [-3.0, -3.0, 0.35]
+    - [-3.0, 3.0, 0.35]
+    - [3.0, -3.0, 0.35]
+
 obstacles:
   # Outer square sandbox walls (inner area about 8m x 8m).
   - type: box

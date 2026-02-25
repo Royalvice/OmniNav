@@ -206,6 +206,18 @@ class TestKinematicController:
         # FL group and FR group should be opposite
         assert not np.isclose(fl_swing, fr_swing, atol=0.01)
 
+    def test_required_sensors_use_base_link_name(self, mock_robot):
+        """Kinematic required sensors should bind to valid Go2 base link."""
+        from omninav.locomotion.kinematic_controller import KinematicController
+
+        cfg = OmegaConf.create({"type": "kinematic_gait"})
+        controller = KinematicController(cfg, mock_robot)
+        sensors = controller.required_sensors
+
+        assert sensors["FL"]["link_name"] == "base"
+        assert sensors["front_ray"]["link_name"] == "base"
+        assert sensors["side_left"]["link_name"] == "base"
+
 
 class TestRLController:
     """Test suite for RLController placeholder."""

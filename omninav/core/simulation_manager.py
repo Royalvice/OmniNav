@@ -140,10 +140,6 @@ class GenesisSimulationManager(SimulationManagerBase):
         # Build scene (with parallel environments)
         self._scene.build(n_envs=self._n_envs, env_spacing=env_spacing)
         self._is_built = True
-        
-        # Post-build initialization for all robots (joint indices, PD gains, initial pose)
-        for robot in self._robots:
-            robot.post_build()
     
     def step(self) -> None:
         """
@@ -160,8 +156,8 @@ class GenesisSimulationManager(SimulationManagerBase):
         """
         Reset all robots to initial state.
         """
-        for robot in self._robots:
-            robot.reset()
+        # Runtime owns robot/loco/task reset orchestration.
+        return None
     
     def get_sim_time(self) -> float:
         """
@@ -270,3 +266,27 @@ class GenesisSimulationManager(SimulationManagerBase):
     def robots(self) -> List["RobotBase"]:
         """Get all added robots."""
         return self._robots
+
+    def close(self) -> None:
+        """
+        Release Genesis scene/viewer resources.
+
+        Genesis interactive viewer does not support multiple live scenes in one
+        process. Explicit teardown avoids leaking scene handles across rebuilds.
+        """
+        if self._scene is not None:
+            try:
+                # Official Genesis teardown path: destroys visualizer/simulator and
+                # unregisters scene from global registry.
+                if hasattr(self._scene, "destroy"):
+                    self._scene.destroy()
+            except Exception:
+                pass
+            try:
+                del self._scene
+            except Exception:
+                pass
+        self._scene = None
+        self._robots = []
+        self._is_built = False
+        self._n_envs = 1

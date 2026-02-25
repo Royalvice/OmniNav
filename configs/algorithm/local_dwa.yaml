@@ -17,3 +17,5 @@ velocity_weight: 0.5
 
 obstacle_margin: 0.35
 goal_tolerance: 0.5
+front_sector_width_deg: 40.0
+lookahead_gain: 0.6

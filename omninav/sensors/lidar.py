@@ -140,6 +140,9 @@ class Lidar2DSensor(SensorBase):
         result = SensorData(
             ranges=ranges.astype(np.float32),
             points=hit_pos.astype(np.float32),
+            angle_min=float(self.angle_min),
+            angle_max=float(self.angle_max),
+            angle_increment=float(self.angle_increment),
         )
         self._cached_data = result
         self._last_read_step = scene_step

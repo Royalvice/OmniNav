@@ -8,20 +8,24 @@ import math
 import sys
 import time
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import cv2
 import numpy as np
+from omegaconf import OmegaConf
 
 from omninav.interfaces import OmniNavEnv
 
-# Support both launch styles:
-# 1) `python examples/getting_started/run_getting_started.py`
-# 2) `python -m examples.getting_started.run_getting_started`
-try:
+if __package__ in (None, ""):
+    # Support direct execution:
+    # python examples/getting_started/run_getting_started.py
+    repo_root = Path(__file__).resolve().parents[2]
+    if str(repo_root) not in sys.path:
+        sys.path.insert(0, str(repo_root))
     from examples.getting_started.catalog import list_genesis_candidates, list_omninav_ready
-except ModuleNotFoundError:
-    from catalog import list_genesis_candidates, list_omninav_ready
+else:
+    from .catalog import list_genesis_candidates, list_omninav_ready
 
 
 @dataclass
@@ -47,6 +51,8 @@ class Minimap:
         self.image = np.zeros((self.size, self.size, 3), dtype=np.uint8)
         self.path: List[np.ndarray] = []
         self.route: List[np.ndarray] = []
+        self.static_obstacles: List[Dict[str, Any]] = []
+        self.lidar_points: Optional[np.ndarray] = None
         self.pending_add: Optional[np.ndarray] = None
         self.pending_remove_last = False
         self.pending_clear = False
@@ -70,6 +76,33 @@ class Minimap:
     def map_to_world(self, u: int, v: int) -> tuple[float, float]:
         return (u - self.center) / self.scale, (self.center - v) / self.scale
 
+    def _draw_static_obstacles(self) -> None:
+        for obs in self.static_obstacles:
+            obs_type = str(obs.get("type", "")).lower()
+            pos = obs.get("position", [0.0, 0.0, 0.0])
+            ox = float(pos[0]) if len(pos) > 0 else 0.0
+            oy = float(pos[1]) if len(pos) > 1 else 0.0
+            u, v = self.world_to_map(ox, oy)
+            if obs_type == "box":
+                size = obs.get("size", [1.0, 1.0, 1.0])
+                sx = max(0.05, float(size[0]) * 0.5)
+                sy = max(0.05, float(size[1]) * 0.5)
+                u0, v0 = self.world_to_map(ox - sx, oy + sy)
+                u1, v1 = self.world_to_map(ox + sx, oy - sy)
+                cv2.rectangle(self.image, (u0, v0), (u1, v1), (150, 150, 150), -1)
+            elif obs_type == "cylinder" or obs_type == "sphere":
+                radius = float(obs.get("radius", 0.3))
+                pr = max(1, int(radius * self.scale))
+                cv2.circle(self.image, (u, v), pr, (150, 150, 150), -1)
+
+    def _draw_lidar_points(self) -> None:
+        if self.lidar_points is None or self.lidar_points.size == 0:
+            return
+        for pt in self.lidar_points:
+            u, v = self.world_to_map(float(pt[0]), float(pt[1]))
+            if 0 <= u < self.size and 0 <= v < self.size:
+                self.image[v, u] = np.array([60, 60, 220], dtype=np.uint8)
+
     def draw(self, pos_xy: Optional[np.ndarray], yaw: float, selected_idx: int) -> None:
         if not self.enabled:
             return
@@ -79,6 +112,8 @@ class Minimap:
             cv2.line(self.image, (u, 0), (u, self.size), (220, 220, 220), 1)
             _, v = self.world_to_map(0.0, float(i))
             cv2.line(self.image, (0, v), (self.size, v), (220, 220, 220), 1)
+        self._draw_static_obstacles()
+        self._draw_lidar_points()
 
         if len(self.path) > 1:
             pts = [self.world_to_map(float(p[0]), float(p[1])) for p in self.path]
@@ -154,11 +189,47 @@ class GettingStartedApp:
         ]
         self.route_dirty = True
         self.active_wp_idx = 0
+        self._last_overrides_signature: Optional[str] = None
+        self._scene_cfg_cache: Dict[str, Dict[str, Any]] = {}
+        self._busy_rebuild = False
+        self._status_message = ""
 
         self.minimap = Minimap(enabled=not args.test_mode)
         self.root = None
         self.info_text = None
         self.vars: Dict[str, Any] = {}
+
+    @staticmethod
+    def _project_root() -> Path:
+        return Path(__file__).resolve().parents[2]
+
+    def _load_scene_cfg(self, scene_name: str) -> Dict[str, Any]:
+        if scene_name in self._scene_cfg_cache:
+            return self._scene_cfg_cache[scene_name]
+        p = self._project_root() / "configs" / "scene" / f"{scene_name}.yaml"
+        if not p.exists():
+            raise FileNotFoundError(f"Scene config not found: {p}")
+        loaded = OmegaConf.load(str(p))
+        cfg = OmegaConf.to_container(loaded, resolve=True) or {}
+        self._scene_cfg_cache[scene_name] = cfg
+        return cfg
+
+    def _resolve_spawn_xyz(self) -> np.ndarray:
+        scene_cfg = self._load_scene_cfg(self.cfg.scene)
+        spawn_cfg = scene_cfg.get("spawn", {}) if isinstance(scene_cfg, dict) else {}
+        if isinstance(spawn_cfg, dict):
+            default = spawn_cfg.get("default", None)
+            if isinstance(default, (list, tuple)) and len(default) >= 3:
+                return np.asarray(default[:3], dtype=np.float32)
+            candidates = spawn_cfg.get("candidates", [])
+            if isinstance(candidates, list) and candidates:
+                first = candidates[0]
+                if isinstance(first, (list, tuple)) and len(first) >= 3:
+                    return np.asarray(first[:3], dtype=np.float32)
+        raise RuntimeError(
+            f"Scene '{self.cfg.scene}' missing required spawn config. "
+            "Define spawn.default=[x,y,z] in configs/scene/<scene>.yaml."
+        )
 
     @staticmethod
     def _quat_to_yaw(quat_wxyz: np.ndarray) -> float:
@@ -173,12 +244,14 @@ class GettingStartedApp:
 
     def _build_overrides(self) -> List[str]:
         locomotion_type = "kinematic_wheel_position" if self.cfg.robot == "go2w" else "kinematic_gait"
+        spawn_xyz = self._resolve_spawn_xyz()
         o = [
             f"task={self.cfg.task}",
             "algorithm=pipeline_default",
             f"algorithm.global_planner.type={self.cfg.global_planner}",
             f"algorithm.local_planner.type={self.cfg.local_planner}",
             f"robot={self.cfg.robot}",
+            f"robot.initial_pos=[{float(spawn_xyz[0]):.4f},{float(spawn_xyz[1]):.4f},{float(spawn_xyz[2]):.4f}]",
             f"locomotion.type={locomotion_type}",
             f"scene={self.cfg.scene}",
             f"simulation.backend={self.cfg.backend}",
@@ -239,25 +312,64 @@ class GettingStartedApp:
         self.cfg.show_viewer = bool(self.vars["show_viewer"].get())
 
     def rebuild(self) -> None:
+        if self._busy_rebuild:
+            return
+        self._busy_rebuild = True
         self.close_env()
-        overrides = self._build_overrides()
-        self.env = OmniNavEnv(config_path="configs", config_name="demo/getting_started", overrides=overrides)
+        try:
+            overrides = self._build_overrides()
+            self.env = OmniNavEnv(config_path="configs", config_name="demo/getting_started", overrides=overrides)
+            self.obs_list = self.env.reset()
+            self._last_overrides_signature = "\n".join(overrides)
+            self.info = {"step": 0, "sim_time": 0.0, "done_mask": None}
+            self.running = True
+            self.paused = False
+            self.last_tick = None
+            self.fps = 0.0
+            self._next_ui_refresh_ts = 0.0
+            self._last_result_refresh_ts = 0.0
+            self._cached_result = None
+            self.active_wp_idx = 0
+            self.route_dirty = False
+            self._status_message = "rebuild: ok"
+        except Exception as exc:
+            self.running = False
+            self._status_message = f"rebuild failed: {exc}"
+            self.close_env()
+            raise
+        finally:
+            self._busy_rebuild = False
+
+    def start_or_rebuild(self) -> None:
+        self._sync_from_ui()
+        new_signature = "\n".join(self._build_overrides())
+        if self.env is not None and self._last_overrides_signature == new_signature and not self.route_dirty:
+            self.reset_env()
+            return
+        self.rebuild()
+
+    def reset_env(self) -> None:
+        if self.env is None:
+            raise RuntimeError("Environment is not initialized. Click 'Start / Rebuild' first.")
+        if not getattr(self.env, "_initialized", False):
+            raise RuntimeError("Environment is not initialized. Rebuild is required.")
         self.obs_list = self.env.reset()
         self.info = {"step": 0, "sim_time": 0.0, "done_mask": None}
         self.running = True
         self.paused = False
         self.last_tick = None
         self.fps = 0.0
-        self._next_ui_refresh_ts = 0.0
-        self._last_result_refresh_ts = 0.0
-        self._cached_result = None
         self.active_wp_idx = 0
+        self._cached_result = None
+        self._last_result_refresh_ts = 0.0
         self.route_dirty = False
+        self._status_message = "reset: ok"
 
     def close_env(self) -> None:
         if self.env is not None:
             self.env.close()
             self.env = None
+        self._last_overrides_signature = None
 
     def _apply_minimap_events(self) -> None:
         if self.minimap.pending_add is not None:
@@ -344,6 +456,49 @@ class GettingStartedApp:
                     out.append(f"- {name}.ranges n={rng.size} no-valid")
         return out if out else ["- no sensor runtime data"]
 
+    def _collect_lidar_points_world(self, pos_xy: np.ndarray, yaw: float) -> Optional[np.ndarray]:
+        if not self.obs_list:
+            return None
+        sensors = self.obs_list[0].get("sensors", {})
+        if not isinstance(sensors, dict):
+            return None
+        for name, data in sensors.items():
+            if "ranges" not in data:
+                continue
+            ranges = np.asarray(data["ranges"], dtype=np.float32)
+            if ranges.ndim == 2:
+                ranges = ranges[0]
+            if ranges.size == 0:
+                return None
+            sensor_cfg = {}
+            if self.env is not None:
+                sensor_cfg = self.env.cfg.get("sensor", {}).get(name, {})
+            if "angle_min" in data:
+                angle_min = float(data["angle_min"])
+            else:
+                angle_min = float(sensor_cfg.get("min_angle", -np.pi))
+            if "angle_increment" in data:
+                angle_inc = float(data["angle_increment"])
+            else:
+                if "max_angle" in sensor_cfg and ranges.size > 1:
+                    angle_max = float(sensor_cfg.get("max_angle"))
+                    angle_inc = (angle_max - angle_min) / float(ranges.size - 1)
+                else:
+                    angle_inc = 2.0 * np.pi / max(ranges.size, 1)
+            idx = np.arange(ranges.size, dtype=np.float32)
+            angles = yaw + angle_min + idx * angle_inc
+            valid = np.isfinite(ranges) & (ranges > 1e-3)
+            if "max_range" in sensor_cfg:
+                valid &= ranges <= (float(sensor_cfg.get("max_range")) + 1e-4)
+            r = ranges[valid]
+            if r.size == 0:
+                return None
+            a = angles[valid]
+            px = pos_xy[0] + r * np.cos(a)
+            py = pos_xy[1] + r * np.sin(a)
+            return np.stack([px, py], axis=1).astype(np.float32)
+        return None
+
     def _info_dump(self) -> str:
         lines: List[str] = []
         step = int(self.info.get("step", 0))
@@ -351,6 +506,8 @@ class GettingStartedApp:
         lines.append("=== Runtime ===")
         lines.append(f"step={step} sim_time={sim_t:.3f} fps={self.fps:.1f} running={self.running} paused={self.paused}")
         lines.append(f"done_mask={self.info.get('done_mask', None)}")
+        if self._status_message:
+            lines.append(f"status={self._status_message}")
         lines.append("")
 
         lines.append("=== Task + Planner ===")
@@ -416,6 +573,7 @@ class GettingStartedApp:
         return "\n".join(lines)
 
     def _refresh(self) -> None:
+        self.minimap.lidar_points = None
         if self.info_text is not None:
             self.info_text.configure(state="normal")
             self.info_text.delete("1.0", "end")
@@ -447,8 +605,11 @@ class GettingStartedApp:
             pos_xy = pos[:2]
             yaw = self._quat_to_yaw(quat)
             self.minimap.path.append(pos_xy.copy())
+            self.minimap.lidar_points = self._collect_lidar_points_world(pos_xy, yaw)
             if len(self.minimap.path) > 1200:
                 self.minimap.path = self.minimap.path[-1200:]
+        scene_cfg = self._load_scene_cfg(self.cfg.scene)
+        self.minimap.static_obstacles = list(scene_cfg.get("obstacles", [])) if isinstance(scene_cfg, dict) else []
         self.minimap.route = [x.copy() for x in self.route]
         self.minimap.draw(pos_xy, yaw, self.active_wp_idx)
 
@@ -488,9 +649,9 @@ class GettingStartedApp:
         add_row("Backend", self.vars["backend"], ["gpu", "cpu"])
         ttk.Checkbutton(left, text="Show Viewer", variable=self.vars["show_viewer"]).pack(anchor="w", pady=4)
 
-        ttk.Button(left, text="Start / Rebuild", command=lambda: [self._sync_from_ui(), self.rebuild()]).pack(fill="x", pady=6)
+        ttk.Button(left, text="Start / Rebuild", command=self.start_or_rebuild).pack(fill="x", pady=6)
         ttk.Button(left, text="Pause / Resume", command=lambda: setattr(self, "paused", not self.paused)).pack(fill="x", pady=2)
-        ttk.Button(left, text="Reset Env", command=lambda: self.env.reset() if self.env is not None else None).pack(fill="x", pady=2)
+        ttk.Button(left, text="Reset Env", command=self.reset_env).pack(fill="x", pady=2)
         ttk.Button(left, text="Stop", command=lambda: setattr(self, "running", False)).pack(fill="x", pady=2)
         ttk.Button(left, text="Clear Route", command=self._clear_route).pack(fill="x", pady=2)
 

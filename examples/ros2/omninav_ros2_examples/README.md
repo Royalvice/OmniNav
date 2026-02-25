@@ -102,6 +102,6 @@ ros2 topic echo /cmd_vel --once
 ```
 
 TF chain should include:
-- `map -> odom -> base -> lidar_frame`
-- `base -> camera_rgb_frame`
-- `base -> camera_depth_frame`
+- `map -> odom -> base_link -> lidar_frame`
+- `base_link -> camera_rgb_frame`
+- `base_link -> camera_depth_frame`

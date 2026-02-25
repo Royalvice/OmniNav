@@ -100,3 +100,12 @@ class SimulationManagerBase(ABC):
             Genesis scene object
         """
         pass
+
+    def close(self) -> None:
+        """
+        Release runtime resources.
+
+        Optional override for simulation backends that need explicit teardown
+        (e.g. interactive viewer / scene handles).
+        """
+        return None

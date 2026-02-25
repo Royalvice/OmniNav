@@ -49,6 +49,14 @@ def _make_mock_robot():
     return robot
 
 
+def _make_mock_robot_with_sensor():
+    robot = _make_mock_robot()
+    sensor = MagicMock()
+    sensor.get_data.return_value = {"ranges": np.ones((1, 8), dtype=np.float32)}
+    robot.sensors = {"lidar": sensor}
+    return robot, sensor
+
+
 # =============================================================================
 # SimulationRuntime Tests
 # =============================================================================
@@ -152,6 +160,49 @@ class TestSimulationRuntime:
         runtime.step([Action(cmd_vel=np.array([0.1, 0.0, 0.0], dtype=np.float32))])
         assert runtime.step_count == 1
 
+    def test_runtime_close_releases_components(self):
+        from omninav.core.runtime import SimulationRuntime
+
+        cfg = OmegaConf.create({"simulation": {"dt": 0.01}})
+        runtime = SimulationRuntime(cfg)
+        sim = MagicMock()
+        runtime.sim = sim
+        runtime.robots.append(_make_mock_robot())
+        runtime.locomotions.append(MagicMock())
+        runtime.algorithms.append(MagicMock())
+        runtime.sensors["s0"] = MagicMock()
+        runtime.task = MagicMock()
+
+        runtime.close()
+
+        sim.close.assert_called_once()
+        assert runtime.sim is None
+        assert runtime.robots == []
+        assert runtime.locomotions == []
+        assert runtime.algorithms == []
+        assert runtime.sensors == {}
+        assert runtime.task is None
+
+    def test_runtime_step_reads_sensors_once_with_algorithm_path(self):
+        """Algorithm path should use cached obs and read sensors once per step."""
+        from omninav.core.runtime import SimulationRuntime
+
+        cfg = OmegaConf.create({"simulation": {"dt": 0.01}})
+        runtime = SimulationRuntime(cfg)
+        robot, sensor = _make_mock_robot_with_sensor()
+        runtime.robots.append(robot)
+        runtime.locomotions.append(MagicMock())
+        algo = MagicMock()
+        algo.step.return_value = np.zeros((1, 3), dtype=np.float32)
+        runtime.algorithms.append(algo)
+
+        runtime.reset()
+        sensor.get_data.reset_mock()
+
+        runtime.step(actions=None)
+
+        assert sensor.get_data.call_count == 1
+
 
 # =============================================================================
 # OmniNavEnv Tests
@@ -234,6 +285,21 @@ class TestOmniNavEnv:
         assert len(passed_actions) == 1
         assert passed_actions[0]["cmd_vel"].shape == (1, 3)
         assert np.isclose(passed_actions[0]["cmd_vel"][0, 0], 0.7)
+
+    def test_env_close_calls_runtime_close(self):
+        """close() should teardown runtime resources before dropping references."""
+        from omninav.interfaces.python_api import OmniNavEnv
+
+        env = OmniNavEnv(cfg=OmegaConf.create({}))
+        runtime = MagicMock()
+        env._runtime = runtime
+        env._initialized = True
+
+        env.close()
+
+        runtime.close.assert_called_once()
+        assert env._runtime is None
+        assert not env._initialized
 
 
 # =============================================================================
