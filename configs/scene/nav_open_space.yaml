@@ -7,6 +7,13 @@ name: nav_open_space
 ground_plane:
   enabled: true
 
+spawn:
+  default: [-6.0, -6.0, 0.35]
+  candidates:
+    - [-6.0, -6.0, 0.35]
+    - [6.0, -6.0, 0.35]
+    - [-6.0, 6.0, 0.35]
+
 obstacles:
   # Outer walls (10x10m area)
   - type: box

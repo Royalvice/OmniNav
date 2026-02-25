@@ -7,6 +7,14 @@ name: stairs_scene
 ground_plane:
   enabled: true
 
+spawn:
+  # Start before the first stair step with safe clearance.
+  default: [0.0, 0.0, 0.35]
+  candidates:
+    - [0.0, 0.0, 0.35]
+    - [-1.5, -1.0, 0.35]
+    - [-1.5, 1.0, 0.35]
+
 obstacles:
   - type: box
     position: [1.5, 0.0, 0.025]

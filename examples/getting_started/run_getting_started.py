@@ -56,6 +56,7 @@ class Minimap:
         self.pending_add: Optional[np.ndarray] = None
         self.pending_remove_last = False
         self.pending_clear = False
+        self.current_goal: Optional[np.ndarray] = None
 
         if self.enabled:
             cv2.namedWindow(self.window)
@@ -124,6 +125,18 @@ class Minimap:
             color = (0, 160, 0) if i != selected_idx else (0, 60, 255)
             cv2.circle(self.image, (u, v), 5, color, -1)
             cv2.putText(self.image, str(i), (u + 6, v - 6), cv2.FONT_HERSHEY_SIMPLEX, 0.4, (20, 20, 20), 1)
+
+        # Draw the planner's current goal in world frame (if available).
+        if self.current_goal is not None and self.current_goal.size >= 2:
+            gu, gv = self.world_to_map(float(self.current_goal[0]), float(self.current_goal[1]))
+            cv2.drawMarker(
+                self.image,
+                (gu, gv),
+                (0, 0, 255),
+                markerType=cv2.MARKER_CROSS,
+                markerSize=12,
+                thickness=2,
+            )
 
         if pos_xy is not None:
             u, v = self.world_to_map(float(pos_xy[0]), float(pos_xy[1]))
@@ -243,7 +256,8 @@ class GettingStartedApp:
         return "[" + ",".join(f"[{float(w[0]):.4f},{float(w[1]):.4f},0.0]" for w in self.route) + "]"
 
     def _build_overrides(self) -> List[str]:
-        locomotion_type = "kinematic_wheel_position" if self.cfg.robot == "go2w" else "kinematic_gait"
+        # Keep getting_started deterministic and consistent for go2/go2w.
+        locomotion_type = "kinematic_wheel_position"
         spawn_xyz = self._resolve_spawn_xyz()
         o = [
             f"task={self.cfg.task}",
@@ -256,6 +270,10 @@ class GettingStartedApp:
             f"scene={self.cfg.scene}",
             f"simulation.backend={self.cfg.backend}",
             f"simulation.show_viewer={str(self.cfg.show_viewer)}",
+            # Tighten terminal tolerances so robot gets visibly closer to clicked minimap waypoints.
+            "algorithm.global_planner.waypoint_tolerance=0.12",
+            "algorithm.local_planner.goal_tolerance=0.12",
+            "task.waypoint_tolerance=0.12",
         ]
         if self.cfg.smoke_fast:
             o.extend(["simulation.substeps=1", "simulation.dt=0.02"])
@@ -342,7 +360,11 @@ class GettingStartedApp:
 
     def start_or_rebuild(self) -> None:
         self._sync_from_ui()
-        new_signature = "\n".join(self._build_overrides())
+        try:
+            new_signature = "\n".join(self._build_overrides())
+        except Exception as exc:
+            self._status_message = f"invalid config: {exc}"
+            return
         if self.env is not None and self._last_overrides_signature == new_signature and not self.route_dirty:
             self.reset_env()
             return
@@ -512,6 +534,7 @@ class GettingStartedApp:
 
         lines.append("=== Task + Planner ===")
         lines.append(f"task={self.cfg.task} global={self.cfg.global_planner} local={self.cfg.local_planner}")
+        planner_goal_xy: Optional[np.ndarray] = None
         if self.env is not None and hasattr(self.env, "algorithm") and self.env.algorithm is not None:
             info = self.env.algorithm.info
             gp = info.get("global_planner", {})
@@ -520,6 +543,17 @@ class GettingStartedApp:
             lines.append(f"local_info={lp}")
             if isinstance(gp, dict) and "current_goal_index" in gp:
                 self.active_wp_idx = int(gp["current_goal_index"])
+            # Pull actual planner goal from runtime object for precise debugging.
+            algo = self.env.algorithm
+            if hasattr(algo, "global_planner"):
+                g = algo.global_planner.current_goal() if hasattr(algo.global_planner, "current_goal") else None
+                if g is not None:
+                    g = np.asarray(g, dtype=np.float32)
+                    if g.ndim == 2:
+                        g = g[0]
+                    if g.size >= 2:
+                        planner_goal_xy = g[:2].copy()
+                        lines.append(f"planner_goal_xy=({planner_goal_xy[0]:.3f},{planner_goal_xy[1]:.3f})")
         lines.append("")
 
         lines.append("=== Robot ===")
@@ -531,6 +565,9 @@ class GettingStartedApp:
             av = np.asarray(rs.get("angular_velocity", np.zeros((1, 3))), dtype=np.float32)[0]
             lines.append(f"pos=({pos[0]:.3f},{pos[1]:.3f},{pos[2]:.3f}) yaw={self._quat_to_yaw(quat):.3f}")
             lines.append(f"lin_vel=({lv[0]:.3f},{lv[1]:.3f},{lv[2]:.3f}) ang_vel=({av[0]:.3f},{av[1]:.3f},{av[2]:.3f})")
+            if planner_goal_xy is not None:
+                d = float(np.linalg.norm(pos[:2] - planner_goal_xy[:2]))
+                lines.append(f"dist_to_planner_goal_xy={d:.3f}m")
         lines.append("")
 
         lines.append("=== Task Result Snapshot ===")
@@ -568,8 +605,11 @@ class GettingStartedApp:
         lines.append(f"sensors={self.candidates['sensor_capabilities']}")
         lines.append("")
         lines.append("=== Overrides ===")
-        for x in self._build_overrides():
-            lines.append(x)
+        try:
+            for x in self._build_overrides():
+                lines.append(x)
+        except Exception as exc:
+            lines.append(f"<override build error> {exc}")
         return "\n".join(lines)
 
     def _refresh(self) -> None:
@@ -611,6 +651,17 @@ class GettingStartedApp:
         scene_cfg = self._load_scene_cfg(self.cfg.scene)
         self.minimap.static_obstacles = list(scene_cfg.get("obstacles", [])) if isinstance(scene_cfg, dict) else []
         self.minimap.route = [x.copy() for x in self.route]
+        self.minimap.current_goal = None
+        if self.env is not None and hasattr(self.env, "algorithm") and self.env.algorithm is not None:
+            algo = self.env.algorithm
+            if hasattr(algo, "global_planner") and hasattr(algo.global_planner, "current_goal"):
+                goal = algo.global_planner.current_goal()
+                if goal is not None:
+                    goal = np.asarray(goal, dtype=np.float32)
+                    if goal.ndim == 2:
+                        goal = goal[0]
+                    if goal.size >= 2:
+                        self.minimap.current_goal = goal[:2].copy()
         self.minimap.draw(pos_xy, yaw, self.active_wp_idx)
 
     def _build_gui(self) -> None:

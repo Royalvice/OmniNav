@@ -10,5 +10,12 @@ ground:
   size: [50.0, 50.0]
   position: [0.0, 0.0, 0.0]
 
+spawn:
+  default: [0.0, 0.0, 0.35]
+  candidates:
+    - [0.0, 0.0, 0.35]
+    - [2.0, 0.0, 0.35]
+    - [0.0, 2.0, 0.35]
+
 # No additional objects
 obstacles: []

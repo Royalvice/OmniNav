@@ -7,4 +7,11 @@ name: waypoint_arena_scene
 ground_plane:
   enabled: true
 
+spawn:
+  default: [-2.0, -2.0, 0.35]
+  candidates:
+    - [-2.0, -2.0, 0.35]
+    - [2.0, -2.0, 0.35]
+    - [-2.0, 2.0, 0.35]
+
 obstacles: []

@@ -7,6 +7,14 @@ name: ring_obstacles_scene
 ground_plane:
   enabled: true
 
+spawn:
+  # Keep robot away from center to avoid immediate interpenetration.
+  default: [-5.5, -5.5, 0.35]
+  candidates:
+    - [-5.5, -5.5, 0.35]
+    - [5.5, -5.5, 0.35]
+    - [-5.5, 5.5, 0.35]
+
 obstacles:
   - type: cylinder
     position: [3.0, 0.0, 0.75]
