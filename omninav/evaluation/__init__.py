@@ -7,12 +7,13 @@ plus inspection-specific implementations.
 
 from omninav.evaluation.base import TaskBase, MetricBase, TaskResult
 from omninav.evaluation.tasks.inspection_task import InspectionTask
+from omninav.evaluation.tasks.waypoint_task import WaypointTask
 from omninav.evaluation.metrics.inspection_metrics import (
     CoverageRate, DetectionRate, InspectionTime, SafetyScore,
 )
 
 __all__ = [
     "TaskBase", "MetricBase", "TaskResult",
-    "InspectionTask",
+    "InspectionTask", "WaypointTask",
     "CoverageRate", "DetectionRate", "InspectionTime", "SafetyScore",
 ]

@@ -1,0 +1,15 @@
+# Waypoint task configuration
+# @package _group_
+
+type: waypoint
+name: waypoint
+
+time_budget: 180.0
+success_requirement: 1.0
+waypoint_tolerance: 0.5
+order_policy: strict
+
+waypoints:
+  - [2.0, 0.0, 0.0]
+  - [2.0, 2.0, 0.0]
+  - [0.0, 1.0, 0.0]

@@ -17,11 +17,11 @@
 
 ---
 
-## 0. 完成态快照 (2026-02-23)
+## 0. 完成态快照 (2026-02-24)
 
 ### 已完成主功能
-- `M1` 基础框架与导航原子链路已完成核心骨架
-- `M2` 巡检任务主链路已打通（导航到巡检闭环）
+- `M1` 基础框架与导航原子链路已完成核心骨架，并完成 Task/Algorithm 解耦重构
+- `M2` 巡检任务主链路已打通（任务语义与规划算法解耦）
 - `M3` 复杂场景基础能力已有可运行基线（静态障碍场景）
 
 ### 已完成插件功能
@@ -92,6 +92,33 @@
 勘误说明（基于当前源码）：
 1. 当前 locomotion 控制器接口仍以单机器人 `step(cmd_vel, obs)` 为入口，Runtime 在机器人维度调度；因此“批量语义”当前主要体现在数据契约与任务终止掩码层。
 
+### M1.5 Task/Algorithm 解耦与 Global+Local 规划管线
+已完成内容：
+1. 新增 `WaypointTask`，Waypoint 从“算法语义”迁移到 `Task` 层定义
+2. `TaskBase` 新增 `build_task_spec` 与 `update_task_feedback`，任务下发与评测边界清晰
+3. 新增 `GlobalPlannerBase` + `global_sequential` + `global_route_opt` 原子模块
+4. `AlgorithmPipeline` 改为标准 `global + local` 组合，local 使用 `DWAPlanner`
+5. 清理旧任务语义算法与配置：删除 `inspection_planner`、`waypoint_follower` 及旧 `configs/algorithm/inspection.yaml`、`waypoint.yaml`
+6. 新增 `configs/algorithm/pipeline_default.yaml`、`global_sequential.yaml`、`global_route_opt.yaml`、`local_dwa.yaml`
+
+源码证据：
+- `omninav/evaluation/tasks/waypoint_task.py`
+- `omninav/evaluation/base.py`
+- `omninav/core/runtime.py`
+- `omninav/algorithms/global_base.py`
+- `omninav/algorithms/global_sequential.py`
+- `omninav/algorithms/global_route_opt.py`
+- `omninav/algorithms/pipeline.py`
+- `configs/algorithm/pipeline_default.yaml`
+- `configs/algorithm/global_sequential.yaml`
+- `configs/algorithm/global_route_opt.yaml`
+- `configs/algorithm/local_dwa.yaml`
+
+测试证据：
+- `tests/algorithms/test_pipeline.py`
+- `tests/evaluation/test_waypoint_task.py`
+- `tests/core/test_runtime_task_spec.py`
+
 ---
 
 ## 2. M2（L1）巡检任务与覆盖评测能力
@@ -100,15 +127,16 @@
 ### M2.1 巡检全链路（任务-算法-控制）
 已完成内容：
 1. `InspectionTask` 任务态管理与终止条件
-2. `InspectionPlanner`（全局）+ `DWAPlanner`（局部）组合 pipeline
+2. `global_sequential/global_route_opt`（全局）+ `DWAPlanner`（局部）组合 pipeline
 3. 巡检示例可运行并支持 smoke 降载
 
 源码证据：
 - `omninav/evaluation/tasks/inspection_task.py`
-- `omninav/algorithms/inspection_planner.py`
+- `omninav/algorithms/global_sequential.py`
+- `omninav/algorithms/global_route_opt.py`
 - `omninav/algorithms/pipeline.py`
 - `configs/task/inspection.yaml`
-- `configs/algorithm/inspection.yaml`
+- `configs/algorithm/pipeline_default.yaml`
 - `examples/06_inspection_task.py`
 
 测试证据：
@@ -229,6 +257,27 @@
 - 其他 `examples/*.py` 中 test/smoke 参数
 
 测试证据：
+- `tests/examples/test_examples_smoke.py`
+
+### P2.3 Getting Started 教学入口（算法模板 + 任务模板）
+已完成内容：
+1. 新增 `examples/getting_started/run_getting_started.py`，GUI 直接展示 Task + Global + Local 三层协作
+2. 新增 `examples/getting_started/algorithm_template.py`，包含 Global/Local 原子算法模板
+3. 新增 `examples/getting_started/task_template.py`，提供最小巡检任务定义模板
+4. GUI 增强新手信息展示：传感器分辨率/FOV/rays/range、规划器状态、任务指标、overrides 快照
+
+源码证据：
+- `examples/getting_started/run_getting_started.py`
+- `examples/getting_started/catalog.py`
+- `examples/getting_started/algorithm_template.py`
+- `examples/getting_started/task_template.py`
+- `examples/getting_started/README.md`
+- `configs/demo/getting_started.yaml`
+
+测试证据：
+- `tests/examples/test_getting_started_catalog.py`
+- `tests/examples/test_getting_started_overrides.py`
+- `tests/examples/test_getting_started_smoke.py`
 - `tests/examples/test_examples_smoke.py`
 
 ---

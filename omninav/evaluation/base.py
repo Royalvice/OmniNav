@@ -87,6 +87,7 @@ class TaskBase(ABC, LifecycleMixin):
         self.cfg = cfg
         self.metrics: List[MetricBase] = []
         self._state = LifecycleState.CREATED
+        self._task_spec: Dict[str, Any] = {}
 
     @abstractmethod
     def reset(self) -> Dict[str, Any]:
@@ -98,6 +99,25 @@ class TaskBase(ABC, LifecycleMixin):
                 - Should include "start_position", "goal_position", "waypoints", etc.
         """
         pass
+
+    def build_task_spec(self) -> Dict[str, Any]:
+        """
+        Build task specification consumed by algorithms.
+
+        TaskSpec is task-level intent/configuration only, e.g.:
+        - task_type
+        - goal_set / waypoints
+        - constraints / budgets
+
+        It should not contain planner internals.
+        """
+        return dict(self._task_spec)
+
+    def update_task_feedback(self, info: Dict[str, Any]) -> None:
+        """
+        Receive optional planner feedback for task-side bookkeeping/logging.
+        """
+        _ = info
 
     @abstractmethod
     def step(self, obs: "Observation", action: Optional["Action"] = None) -> None:

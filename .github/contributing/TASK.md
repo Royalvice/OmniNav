@@ -17,7 +17,7 @@
 
 ---
 
-## 0. 当前未完成焦点 (2026-02-23)
+## 0. 当前未完成焦点 (2026-02-24)
 
 ### 主功能主线
 - `M1`：L0 导航原子能力（PointNav/ObjectNav/Waypoint）仍需完整评测闭环
@@ -91,22 +91,23 @@
 - 单元测试：指标逐项验证
 - 集成测试：任务运行后指标一致性验证
 
-### M1.4 Waypoint 导航稳健性回归
-目标：在现有 waypoint 流程上补齐边界行为测试。
+### M1.4 PointNav/ObjectNav 与新规划管线对齐
+目标：将 PointNav/ObjectNav 任务实现对齐到当前 TaskSpec + Global/Local Pipeline 架构。
 
 实施触点：
-- `omninav/algorithms/inspection_planner.py`
-- `omninav/algorithms/local_planner.py`
-- `tests/algorithms/`
+- `omninav/evaluation/tasks/`
+- `configs/task/point_nav.yaml`
+- `configs/algorithm/pipeline_default.yaml`
 
 验收标准：
-1. waypoint 列表为空、单点、重复点场景可稳定运行
-2. waypoint 容差参数变化不破坏任务终止逻辑
-3. pipeline 在批量 env 下行为一致
+1. `point_nav/object_nav` 任务与 `algorithm_pipeline` 可直接联动
+2. 任务输出字段与 `WaypointTask/InspectionTask` 保持一致格式
+3. 指标统计与结果导出兼容当前 `TaskResult.metrics/info`
 
 测试要求：
-- 单元测试 + 集成测试
-- `n_envs=1/4` 对比
+- 单元测试：`tests/evaluation/`
+- 集成测试：`tests/integration/`
+- Batch 验证：`n_envs=1/4`
 
 ---
 

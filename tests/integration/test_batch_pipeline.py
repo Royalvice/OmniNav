@@ -7,6 +7,7 @@ from __future__ import annotations
 import os
 import numpy as np
 import pytest
+import tempfile
 
 from omninav.interfaces import OmniNavEnv
 
@@ -29,12 +30,20 @@ def test_inspection_pipeline_n_envs_4():
     if not os.path.exists("configs"):
         pytest.skip("Config directory not found")
 
+    smoke_home = tempfile.mkdtemp(prefix="omninav_batch_home_", dir="/tmp")
+    os.environ["HOME"] = smoke_home
+    os.environ["XDG_CACHE_HOME"] = os.path.join(smoke_home, ".cache")
+    os.environ["TI_CACHE_PATH"] = os.path.join(smoke_home, ".cache", "gstaichi", "ticache")
+    os.environ["GS_ENABLE_FASTCACHE"] = "0"
+    os.environ["TI_OFFLINE_CACHE"] = "0"
+    os.environ["GS_ENABLE_NDARRAY"] = "0"
+
     overrides = [
         "simulation.show_viewer=False",
         "simulation.backend=cpu",
         "simulation.n_envs=4",
         "task=inspection",
-        "algorithm=inspection",
+        "algorithm=pipeline_default",
         "locomotion=kinematic_gait",
         "task.time_budget=3.0",
     ]

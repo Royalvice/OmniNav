@@ -11,6 +11,12 @@ coverage_requirement: 0.9
 
 # Distance tolerance to consider a waypoint visited (meters)
 waypoint_tolerance: 0.5
+order_policy: strict
+
+# Global planning constraints for inspection behavior
+scan_at_goal: true
+scan_duration: 3.0
+scan_angular_velocity: 1.0
 
 # Inspection waypoints (x, y, z)
 waypoints:

@@ -1,0 +1,10 @@
+# Sequential global planner configuration
+# @package _group_
+
+type: global_sequential
+name: global_sequential
+
+waypoint_tolerance: 0.5
+scan_at_goal: true
+scan_duration: 3.0
+scan_angular_velocity: 1.0

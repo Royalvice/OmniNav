@@ -8,7 +8,18 @@ works together correctly.
 import pytest
 import numpy as np
 import os
+import tempfile
 from omninav.interfaces import OmniNavEnv
+
+
+def _genesis_available() -> bool:
+    if os.environ.get("OMNINAV_RUN_GENESIS_TESTS", "0") != "1":
+        return False
+    try:
+        import genesis  # noqa: F401
+        return True
+    except ImportError:
+        return False
 
 
 @pytest.fixture
@@ -29,16 +40,28 @@ def test_inspection_pipeline(headless_config_overrides):
     - Check if metrics are generated
     - Check if robot moves (basic)
     """
+    if not _genesis_available():
+        pytest.skip("genesis tests disabled")
+
     # Use default configs directory
     config_path = "configs"
     if not os.path.exists(config_path):
         pytest.skip("Config directory not found")
 
+    # Use writable cache dirs in sandboxed CI-like environments.
+    smoke_home = tempfile.mkdtemp(prefix="omninav_integration_home_", dir="/tmp")
+    os.environ["HOME"] = smoke_home
+    os.environ["XDG_CACHE_HOME"] = os.path.join(smoke_home, ".cache")
+    os.environ["TI_CACHE_PATH"] = os.path.join(smoke_home, ".cache", "gstaichi", "ticache")
+    os.environ["GS_ENABLE_FASTCACHE"] = "0"
+    os.environ["TI_OFFLINE_CACHE"] = "0"
+    os.environ["GS_ENABLE_NDARRAY"] = "0"
+
     # Initialize environment
     # Override defaults to use inspection task/algo
     overrides = headless_config_overrides + [
         "task=inspection",
-        "algorithm=inspection", 
+        "algorithm=pipeline_default",
         "locomotion=kinematic_gait"
     ]
     

@@ -1,0 +1,19 @@
+# Local planner (DWA) configuration
+# @package _group_
+
+type: dwa_planner
+name: local_dwa
+
+max_speed: 0.6
+max_yaw_rate: 1.0
+speed_resolution: 0.05
+yaw_rate_resolution: 0.1
+predict_time: 2.0
+dt: 0.1
+
+heading_weight: 1.0
+clearance_weight: 1.0
+velocity_weight: 0.5
+
+obstacle_margin: 0.35
+goal_tolerance: 0.5

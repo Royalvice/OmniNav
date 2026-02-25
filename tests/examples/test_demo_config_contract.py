@@ -16,6 +16,7 @@ def test_demo_configs_exist():
         "camera_visualization.yaml",
         "waypoint_navigation.yaml",
         "inspection.yaml",
+        "getting_started.yaml",
         "ros2_rviz_sensor.yaml",
         "ros2_nav2_full.yaml",
     }

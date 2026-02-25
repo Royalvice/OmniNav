@@ -20,7 +20,8 @@ EXAMPLE_SCRIPTS = [
     "03_lidar_visualization.py",
     "04_camera_visualization.py",
     "05_waypoint_navigation.py",
-    "run_inspection.py",
+    "getting_started/run_getting_started.py",
+    "06_inspection_task.py",
     "ros2/omninav_ros2_examples/omninav_ros2_examples/rviz_sensor_demo.py",
     "ros2/omninav_ros2_examples/omninav_ros2_examples/nav2_bridge_demo.py",
 ]
@@ -35,7 +36,8 @@ EXAMPLE_MAX_STEPS = {
     "03_lidar_visualization.py": 30,
     "04_camera_visualization.py": 30,
     "05_waypoint_navigation.py": 40,
-    "run_inspection.py": 30,
+    "getting_started/run_getting_started.py": 40,
+    "06_inspection_task.py": 30,
     "ros2/omninav_ros2_examples/omninav_ros2_examples/rviz_sensor_demo.py": 20,
     "ros2/omninav_ros2_examples/omninav_ros2_examples/nav2_bridge_demo.py": 20,
 }

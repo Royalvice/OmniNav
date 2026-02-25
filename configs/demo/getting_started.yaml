@@ -1,0 +1,23 @@
+# @package _global_
+defaults:
+  - /robot: go2w
+  - /sensor: default
+  - /locomotion: wheel
+  - /algorithm: pipeline_default
+  - /task: waypoint
+  - /scene: complex_flat_obstacles
+  - _self_
+
+simulation:
+  dt: 0.01
+  substeps: 2
+  backend: gpu
+  show_viewer: true
+  camera_pos: [2.0, 2.0, 1.5]
+  camera_lookat: [0.0, 0.0, 0.3]
+  camera_fov: 40
+  disable_keyboard_shortcuts: true
+
+demo:
+  mode: getting_started
+  notes: "Pure Python getting started GUI for OmniNav."

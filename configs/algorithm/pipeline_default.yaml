@@ -1,0 +1,21 @@
+# Default algorithm pipeline
+# @package _group_
+
+type: algorithm_pipeline
+name: pipeline_default
+
+global_planner:
+  type: global_sequential
+  waypoint_tolerance: 0.5
+  scan_at_goal: true
+  scan_duration: 3.0
+  scan_angular_velocity: 1.0
+
+local_planner:
+  type: dwa_planner
+  max_speed: 0.6
+  max_yaw_rate: 1.0
+  obstacle_margin: 0.35
+  goal_tolerance: 0.5
+  predict_time: 2.0
+  dt: 0.1

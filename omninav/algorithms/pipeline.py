@@ -1,10 +1,4 @@
-"""
-Algorithm Pipeline — Compose GlobalPlanner + LocalPlanner into a pipeline.
-
-Usage:
-    pipeline = AlgorithmPipeline(cfg)
-    cmd_vel = pipeline.step(obs)  # GlobalPlanner → waypoint → LocalPlanner → cmd_vel
-"""
+"""Algorithm pipeline that composes global and local planners."""
 
 from typing import Dict, Any, Optional, TYPE_CHECKING
 import numpy as np
@@ -40,6 +34,7 @@ class AlgorithmPipeline(AlgorithmBase):
         # Build sub-planners via registry
         self._global_planner: AlgorithmBase = ALGORITHM_REGISTRY.build(cfg.global_planner)
         self._local_planner: AlgorithmBase = ALGORITHM_REGISTRY.build(cfg.local_planner)
+        self._task_spec: Dict[str, Any] = {}
 
     @property
     def global_planner(self) -> AlgorithmBase:
@@ -53,8 +48,9 @@ class AlgorithmPipeline(AlgorithmBase):
 
     def reset(self, task_info: Optional[Dict[str, Any]] = None) -> None:
         """Reset both planners."""
-        self._global_planner.reset(task_info)
-        self._local_planner.reset(task_info)
+        self._task_spec = task_info or {}
+        self._global_planner.reset(self._task_spec)
+        self._local_planner.reset(self._task_spec)
 
     def step(self, obs: "Observation") -> np.ndarray:
         """
@@ -68,17 +64,23 @@ class AlgorithmPipeline(AlgorithmBase):
         Returns:
             cmd_vel: [vx, vy, wz] velocity command
         """
-        # Global planner step — may return cmd_vel directly or update internal waypoint
         _ = self._global_planner.step(obs)
-
-        # If the global planner provides a waypoint (non-zero output),
-        # inject it as goal_position for the local planner
         local_obs = dict(obs)  # shallow copy
-        if hasattr(self._global_planner, 'current_waypoint') and self._global_planner.current_waypoint is not None:
-            waypoint = np.asarray(self._global_planner.current_waypoint, dtype=np.float32)
-            if waypoint.ndim == 1:
-                waypoint = waypoint.reshape(1, -1)
-            local_obs['goal_position'] = waypoint
+        if hasattr(self._global_planner, "current_goal"):
+            goal = self._global_planner.current_goal()
+            if goal is not None:
+                waypoint = np.asarray(goal, dtype=np.float32)
+                if waypoint.ndim == 1:
+                    waypoint = waypoint.reshape(1, -1)
+                local_obs["goal_position"] = waypoint
+
+        if hasattr(self._global_planner, "command_override"):
+            override = self._global_planner.command_override()
+            if override is not None:
+                ov = np.asarray(override, dtype=np.float32)
+                if ov.ndim == 1:
+                    ov = ov.reshape(1, -1)
+                return ov
 
         # Local planner produces the final cmd_vel
         cmd_vel = self._local_planner.step(local_obs)

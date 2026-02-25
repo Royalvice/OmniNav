@@ -111,6 +111,10 @@ class SimulationRuntime:
         task_info = {}
         if self.task is not None:
             task_info = self.task.reset()
+            if hasattr(self.task, "build_task_spec"):
+                spec = self.task.build_task_spec()
+                if isinstance(spec, dict):
+                    task_info = spec
             task_state = getattr(self.task, "lifecycle_state", None)
             if isinstance(task_state, LifecycleState) and task_state < LifecycleState.READY:
                 self.task._transition_to(LifecycleState.READY)
@@ -184,6 +188,11 @@ class SimulationRuntime:
             for i, obs in enumerate(new_observations):
                 action = actions[i] if i < len(actions) else None
                 self.task.step(obs, action)
+                if i == 0 and self.algorithms:
+                    for algo in self.algorithms:
+                        if hasattr(self.task, "update_task_feedback"):
+                            algo_info = getattr(algo, "info", {})
+                            self.task.update_task_feedback(algo_info if isinstance(algo_info, dict) else {})
             if new_observations:
                 done_mask = np.asarray(self.task.is_terminated(new_observations[0]), dtype=bool)
                 if done_mask.ndim == 0:

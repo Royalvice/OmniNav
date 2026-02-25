@@ -71,12 +71,18 @@ class InspectionTask(TaskBase):
             metric.reset()
 
         self._transition_to(LifecycleState.READY)
-
-        return {
-            "waypoints": [wp.tolist() for wp in self._waypoints],
+        self._task_spec = {
+            "task_type": self.TASK_TYPE,
+            "goal_set": [wp.tolist() for wp in self._waypoints],
+            "order_policy": str(self.cfg.get("order_policy", "strict")),
+            "waypoint_tolerance": self._waypoint_tolerance,
             "time_budget": self._time_budget,
             "coverage_requirement": self._coverage_requirement,
+            "scan_at_goal": bool(self.cfg.get("scan_at_goal", True)),
+            "scan_duration": float(self.cfg.get("scan_duration", 3.0)),
+            "scan_angular_velocity": float(self.cfg.get("scan_angular_velocity", 1.0)),
         }
+        return self._task_spec
 
     def step(self, obs: "Observation", action: Optional["Action"] = None) -> None:
         """Record observation and check waypoint visits."""

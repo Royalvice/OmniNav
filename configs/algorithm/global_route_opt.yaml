@@ -1,0 +1,11 @@
+# Route-optimized global planner configuration
+# @package _group_
+
+type: global_route_opt
+name: global_route_opt
+
+strategy: tsp_2opt  # "greedy" | "tsp_2opt"
+waypoint_tolerance: 0.5
+scan_at_goal: true
+scan_duration: 3.0
+scan_angular_velocity: 1.0
