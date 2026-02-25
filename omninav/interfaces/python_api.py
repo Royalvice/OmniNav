@@ -79,6 +79,7 @@ class OmniNavEnv:
         self._runtime: Optional[SimulationRuntime] = None
         self._initialized = False
         self._ros2_bridge: Optional["ROS2Bridge"] = None
+        self._map_service = None
 
     @classmethod
     def from_config(cls, config_path: str, overrides: Optional[List[str]] = None) -> "OmniNavEnv":
@@ -158,6 +159,14 @@ class OmniNavEnv:
         # 2. Load scene
         if "scene" in self.cfg:
             sim.load_scene(self.cfg.scene)
+            try:
+                from omninav.core.map import build_map_service_from_scene_cfg
+
+                self._map_service = build_map_service_from_scene_cfg(self.cfg.scene)
+                self._runtime.map_service = self._map_service
+            except Exception:
+                # Map service is optional for backward compatibility.
+                self._map_service = None
         
         # Trigger registration by importing submodules
         import omninav.robots
@@ -355,6 +364,12 @@ class OmniNavEnv:
             self._runtime.close()
         self._initialized = False
         self._runtime = None
+        self._map_service = None
+
+    @property
+    def map_service(self):
+        """Runtime map service (if available)."""
+        return self._map_service
 
     def __enter__(self):
         return self

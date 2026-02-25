@@ -34,6 +34,7 @@ def test_registry_entries_exist():
     assert "dwa_planner" in ALGORITHM_REGISTRY
     assert "global_sequential" in ALGORITHM_REGISTRY
     assert "global_route_opt" in ALGORITHM_REGISTRY
+    assert "global_grid_path" in ALGORITHM_REGISTRY
 
 
 def test_global_sequential_done_when_empty():

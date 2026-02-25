@@ -19,6 +19,15 @@ from omninav.core.types import (
 )
 from omninav.core.hooks import EventType, HookManager
 from omninav.core.lifecycle import LifecycleState, LifecycleMixin
+from omninav.core.map import (
+    OccupancyMap2D,
+    OccupancyMapSet,
+    ConnectorNode,
+    ConnectorEdge,
+    ConnectorGraph,
+    MapService,
+    build_map_service_from_scene_cfg,
+)
 
 __all__ = [
     # Simulation
@@ -41,4 +50,12 @@ __all__ = [
     # Lifecycle
     "LifecycleState",
     "LifecycleMixin",
+    # Map
+    "OccupancyMap2D",
+    "OccupancyMapSet",
+    "ConnectorNode",
+    "ConnectorEdge",
+    "ConnectorGraph",
+    "MapService",
+    "build_map_service_from_scene_cfg",
 ]

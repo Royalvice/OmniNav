@@ -74,6 +74,13 @@ class DWAPlanner(LocalPlannerBase):
         self._goal_tolerance = cfg.get("goal_tolerance", 0.5)
         self._front_sector_width = np.deg2rad(float(cfg.get("front_sector_width_deg", 40.0)))
         self._lookahead_gain = float(cfg.get("lookahead_gain", 0.6))
+        self._enable_path_tracking = bool(cfg.get("enable_path_tracking", True))
+        self._path_weight = float(cfg.get("path_weight", 1.1))
+        self._path_lookahead_points = int(cfg.get("path_lookahead_points", 5))
+        self._near_goal_distance = float(cfg.get("near_goal_distance", 0.4))
+        self._near_goal_kp_lin = float(cfg.get("near_goal_kp_lin", 0.8))
+        self._near_goal_kp_yaw = float(cfg.get("near_goal_kp_yaw", 1.6))
+        self._near_goal_max_speed = float(cfg.get("near_goal_max_speed", 0.25))
 
         # State
         self._target: Optional[np.ndarray] = None
@@ -85,6 +92,9 @@ class DWAPlanner(LocalPlannerBase):
             "selected_wz": 0.0,
             "min_front_range": float("inf"),
             "blocked_front": False,
+            "near_goal_mode": False,
+            "path_points": 0,
+            "dist_to_path": float("inf"),
         }
 
     def reset(self, task_info: Optional[Dict[str, Any]] = None) -> None:
@@ -153,6 +163,36 @@ class DWAPlanner(LocalPlannerBase):
         if quat.ndim == 2:
             quat = quat[0]
         robot_yaw = self._quat_to_yaw(quat)
+
+        path_points = None
+        dist_to_path = float("inf")
+        if self._enable_path_tracking and "path_points" in obs and obs["path_points"] is not None:
+            p = np.asarray(obs["path_points"], dtype=np.float32)
+            if p.ndim == 3:
+                p = p[0]
+            if p.ndim == 2 and p.shape[0] > 0:
+                path_points = p[:, :3]
+                dist_to_path = self._distance_to_polyline(pos[:2], path_points[:, :2])
+                goal_angle = self._goal_heading_from_path(pos[:2], path_points[:, :2], fallback=goal_angle)
+
+        near_goal_mode = bool(dist_to_goal < self._near_goal_distance)
+        if near_goal_mode:
+            yaw_err = self._normalize_angle(goal_angle - robot_yaw)
+            vx_cmd = float(np.clip(self._near_goal_kp_lin * dist_to_goal, 0.0, self._near_goal_max_speed))
+            wz_cmd = float(np.clip(self._near_goal_kp_yaw * yaw_err, -self._max_yaw_rate, self._max_yaw_rate))
+            cmd = np.array([vx_cmd, 0.0, wz_cmd], dtype=np.float32).reshape(1, 3)
+            self._last_info = {
+                "target": None if target is None else np.asarray(target, dtype=np.float32),
+                "is_done": self._is_done,
+                "selected_vx": float(vx_cmd),
+                "selected_wz": float(wz_cmd),
+                "min_front_range": float("inf"),
+                "blocked_front": False,
+                "near_goal_mode": True,
+                "path_points": int(path_points.shape[0]) if path_points is not None else 0,
+                "dist_to_path": float(dist_to_path),
+            }
+            return cmd
 
         # Simple DWA search
         best_cmd = np.array([0.0, 0.0, np.clip(goal_angle - robot_yaw, -self._max_yaw_rate, self._max_yaw_rate)], dtype=np.float32)
@@ -224,6 +264,9 @@ class DWAPlanner(LocalPlannerBase):
             "selected_wz": float(best_cmd[2]),
             "min_front_range": float(best_front_clearance),
             "blocked_front": bool(blocked_front),
+            "near_goal_mode": False,
+            "path_points": int(path_points.shape[0]) if path_points is not None else 0,
+            "dist_to_path": float(dist_to_path),
         }
 
         return best_cmd.reshape(1, 3)
@@ -279,3 +322,19 @@ class DWAPlanner(LocalPlannerBase):
         if valid.size == 0:
             return float("inf")
         return float(np.min(valid))
+
+    @staticmethod
+    def _distance_to_polyline(point_xy: np.ndarray, path_xy: np.ndarray) -> float:
+        if path_xy.shape[0] == 0:
+            return float("inf")
+        d = np.linalg.norm(path_xy - point_xy.reshape(1, 2), axis=1)
+        return float(np.min(d))
+
+    def _goal_heading_from_path(self, point_xy: np.ndarray, path_xy: np.ndarray, fallback: float) -> float:
+        if path_xy.shape[0] < 2:
+            return fallback
+        d = np.linalg.norm(path_xy - point_xy.reshape(1, 2), axis=1)
+        idx = int(np.argmin(d))
+        j = min(path_xy.shape[0] - 1, idx + max(1, self._path_lookahead_points))
+        look = path_xy[j]
+        return float(np.arctan2(look[1] - point_xy[1], look[0] - point_xy[0]))

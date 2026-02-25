@@ -1,0 +1,10 @@
+# Grid-based global planner
+# @package _group_
+
+type: global_grid_path
+name: global_grid_path
+
+waypoint_tolerance: 0.25
+resample_step: 0.2
+allow_diagonal: true
+

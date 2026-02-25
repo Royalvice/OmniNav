@@ -31,7 +31,7 @@ else:
 @dataclass
 class UIConfig:
     task: str = "waypoint"
-    global_planner: str = "global_sequential"
+    global_planner: str = "global_grid_path"
     local_planner: str = "dwa_planner"
     robot: str = "go2w"
     scene: str = "complex_flat_obstacles"
@@ -167,7 +167,7 @@ class GettingStartedApp:
         self.args = args
         self.cfg = UIConfig(
             task="waypoint",
-            global_planner="global_sequential",
+            global_planner="global_grid_path",
             local_planner="dwa_planner",
             robot="go2w",
             scene="complex_flat_obstacles",
@@ -648,8 +648,21 @@ class GettingStartedApp:
             self.minimap.lidar_points = self._collect_lidar_points_world(pos_xy, yaw)
             if len(self.minimap.path) > 1200:
                 self.minimap.path = self.minimap.path[-1200:]
-        scene_cfg = self._load_scene_cfg(self.cfg.scene)
-        self.minimap.static_obstacles = list(scene_cfg.get("obstacles", [])) if isinstance(scene_cfg, dict) else []
+        static_obstacles = None
+        if self.env is not None and getattr(self.env, "map_service", None) is not None:
+            try:
+                floor_id = self.env.map_service.get_default_map().floor_id
+                if self.env.algorithm is not None:
+                    gp_info = self.env.algorithm.info.get("global_planner", {})
+                    if isinstance(gp_info, dict):
+                        floor_id = str(gp_info.get("current_floor_id", floor_id))
+                static_obstacles = list(self.env.map_service.get_map(floor_id).obstacles)
+            except Exception:
+                static_obstacles = None
+        if static_obstacles is None:
+            scene_cfg = self._load_scene_cfg(self.cfg.scene)
+            static_obstacles = list(scene_cfg.get("obstacles", [])) if isinstance(scene_cfg, dict) else []
+        self.minimap.static_obstacles = static_obstacles
         self.minimap.route = [x.copy() for x in self.route]
         self.minimap.current_goal = None
         if self.env is not None and hasattr(self.env, "algorithm") and self.env.algorithm is not None:
@@ -692,7 +705,7 @@ class GettingStartedApp:
             ttk.OptionMenu(left, var, var.get(), *values).pack(fill="x", pady=3)
 
         add_row("Task", self.vars["task"], ["waypoint", "inspection"])
-        add_row("Global Planner", self.vars["global_planner"], ["global_sequential", "global_route_opt"])
+        add_row("Global Planner", self.vars["global_planner"], ["global_grid_path", "global_sequential", "global_route_opt"])
         add_row("Local Planner", self.vars["local_planner"], ["dwa_planner"])
         add_row("Robot", self.vars["robot"], ["go2", "go2w"])
         add_row("Scene", self.vars["scene"], self.ready["scenes"])

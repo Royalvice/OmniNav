@@ -74,6 +74,8 @@ class InspectionTask(TaskBase):
         self._task_spec = {
             "task_type": self.TASK_TYPE,
             "goal_set": [wp.tolist() for wp in self._waypoints],
+            # Backward-compatibility key used by existing tests/examples.
+            "waypoints": [wp.tolist() for wp in self._waypoints],
             "order_policy": str(self.cfg.get("order_policy", "strict")),
             "waypoint_tolerance": self._waypoint_tolerance,
             "time_budget": self._time_budget,

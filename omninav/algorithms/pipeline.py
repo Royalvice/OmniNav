@@ -73,6 +73,14 @@ class AlgorithmPipeline(AlgorithmBase):
                 if waypoint.ndim == 1:
                     waypoint = waypoint.reshape(1, -1)
                 local_obs["goal_position"] = waypoint
+        if hasattr(self._global_planner, "current_path"):
+            path = self._global_planner.current_path()
+            if path is not None:
+                path_points = np.asarray(path, dtype=np.float32)
+                if path_points.ndim == 2:
+                    path_points = path_points.reshape(1, path_points.shape[0], path_points.shape[1])
+                local_obs["path_points"] = path_points
+                local_obs["local_path_points"] = path_points
 
         if hasattr(self._global_planner, "command_override"):
             override = self._global_planner.command_override()

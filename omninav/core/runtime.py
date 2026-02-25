@@ -62,6 +62,7 @@ class SimulationRuntime:
         self._last_done_mask: Optional[np.ndarray] = None
         self._sensor_error_once: set[tuple[int, str]] = set()
         self._last_observations: List[Observation] = []
+        self.map_service = None
 
     def build(self) -> None:
         """
@@ -116,11 +117,17 @@ class SimulationRuntime:
                 spec = self.task.build_task_spec()
                 if isinstance(spec, dict):
                     task_info = spec
+            if isinstance(task_info, dict) and self.map_service is not None:
+                task_info["map_service"] = self.map_service
             task_state = getattr(self.task, "lifecycle_state", None)
             if isinstance(task_state, LifecycleState) and task_state < LifecycleState.READY:
                 self.task._transition_to(LifecycleState.READY)
 
         # Reset algorithms
+        if not isinstance(task_info, dict):
+            task_info = {}
+        if self.map_service is not None:
+            task_info["map_service"] = self.map_service
         for algo in self.algorithms:
             algo.reset(task_info)
             algo_state = getattr(algo, "lifecycle_state", None)
@@ -223,6 +230,14 @@ class SimulationRuntime:
                 sim_time=self._sim_time,
                 sensors={},
             )
+            if self.map_service is not None:
+                pos = np.asarray(obs["robot_state"].get("position", np.zeros((1, 3))), dtype=np.float32)
+                p = pos[0] if pos.ndim == 2 else pos
+                floor_id = self.map_service.find_floor_by_xy(p[:2])
+                floor_ids = self.map_service.list_floors()
+                floor_idx = floor_ids.index(floor_id) if floor_id in floor_ids else 0
+                obs["current_floor_id"] = np.array([floor_idx], dtype=np.int32)
+                obs["local_path_points"] = np.zeros((1, 0, 3), dtype=np.float32)
             # Collect sensor data
             if read_sensors and hasattr(robot, 'sensors'):
                 for name, sensor in robot.sensors.items():

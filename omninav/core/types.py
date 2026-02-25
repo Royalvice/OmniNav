@@ -130,6 +130,15 @@ class Observation(TypedDict, total=False):
     language_instruction: Optional[list[str]]
     """Natural language instructions. Length: B"""
 
+    current_floor_id: Optional[np.ndarray]
+    """Current floor id index (or encoded id). Shape: (B,)"""
+
+    local_path_points: Optional[np.ndarray]
+    """Current local path polyline in world frame. Shape: (B, N, 3)"""
+
+    connector_state: Optional[dict[str, Any]]
+    """Optional connector/cross-floor state."""
+
 
 # =============================================================================
 # Action

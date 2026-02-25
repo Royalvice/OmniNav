@@ -11,6 +11,7 @@ from omninav.algorithms.local_planner import LocalPlannerBase, DWAPlanner
 from omninav.algorithms.global_base import GlobalPlannerBase
 from omninav.algorithms.global_sequential import SequentialGlobalPlanner
 from omninav.algorithms.global_route_opt import RouteOptimizedGlobalPlanner
+from omninav.algorithms.global_grid_path import GridPathGlobalPlanner
 
 __all__ = [
     "AlgorithmBase",
@@ -18,6 +19,7 @@ __all__ = [
     "GlobalPlannerBase",
     "SequentialGlobalPlanner",
     "RouteOptimizedGlobalPlanner",
+    "GridPathGlobalPlanner",
     "LocalPlannerBase",
     "DWAPlanner",
 ]

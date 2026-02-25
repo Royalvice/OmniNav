@@ -5,19 +5,25 @@ type: algorithm_pipeline
 name: pipeline_default
 
 global_planner:
-  type: global_sequential
-  waypoint_tolerance: 0.5
-  scan_at_goal: true
-  scan_duration: 3.0
-  scan_angular_velocity: 1.0
+  type: global_grid_path
+  waypoint_tolerance: 0.25
+  resample_step: 0.2
+  allow_diagonal: true
 
 local_planner:
   type: dwa_planner
   max_speed: 0.6
   max_yaw_rate: 1.0
   obstacle_margin: 0.35
-  goal_tolerance: 0.5
+  goal_tolerance: 0.2
   predict_time: 2.0
   dt: 0.1
   front_sector_width_deg: 40.0
   lookahead_gain: 0.6
+  enable_path_tracking: true
+  path_weight: 1.1
+  path_lookahead_points: 5
+  near_goal_distance: 0.4
+  near_goal_kp_lin: 0.8
+  near_goal_kp_yaw: 1.6
+  near_goal_max_speed: 0.25

@@ -26,6 +26,10 @@ class GlobalPlannerBase(AlgorithmBase):
         """
         return None
 
+    def current_path(self) -> Optional[np.ndarray]:
+        """Optional path output in shape (B, N, 3)."""
+        return None
+
     @property
     def info(self) -> Dict[str, Any]:
         return {}

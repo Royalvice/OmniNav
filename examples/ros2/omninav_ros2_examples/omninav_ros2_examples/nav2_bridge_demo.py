@@ -9,6 +9,8 @@ import sys
 from pathlib import Path
 
 from omninav.interfaces import OmniNavEnv
+from omninav.core.map import build_map_service_from_scene_cfg
+from omninav.assets.map.exporters.nav2_exporter import export_floor_map_to_nav2
 
 
 def _resolve_config_dir() -> str:
@@ -61,6 +63,17 @@ def main() -> int:
 
     overrides = _build_overrides(args.show_viewer, args.test_mode, args.smoke_fast)
     config_dir = _resolve_config_dir()
+
+    if os.environ.get("OMNINAV_EXPORT_NAV2_MAP", "0") == "1":
+        from omegaconf import OmegaConf
+
+        scene_cfg_path = Path(config_dir) / "scene" / "nav_open_space.yaml"
+        if scene_cfg_path.exists():
+            scene_cfg = OmegaConf.load(str(scene_cfg_path))
+            map_service = build_map_service_from_scene_cfg(scene_cfg)
+            floor = map_service.get_default_map()
+            maps_dir = Path(__file__).resolve().parents[2] / "maps"
+            export_floor_map_to_nav2(floor, maps_dir, "nav_open_space")
 
     with OmniNavEnv(config_path=config_dir, config_name="demo/ros2_nav2_full", overrides=overrides) as env:
         obs_list = env.reset()

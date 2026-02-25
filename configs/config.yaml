@@ -23,6 +23,15 @@ simulation:
   camera_fov: 40
   env_spacing: [1.0, 1.0]  # Parallel environment spacing
 
+# Navigation/map infrastructure
+navigation:
+  enable_static_occupancy: true
+  enable_multilevel: false
+  resolution: 0.1
+  origin: [-8.0, -8.0]
+  extent: [16.0, 16.0]
+  inflation_radius: 0.15
+
 # ROS2 integration
 ros2:
   enabled: false

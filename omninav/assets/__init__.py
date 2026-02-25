@@ -11,6 +11,13 @@ from omninav.assets.path_resolver import (
     get_genesis_assets_dir,
     get_project_assets_dir,
 )
+from omninav.assets.map import (
+    MapImporterBase,
+    SceneYamlMapImporter,
+    USDMapImporterStub,
+    OccupancyBuilder,
+    export_floor_map_to_nav2,
+)
 
 __all__ = [
     "AssetLoaderBase",
@@ -18,4 +25,9 @@ __all__ = [
     "resolve_asset_path",
     "get_genesis_assets_dir",
     "get_project_assets_dir",
+    "MapImporterBase",
+    "SceneYamlMapImporter",
+    "USDMapImporterStub",
+    "OccupancyBuilder",
+    "export_floor_map_to_nav2",
 ]

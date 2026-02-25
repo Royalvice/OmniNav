@@ -91,6 +91,15 @@ In RViz:
 
 Nav2 publishes `/cmd_vel`; OmniNav consumes it and drives Go2w in the OmniNav scene.
 
+Optional map sync (scene -> Nav2 static map):
+
+```bash
+OMNINAV_EXPORT_NAV2_MAP=1 ros2 run omninav_ros2_examples nav2_bridge_demo --test-mode --no-show-viewer
+```
+
+This exports `maps/nav_open_space.pgm` and `maps/nav_open_space.yaml` from OmniNav scene config,
+reducing drift between scene obstacles and Nav2 static map.
+
 ## 5. Quick checks
 
 ```bash

@@ -26,6 +26,10 @@ ros2:
     lidar: lidar_frame
     rgb_camera: camera_rgb_frame
     depth_camera: camera_depth_frame
+  publish:
+    rgb_image: true
+    depth_image: true
+    camera_info: true
   publish_rate:
     scan_every_n_steps: 1
     rgb_every_n_steps: 2
