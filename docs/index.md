@@ -4,42 +4,48 @@
   <img src="_static/logo.png" alt="OmniNav" width="220">
 </p>
 
-<div class="lang-zh">
+<div class="omninav-hero">
 
-OmniNav 文档站点（GitHub Pages）面向两类用户：
-1. 纯 Python 用户（快速跑通导航与巡检示例）
-2. ROS2/Nav2 用户（需要 RViz + Nav2 闭环）
+OmniNav is a navigation simulation platform for embodied AI, with an inspection-first workflow on top of a general navigation capability base.
 
-## 快速开始
-
-1. 安装环境：[`INSTALL.md`](https://github.com/Royalvice/OmniNav/blob/main/INSTALL.md)
-2. 运行纯 Python 入门 GUI：[`examples/getting_started/run_getting_started.py`](https://github.com/Royalvice/OmniNav/blob/main/examples/getting_started/run_getting_started.py)
-3. 运行 ROS2 示例：[`examples/ros2/omninav_ros2_examples/README.md`](https://github.com/Royalvice/OmniNav/blob/main/examples/ros2/omninav_ros2_examples/README.md)
-
-## 文档导航
+- General navigation tasks: PointNav / ObjectNav / Waypoint
+- Inspection-oriented task loop and metrics
+- Complex scene validation and ROS2/Nav2 integration
 
 </div>
-
-<div class="lang-en">
-
-OmniNav docs (GitHub Pages) target two user groups:
-1. Pure Python users (quick navigation/inspection bring-up)
-2. ROS2/Nav2 users (RViz + Nav2 closed loop)
 
 ## Quick Start
 
-1. Install environment: [`INSTALL.md`](https://github.com/Royalvice/OmniNav/blob/main/INSTALL.md)
-2. Run pure Python getting started GUI: [`examples/getting_started/run_getting_started.py`](https://github.com/Royalvice/OmniNav/blob/main/examples/getting_started/run_getting_started.py)
-3. Run ROS2 demos: [`examples/ros2/omninav_ros2_examples/README.md`](https://github.com/Royalvice/OmniNav/blob/main/examples/ros2/omninav_ros2_examples/README.md)
+1. Installation: [INSTALL.md](https://github.com/Royalvice/OmniNav/blob/main/INSTALL.md)
+2. Getting Started GUI: [examples/getting_started/run_getting_started.py](https://github.com/Royalvice/OmniNav/blob/main/examples/getting_started/run_getting_started.py)
+3. ROS2 quick start: [examples/ros2/omninav_ros2_examples/README.md](https://github.com/Royalvice/OmniNav/blob/main/examples/ros2/omninav_ros2_examples/README.md)
 
-## Documentation Map
+::::{grid} 2
+:gutter: 2
 
-</div>
+:::{grid-item-card} 🚀 Getting Started
+:link: getting_started/index
+:link-type: doc
+Installation, first run, examples catalog, and ROS2/Nav2 demos.
+:::
+
+:::{grid-item-card} 📚 API and References
+:link: api_reference/index
+:link-type: doc
+Core runtime, interfaces, planners, tasks, configs, changelog, and contributing.
+:::
+
+::::
+
+## Language
+
+- English (current)
+- 中文: [切换到中文文档](zh/index)
 
 ```{toctree}
 :maxdepth: 2
 
-user_guide/index
+getting_started/index
 api_reference/index
-changelog
+zh/index
 ```

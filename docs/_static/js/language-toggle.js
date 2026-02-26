@@ -1,77 +1,55 @@
 (function () {
-  const KEY = 'omninav_doc_lang';
-  const ZH = 'zh';
-  const EN = 'en';
-
-  function detectDefaultLang() {
-    const navLang = (navigator.language || '').toLowerCase();
-    return navLang.startsWith('zh') ? ZH : EN;
+  function normalize(path) {
+    if (!path || path === '') return '/';
+    return path;
   }
 
-  function getLang() {
-    const saved = localStorage.getItem(KEY);
-    if (saved === ZH || saved === EN) {
-      return saved;
+  function targetPaths() {
+    const path = normalize(window.location.pathname);
+    const isZh = path === '/zh' || path.startsWith('/zh/');
+
+    if (isZh) {
+      const stripped = path.replace(/^\/zh/, '') || '/';
+      return {
+        isZh: true,
+        en: stripped,
+        zh: path,
+      };
     }
-    return detectDefaultLang();
-  }
 
-  function setLang(lang) {
-    const normalized = lang === EN ? EN : ZH;
-    localStorage.setItem(KEY, normalized);
-
-    document.querySelectorAll('.lang-zh').forEach((el) => {
-      el.style.display = normalized === ZH ? '' : 'none';
-    });
-    document.querySelectorAll('.lang-en').forEach((el) => {
-      el.style.display = normalized === EN ? '' : 'none';
-    });
-
-    document.querySelectorAll('.lang-switch-btn').forEach((btn) => {
-      const isActive = btn.dataset.lang === normalized;
-      btn.classList.toggle('active', isActive);
-      btn.setAttribute('aria-pressed', isActive ? 'true' : 'false');
-    });
+    const base = path === '/' ? '/' : path;
+    const zh = base === '/' ? '/zh/' : '/zh' + base;
+    return {
+      isZh: false,
+      en: base,
+      zh,
+    };
   }
 
   function createSwitch() {
     const article = document.querySelector('article.bd-article');
-    if (!article) {
-      return;
-    }
+    if (!article) return;
+    if (article.querySelector('.lang-switch')) return;
 
-    const existing = article.querySelector('.lang-switch');
-    if (existing) {
-      return;
-    }
+    const { isZh, en, zh } = targetPaths();
 
     const wrap = document.createElement('div');
     wrap.className = 'lang-switch';
 
-    const zhBtn = document.createElement('button');
-    zhBtn.className = 'lang-switch-btn';
-    zhBtn.dataset.lang = ZH;
-    zhBtn.type = 'button';
-    zhBtn.textContent = '中文';
+    const enLink = document.createElement('a');
+    enLink.href = en;
+    enLink.textContent = 'English';
+    if (!isZh) enLink.classList.add('active');
 
-    const enBtn = document.createElement('button');
-    enBtn.className = 'lang-switch-btn';
-    enBtn.dataset.lang = EN;
-    enBtn.type = 'button';
-    enBtn.textContent = 'English';
+    const zhLink = document.createElement('a');
+    zhLink.href = zh;
+    zhLink.textContent = '中文';
+    if (isZh) zhLink.classList.add('active');
 
-    wrap.appendChild(zhBtn);
-    wrap.appendChild(enBtn);
-
+    wrap.appendChild(enLink);
+    wrap.appendChild(zhLink);
     article.insertBefore(wrap, article.firstChild);
-
-    wrap.querySelectorAll('.lang-switch-btn').forEach((btn) => {
-      btn.addEventListener('click', () => setLang(btn.dataset.lang));
-    });
   }
 
-  document.addEventListener('DOMContentLoaded', () => {
-    createSwitch();
-    setLang(getLang());
-  });
+  document.addEventListener('DOMContentLoaded', createSwitch);
 })();

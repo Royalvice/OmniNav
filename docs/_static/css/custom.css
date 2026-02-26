@@ -1,62 +1,81 @@
-/* Custom CSS for OmniNav Documentation */
+/* OmniNav docs: clean + premium feel, layout-safe */
 
-/* ===== Navbar Logo Text with Gradient ===== */
 .navbar-brand .logo__title {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #f093fb 100%);
+    font-weight: 800;
+    letter-spacing: 0.3px;
+    background: linear-gradient(120deg, #0b5fff, #00a8a8 60%, #1f6feb);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
-    font-weight: 700;
-    font-size: 1.4rem;
 }
 
-/* ===== Navbar Logo Image ===== */
 .navbar-brand img {
-    padding: 5px;
+    padding: 4px;
     max-height: 36px;
 }
 
-/* ===== Landing Page Logo ===== */
 p[align="center"] img[alt="OmniNav"] {
     background: transparent !important;
 }
 
-/* ===== Code Block Styling ===== */
-pre {
-    border-radius: 6px;
+article.bd-article {
+    line-height: 1.7;
 }
 
-/* ===== Typography ===== */
-h2 {
-    margin-top: 2rem;
-    padding-bottom: 0.5rem;
-    border-bottom: 1px solid var(--pst-color-border);
+h1, h2, h3 {
+    scroll-margin-top: 80px;
 }
-/* ===== Language Toggle ===== */
+
+h1 {
+    letter-spacing: 0.15px;
+}
+
+h2 {
+    margin-top: 1.8rem;
+}
+
+pre {
+    border-radius: 8px;
+}
+
 .lang-switch {
     display: flex;
-    gap: 8px;
-    align-items: center;
     justify-content: flex-end;
-    margin: 0 0 16px 0;
+    gap: 8px;
+    margin: 0 0 14px;
 }
 
-.lang-switch-btn {
+.lang-switch a {
+    display: inline-block;
     border: 1px solid var(--pst-color-border);
-    background: var(--pst-color-surface);
-    color: var(--pst-color-text-base);
     border-radius: 6px;
-    padding: 4px 10px;
+    padding: 4px 12px;
     font-size: 0.85rem;
-    cursor: pointer;
+    text-decoration: none;
+    transition: all 0.18s ease;
 }
 
-.lang-switch-btn.active {
+.lang-switch a.active {
     background: var(--pst-color-primary);
     color: var(--pst-color-on-primary);
     border-color: var(--pst-color-primary);
+    box-shadow: 0 2px 8px rgba(11, 95, 255, 0.2);
 }
 
-.lang-en {
-    display: none;
+.lang-switch a:hover {
+    transform: translateY(-1px);
+}
+
+.omninav-hero {
+    padding: 16px 18px;
+    border: 1px solid var(--pst-color-border);
+    border-radius: 12px;
+    background:
+      radial-gradient(120% 180% at 100% 0%, rgba(11, 95, 255, 0.10), transparent 48%),
+      radial-gradient(120% 180% at 0% 100%, rgba(0, 168, 168, 0.10), transparent 48%),
+      var(--pst-color-surface);
+}
+
+.omninav-hero p:last-child {
+    margin-bottom: 0;
 }

@@ -1,6 +1,6 @@
 # Algorithms API
 
-## Scope
+## 覆盖范围
 
 - [omninav/algorithms/base.py](https://github.com/Royalvice/OmniNav/blob/main/omninav/algorithms/base.py)
 - [omninav/algorithms/pipeline.py](https://github.com/Royalvice/OmniNav/blob/main/omninav/algorithms/pipeline.py)
@@ -10,43 +10,43 @@
 - [omninav/algorithms/global_grid_path.py](https://github.com/Royalvice/OmniNav/blob/main/omninav/algorithms/global_grid_path.py)
 - [omninav/algorithms/local_planner.py](https://github.com/Royalvice/OmniNav/blob/main/omninav/algorithms/local_planner.py)
 
-## Architecture
+## 架构
 
-Algorithm stack is split into:
-- Global planner: goal scheduling / path generation
-- Local planner: obstacle-aware control command generation
-- Pipeline: global+local composition and execution
+算法栈拆分为：
+- 全局规划：目标调度 / 路径生成
+- 局部规划：避障控制命令生成
+- Pipeline：全局 + 局部组合执行
 
-## Key classes
+## 关键类
 
 ### `AlgorithmBase`
 
-Source: [base.py](https://github.com/Royalvice/OmniNav/blob/main/omninav/algorithms/base.py)
+源码： [base.py](https://github.com/Royalvice/OmniNav/blob/main/omninav/algorithms/base.py)
 
-Defines:
+定义：
 - `reset(task_info)`
 - `step(obs)`
 - `is_done`, `info`
 
 ### `AlgorithmPipeline`
 
-Source: [pipeline.py](https://github.com/Royalvice/OmniNav/blob/main/omninav/algorithms/pipeline.py)
+源码： [pipeline.py](https://github.com/Royalvice/OmniNav/blob/main/omninav/algorithms/pipeline.py)
 
-Responsibilities:
-- Run global planner and local planner in one loop
-- Pass global goals/path hints into local planner
+职责：
+- 联合执行 global/local planner
+- 将全局目标与路径提示传给局部规划
 
-### Global planners
+### 全局规划器
 
 - `SequentialGlobalPlanner`: [global_sequential.py](https://github.com/Royalvice/OmniNav/blob/main/omninav/algorithms/global_sequential.py)
 - `RouteOptimizedGlobalPlanner`: [global_route_opt.py](https://github.com/Royalvice/OmniNav/blob/main/omninav/algorithms/global_route_opt.py)
 - `GridPathGlobalPlanner`: [global_grid_path.py](https://github.com/Royalvice/OmniNav/blob/main/omninav/algorithms/global_grid_path.py)
 
-### Local planner
+### 局部规划器
 
 - `DWAPlanner`: [local_planner.py](https://github.com/Royalvice/OmniNav/blob/main/omninav/algorithms/local_planner.py)
 
-## Config references
+## 配置参考
 
 - [configs/algorithm/pipeline_default.yaml](https://github.com/Royalvice/OmniNav/blob/main/configs/algorithm/pipeline_default.yaml)
 - [configs/algorithm/global_sequential.yaml](https://github.com/Royalvice/OmniNav/blob/main/configs/algorithm/global_sequential.yaml)
