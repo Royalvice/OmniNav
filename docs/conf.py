@@ -71,6 +71,10 @@ html_css_files = [
     "css/custom.css",
 ]
 
+html_js_files = [
+    "js/language-toggle.js",
+]
+
 # -- Autodoc configuration ---------------------------------------------------
 autodoc_member_order = "bysource"
 autodoc_typehints = "description"

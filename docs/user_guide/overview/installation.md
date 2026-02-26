@@ -1,84 +1,145 @@
 # Installation
 
-This guide will help you install OmniNav and its dependencies.
+<div class="lang-zh">
 
-## System Requirements
+本页是用户安装入口。安装细节的唯一事实源是仓库根目录 [`INSTALL.md`](https://github.com/Royalvice/OmniNav/blob/main/INSTALL.md)。
 
-| Component | Minimum | Recommended |
-|------|---------|---------|
-| Python | > 3.10 | 3.13 |
-| CUDA | 11.8+ (GPU mode) | 12.x |
-| Memory | 8 GB | 16 GB+ |
-| GPU | - | NVIDIA RTX Series |
+## 1. 硬件建议
 
-## Installation Steps
+请先阅读 `INSTALL.md` 中的硬件配置提示（最小可运行配置 + 推荐开发配置）。
 
-### 1. Clone Repository
+## 2. 获取源码
 
 ```bash
 git clone https://github.com/Royalvice/OmniNav.git
 cd OmniNav
 ```
 
-### 2. Initialize Submodules
-
-Only initialize the necessary submodules (Genesis is required).
+## 3. Git LFS + 子模块
 
 ```bash
+git lfs install
 git submodule update --init external/Genesis
-```
-
-If you need ROS2 support (Optional):
-
-```bash
 git submodule update --init external/genesis_ros
+
+cd external/Genesis
+git submodule update --init doc
+cd ../..
+
+git lfs pull
 ```
 
-### 3. Create Virtual Environment
-
-=== "Linux / macOS"
-    ```bash
-    python -m venv .venv
-    source .venv/bin/activate
-    ```
-
-=== "Windows"
-    ```powershell
-    python -m venv .venv
-    .venv\Scripts\activate
-    ```
-
-### 4. Install Dependencies & OmniNav
+## 4. 纯 Python 环境
 
 ```bash
+python3 -m venv .venv
+source .venv/bin/activate
+
+pip install --upgrade pip
+pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cuxxx
 pip install -r requirements.txt
 pip install -e .
 ```
 
-### 5. (Optional) Install ROS2 Support
-
-If you need ROS2 bridge functionality:
-
-1. Ensure ROS2 Humble is installed
-2. Source ROS2 environment
-3. Install genesis_ros:
+## 5. ROS2 / Nav2 环境（可选）
 
 ```bash
-cd external/genesis_ros
-colcon build
-source install/setup.bash
+sudo apt update
+sudo apt install -y \
+  ros-humble-desktop \
+  ros-humble-navigation2 \
+  ros-humble-nav2-bringup
+
+python3 -m venv --system-site-packages ~/omninav_ros_env
+source ~/omninav_ros_env/bin/activate
+source /opt/ros/humble/setup.bash
+
+pip install --upgrade pip
+pip install setuptools==77.0.1
+pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cuxxx
+pip install -r requirements.txt
+pip install -e .
 ```
 
-## Verify Installation
+## 6. 推荐验证
 
-```python
-import omninav
-print(omninav.__version__)
+```bash
+python -c "import omninav; print('omninav import ok')"
+python examples/05_waypoint_navigation.py --test-mode --smoke-fast --max-steps 40 --no-show-viewer
 ```
 
-If no error occurs, installation is successful!
+更多安装场景（WSL2、NumPy/OpenCV 固定版本）请直接看：[`INSTALL.md`](https://github.com/Royalvice/OmniNav/blob/main/INSTALL.md)。
 
-## Next Steps
+</div>
 
-- Continue to [First Simulation](first_simulation.md) tutorial
-- Learn about [Architecture Overview](../user_guide/architecture.md)
+<div class="lang-en">
+
+This is the user-facing installation entry. The source of truth is repository root [`INSTALL.md`](https://github.com/Royalvice/OmniNav/blob/main/INSTALL.md).
+
+## 1. Hardware guidance
+
+Read hardware notes in [`INSTALL.md`](https://github.com/Royalvice/OmniNav/blob/main/INSTALL.md) first (minimum runnable + recommended dev setup).
+
+## 2. Clone source
+
+```bash
+git clone https://github.com/Royalvice/OmniNav.git
+cd OmniNav
+```
+
+## 3. Git LFS + submodules
+
+```bash
+git lfs install
+git submodule update --init external/Genesis
+git submodule update --init external/genesis_ros
+
+cd external/Genesis
+git submodule update --init doc
+cd ../..
+
+git lfs pull
+```
+
+## 4. Pure Python environment
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+
+pip install --upgrade pip
+pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cuxxx
+pip install -r requirements.txt
+pip install -e .
+```
+
+## 5. ROS2 / Nav2 environment (optional)
+
+```bash
+sudo apt update
+sudo apt install -y \
+  ros-humble-desktop \
+  ros-humble-navigation2 \
+  ros-humble-nav2-bringup
+
+python3 -m venv --system-site-packages ~/omninav_ros_env
+source ~/omninav_ros_env/bin/activate
+source /opt/ros/humble/setup.bash
+
+pip install --upgrade pip
+pip install setuptools==77.0.1
+pip3 install torch torchvision --index-url https://download.pytorch.org/whl/cuxxx
+pip install -r requirements.txt
+pip install -e .
+```
+
+## 6. Quick verification
+
+```bash
+python -c "import omninav; print('omninav import ok')"
+python examples/05_waypoint_navigation.py --test-mode --smoke-fast --max-steps 40 --no-show-viewer
+```
+
+For WSL2 and NumPy/OpenCV compatibility pins, follow [`INSTALL.md`](https://github.com/Royalvice/OmniNav/blob/main/INSTALL.md) directly.
+
+</div>

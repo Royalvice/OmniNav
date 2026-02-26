@@ -5,7 +5,7 @@
 <h1 align="center">OmniNav</h1>
 
 <p align="center">
-  <strong>A General-Purpose Navigation Simulation Platform for Embodied AI</strong>
+  <strong>Navigation Simulation Platform (General Navigation Base + Inspection-First Workflow)</strong>
 </p>
 
 <p align="center">
@@ -22,181 +22,125 @@
 
 ---
 
-## Table of Contents
+## 中文
 
-1. [What is OmniNav?](#what-is-omninav)
-2. [Key Features](#key-features)
-3. [Quick Installation](#quick-installation)
-4. [Quick Start](#quick-start)
-5. [Architecture](#architecture)
-6. [Documentation](#documentation)
-7. [Contributing](#contributing)
-8. [License and Acknowledgments](#license-and-acknowledgments)
-9. [Citation](#citation)
+OmniNav 是基于 Genesis 的导航仿真平台，当前聚焦：
+- 通用导航原子能力（PointNav/ObjectNav/Waypoint）
+- 巡检任务链路（Inspection Task + 评测）
+- 复杂静态场景与可通行性验证
 
-## What is OmniNav?
+### 快速入口
 
-OmniNav is a general-purpose navigation simulation platform built on top of the [Genesis](https://github.com/Genesis-Embodied-AI/Genesis) physics engine, designed for *Embodied AI / Robotics Navigation / Sim2Real* applications. It is simultaneously multiple things:
+1. 安装与环境：`INSTALL.md`
+2. 纯 Python 新手入口：`examples/getting_started/run_getting_started.py`
+3. ROS2/Nav2 入口：`examples/ros2/omninav_ros2_examples/README.md`
+4. 在线文档（GitHub Pages）：<https://royalvice.github.io/OmniNav/>
 
-1. A **unified navigation benchmark** for evaluating navigation and obstacle avoidance algorithms.
-2. A **plug-and-play algorithm framework** supporting both classical planners and neural network-based methods (VLA/VLN).
-3. A **robot-agnostic platform** with built-in support for quadruped, wheeled, and humanoid robots.
-4. A **high-fidelity simulation environment** with GPU-accelerated physics and photo-realistic rendering.
-
-OmniNav aims to:
-
-- **Simplify navigation research** by providing a ready-to-use benchmark with standardized evaluation metrics.
-- **Bridge the Sim2Real gap** with high-fidelity physics simulation and optional ROS2 integration.
-- **Accelerate algorithm development** with a modular, extensible architecture.
-
-## Key Features
-
-- 🚀 **High Performance**: Leverages Genesis engine for GPU-accelerated physics simulation (43M+ FPS on RTX 4090).
-- 🔌 **Plug-and-Play Algorithms**: Easy integration of classical planners, RL policies, and VLA/VLN models.
-- 📊 **Built-in Evaluation**: Pre-defined navigation tasks with standard metrics (SPL, Success Rate, Collision Rate).
-- 🤖 **Multi-Robot Support**: Quadruped (Go2), wheeled robots, and extensible to other platforms.
-- 🌐 **ROS2 Compatible**: Optional ROS2 bridge for Sim2Real deployment.
-- 📦 **Scene Import**: Support for USD, GLB, OBJ, and custom scene assets.
-- 🎨 **Photo-Realistic Rendering**: Ray-tracing based rendering for realistic visual observations.
-- 🔧 **Configuration-Driven**: Hydra-based configuration for flexible experiment management.
-
-## Quick Installation
-
-### Prerequisites
-
-- Python > 3.10 (Recommended: 3.13)
-- CUDA-compatible GPU (recommended)
-- PyTorch (see [official instructions](https://pytorch.org/get-started/locally/))
-
-### Install from Source
+### 安装（请以 INSTALL.md 为准）
 
 ```bash
-# Clone repository
 git clone https://github.com/Royalvice/OmniNav.git
 cd OmniNav
 
-# Initialize Genesis submodule (Required)
+# Git LFS + submodules
+git lfs install
 git submodule update --init external/Genesis
-
-# Initialize ROS2 submodule (Optional)
-# git submodule update --init external/genesis_ros
-
-# Create virtual environment
-python -m venv .venv
-.venv\Scripts\activate  # Windows
-# source .venv/bin/activate  # Linux/macOS
-
-# Install dependencies and OmniNav
-pip install -r requirements.txt
-pip install -e .
+git submodule update --init external/genesis_ros
+git lfs pull
 ```
 
-## Quick Start
+### 常用示例
 
-### Basic Example
+```bash
+# 纯 Python GUI（推荐新手）
+python -m examples.getting_started.run_getting_started
 
-```python
-from omninav import OmniNavEnv
+# Waypoint demo
+python examples/05_waypoint_navigation.py
 
-# Create environment with default configuration
-env = OmniNavEnv(config_path="configs")
-obs = env.reset()
-
-# Run navigation loop
-# Run navigation loop
-while not env.is_done:
-    # Use built-in algorithm (configured via Hydra)
-    # or pass explicit action: env.step(cmd_vel)
-    obs, info = env.step()
-
-# Get evaluation results
-result = env.get_result()
-print(f"Success: {result.success}")
-print(f"Metrics: {result.metrics}")
+# Inspection demo
+python examples/06_inspection_task.py
 ```
 
-### Using Custom Algorithm
+### ROS2 / Nav2 示例
 
-```python
-from omninav import OmniNavEnv
-import numpy as np
+```bash
+source ~/omninav_ros_env/bin/activate
+source /opt/ros/humble/setup.bash
 
-# Override configuration programmatically
-env = OmniNavEnv.from_config(config_path="configs", overrides=["task=navigation"])
-obs = env.reset()
+~/omninav_ros_env/bin/python -m colcon build --symlink-install --packages-select omninav_ros2_examples
+source install/setup.bash
 
-while not env.is_done:
-    # Your custom navigation logic
-    robot_pos = obs[0]["robot_state"]["position"]
-    
-    # Simple forward command
-    cmd_vel = np.array([0.5, 0.0, 0.0])
-    
-    obs, info = env.step(cmd_vel)
-
-env.close()
+ros2 launch omninav_ros2_examples nav2_full_stack.launch.py
 ```
 
-## Architecture
+---
 
-OmniNav v0.2 features a modular, registry-based architecture:
+## English
 
+OmniNav is a Genesis-based navigation simulation platform focused on:
+- Atomic navigation capabilities (PointNav/ObjectNav/Waypoint)
+- Inspection workflow (Inspection Task + evaluation)
+- Complex static scenes and traversability validation
+
+### Quick Links
+
+1. Installation and environments: `INSTALL.md`
+2. Pure Python beginner entry: `examples/getting_started/run_getting_started.py`
+3. ROS2/Nav2 entry: `examples/ros2/omninav_ros2_examples/README.md`
+4. Full docs (GitHub Pages): <https://royalvice.github.io/OmniNav/>
+
+### Installation (source of truth: INSTALL.md)
+
+```bash
+git clone https://github.com/Royalvice/OmniNav.git
+cd OmniNav
+
+# Git LFS + submodules
+git lfs install
+git submodule update --init external/Genesis
+git submodule update --init external/genesis_ros
+git lfs pull
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                     Interface Layer                              │
-│              Python API (OmniNavEnv) / ROS2 Bridge               │
-├─────────────────────────────────────────────────────────────────┤
-│       Evaluation Layer        │      Algorithm Layer             │
-│    Tasks & Metrics (SPL...)   │   (Pluggable Algorithms)         │
-├─────────────────────────────────────────────────────────────────┤
-│                     Locomotion Layer                             │
-│           Kinematic Control / RL Policy (Extensible)             │
-├─────────────────────────────────────────────────────────────────┤
-│       Robot Layer             │       Asset Layer                │
-│   Go2 / Go2w / Custom Robots  │   Scene Loaders (USD/GLB/OBJ)    │
-├─────────────────────────────────────────────────────────────────┤
-│                      Core Layer                                  │
-│            SimulationRuntime & Genesis Wrapper                   │
-│          (Registry-based Component Construction)                 │
-└─────────────────────────────────────────────────────────────────┘
+
+### Common demos
+
+```bash
+# Pure Python GUI (recommended for first-time users)
+python -m examples.getting_started.run_getting_started
+
+# Waypoint demo
+python examples/05_waypoint_navigation.py
+
+# Inspection demo
+python examples/06_inspection_task.py
 ```
 
-## Documentation
+### ROS2 / Nav2 demo
 
-Comprehensive documentation is available at: [https://royalvice.github.io/OmniNav/](https://royalvice.github.io/OmniNav/)
+```bash
+source ~/omninav_ros_env/bin/activate
+source /opt/ros/humble/setup.bash
 
-- **Getting Started**: Installation and basic usage
-- **Tutorials**: Step-by-step guides for common tasks
-- **API Reference**: Complete API documentation
-- **Configuration Guide**: Hydra configuration system
+~/omninav_ros_env/bin/python -m colcon build --symlink-install --packages-select omninav_ros2_examples
+source install/setup.bash
 
-## Contributing
+ros2 launch omninav_ros2_examples nav2_full_stack.launch.py
+```
 
-The OmniNav project welcomes contributions from the community:
+---
 
-- **Pull requests** for new features or bug fixes
-- **Bug reports** through GitHub Issues
-- **Suggestions** to improve usability and documentation
-
-## License and Acknowledgments
+## License
 
 OmniNav is licensed under the [Apache-2.0 License](LICENSE).
 
-OmniNav is built on top of these excellent open-source projects:
-
-- [Genesis](https://github.com/Genesis-Embodied-AI/Genesis) - High-performance physics engine for Embodied AI
-- [Hydra](https://github.com/facebookresearch/hydra) - Framework for elegantly configuring complex applications
-- [OmegaConf](https://github.com/omry/omegaconf) - Hierarchical configuration system
-
 ## Citation
-
-If you use OmniNav in your research, please consider citing:
 
 ```bibtex
 @misc{OmniNav,
   author = {OmniNav Contributors},
-  title = {OmniNav: A General-Purpose Navigation Simulation Platform for Embodied AI},
-  year = {2025},
+  title = {OmniNav: Navigation Simulation Platform},
+  year = {2026},
   url = {https://github.com/Royalvice/OmniNav}
 }
 ```
