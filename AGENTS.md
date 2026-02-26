@@ -152,3 +152,11 @@ OmniNav/
 - `WALKTHROUGH.md` 只记录已完成事项
 - `TASK.md` 只记录未完成事项
 - `IMPLEMENTATION_PLAN.md` 只记录分层目标与边界，不写逐项实现细节
+
+---
+
+## 10. 未讨论需求暂存规则
+
+1. 对于“尚未讨论实现与开发细节”的新需求，必须先记录在 `.github/contributing/REQUIREMENTS.md` 的“未详细讨论且未排期的候选需求（需求池）”章节。
+2. 在该类需求未进入 `.github/contributing/TASK.md` 前，不得将其视为已排期开发项。
+3. 一旦某次对话已完成实现讨论，并且需求已同步到 `.github/contributing/TASK.md`，必须从 REQUIREMENTS 的需求池中删除对应条目，避免文档冗余与状态冲突。
