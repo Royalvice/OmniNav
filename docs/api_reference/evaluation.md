@@ -44,4 +44,7 @@ Source: [inspection_metrics.py](https://github.com/Royalvice/OmniNav/blob/main/o
 - [configs/task/waypoint.yaml](https://github.com/Royalvice/OmniNav/blob/main/configs/task/waypoint.yaml)
 - [configs/task/inspection.yaml](https://github.com/Royalvice/OmniNav/blob/main/configs/task/inspection.yaml)
 - [configs/task/point_nav.yaml](https://github.com/Royalvice/OmniNav/blob/main/configs/task/point_nav.yaml)
-- [configs/task/object_nav.yaml](https://github.com/Royalvice/OmniNav/blob/main/configs/task/object_nav.yaml)
+
+```{note}
+`object_nav` task config is not shipped in the current baseline. Use the three task configs above as the source of truth.
+```

@@ -23,6 +23,12 @@
 When architecture/runtime/interface behavior changes, sync docs consistently:
 - Requirements / Plan / Task / Walkthrough / Agents
 
+Doc quality gates for this repository:
+- Sphinx build must pass with `0 warning`.
+- GitHub `blob/main` links in docs must resolve to real files.
+- EN/ZH docs tree must keep mirrored page structure.
+- Terminology and title style must pass docs style checks.
+
 ## Tests
 
 Run unit and integration tests relevant to changed modules.
@@ -30,3 +36,12 @@ For heavy Genesis-dependent scenarios, use explicit test gates where provided.
 
 Reference:
 - [tests](https://github.com/Royalvice/OmniNav/tree/main/tests)
+
+## Docs validation commands
+
+```bash
+python scripts/docs/check_repo_links.py
+python scripts/docs/check_bilingual_structure.py
+python scripts/docs/check_docs_style.py
+source ~/omninav_ros_env/bin/activate && sphinx-build -b html docs docs/_build/html -W --keep-going
+```

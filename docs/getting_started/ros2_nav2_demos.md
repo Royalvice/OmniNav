@@ -41,3 +41,25 @@ Code:
 ```bash
 OMNINAV_EXPORT_NAV2_MAP=1 ros2 run omninav_ros2_examples nav2_bridge_demo --test-mode --no-show-viewer
 ```
+
+## 6. Troubleshooting (high frequency issues)
+
+### `map` frame timeout in Nav2
+
+If planner logs include:
+- `Timed out waiting for transform from base_link to map`
+
+check in order:
+1. `2D Pose Estimate` is published in RViz after startup.
+2. `source install/setup.bash` is executed in the same shell.
+3. TF tree contains `map -> odom -> base_link`.
+
+### RViz queue full / sensor message drops
+
+If RViz logs include:
+- `Message Filter dropping message ... queue is full`
+
+actions:
+1. Lower ROS2 publish rate in demo config (`scan_every_n_steps`, `rgb_every_n_steps`, `depth_every_n_steps`).
+2. Keep simulator FPS stable first, then increase sensor rates gradually.
+3. Reduce camera resolution or disable non-critical streams in the active profile.

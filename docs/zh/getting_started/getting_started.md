@@ -6,6 +6,10 @@
 参考说明：
 - [examples/getting_started/README.md](https://github.com/Royalvice/OmniNav/blob/main/examples/getting_started/README.md)
 
+```{note}
+本页仅覆盖纯 Python 用法。ROS2/Nav2 集成请参见 [ROS2 / Nav2 Demos（演示）](ros2_nav2_demos)。
+```
+
 ## 1. 运行
 
 ```bash
@@ -40,3 +44,12 @@ python -m examples.getting_started.run_getting_started --test-mode --smoke-fast 
 目标模块：
 - 算法： [omninav/algorithms](https://github.com/Royalvice/OmniNav/tree/main/omninav/algorithms)
 - 任务： [omninav/evaluation/tasks](https://github.com/Royalvice/OmniNav/tree/main/omninav/evaluation/tasks)
+
+## 4. 快速排查
+
+- `ModuleNotFoundError: No module named 'examples'`：
+  请在仓库根目录使用 `python -m examples.getting_started.run_getting_started` 启动。
+- GUI 重建场景报错：
+  避免连续高频点击重建/重置，等待上一轮环境关闭完成。
+- 到达目标点附近画圈：
+  优先检查 `local_dwa` 参数，以及当前场景占据图与 minimap 坐标是否一致。

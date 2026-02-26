@@ -1,4 +1,4 @@
-# Contributing
+# Contributing（贡献指南）
 
 ## 开发流程
 
@@ -23,6 +23,12 @@
 当架构/运行时/接口行为变更时，同步更新：
 - Requirements / Plan / Task / Walkthrough / Agents
 
+文档质量门槛：
+- Sphinx 构建必须 `0 warning`。
+- docs 中的 GitHub `blob/main` 链接必须指向真实文件。
+- 中英文文档树保持镜像结构。
+- 术语与标题风格通过文档样式检查。
+
 ## 测试
 
 针对改动模块执行单测与集成测试。
@@ -30,3 +36,12 @@
 
 参考：
 - [tests](https://github.com/Royalvice/OmniNav/tree/main/tests)
+
+## 文档校验命令
+
+```bash
+python scripts/docs/check_repo_links.py
+python scripts/docs/check_bilingual_structure.py
+python scripts/docs/check_docs_style.py
+source ~/omninav_ros_env/bin/activate && sphinx-build -b html docs docs/_build/html -W --keep-going
+```

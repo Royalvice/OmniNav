@@ -6,6 +6,10 @@ Primary entrypoint:
 Reference guide:
 - [examples/getting_started/README.md](https://github.com/Royalvice/OmniNav/blob/main/examples/getting_started/README.md)
 
+```{note}
+This page is Python-only. For ROS2/Nav2 integration, use [ROS2 / Nav2 Demos](ros2_nav2_demos).
+```
+
 ## 1. Run
 
 ```bash
@@ -40,3 +44,12 @@ python -m examples.getting_started.run_getting_started --test-mode --smoke-fast 
 Target module paths:
 - Algorithms: [omninav/algorithms](https://github.com/Royalvice/OmniNav/tree/main/omninav/algorithms)
 - Tasks: [omninav/evaluation/tasks](https://github.com/Royalvice/OmniNav/tree/main/omninav/evaluation/tasks)
+
+## 4. Quick troubleshooting
+
+- `ModuleNotFoundError: No module named 'examples'`:
+  run with `python -m examples.getting_started.run_getting_started` from repo root.
+- Viewer scene recreate error in GUI:
+  avoid rapid repeated rebuild/reset clicks; wait for previous environment close cycle.
+- Goal convergence oscillation:
+  tune `local_dwa` config and verify occupancy map alignment for the selected scene.

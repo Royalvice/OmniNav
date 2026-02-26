@@ -1,3 +1,7 @@
+---
+orphan: true
+---
+
 # OmniNav 文档
 
 <p align="center">

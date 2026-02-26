@@ -1,4 +1,4 @@
-# Evaluation API
+# Evaluation API（评测）
 
 ## 覆盖范围
 
@@ -44,4 +44,7 @@
 - [configs/task/waypoint.yaml](https://github.com/Royalvice/OmniNav/blob/main/configs/task/waypoint.yaml)
 - [configs/task/inspection.yaml](https://github.com/Royalvice/OmniNav/blob/main/configs/task/inspection.yaml)
 - [configs/task/point_nav.yaml](https://github.com/Royalvice/OmniNav/blob/main/configs/task/point_nav.yaml)
-- [configs/task/object_nav.yaml](https://github.com/Royalvice/OmniNav/blob/main/configs/task/object_nav.yaml)
+
+```{note}
+当前基线版本未提供 `object_nav` 的任务配置文件，请以上述三个配置文件为准。
+```

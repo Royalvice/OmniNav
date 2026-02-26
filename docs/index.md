@@ -47,5 +47,4 @@ Core runtime, interfaces, planners, tasks, configs, changelog, and contributing.
 
 getting_started/index
 api_reference/index
-zh/index
 ```

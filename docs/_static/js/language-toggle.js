@@ -1,28 +1,51 @@
 (function () {
-  function normalize(path) {
-    if (!path || path === '') return '/';
-    return path;
+  const CONTENT_ROOTS = new Set([
+    "getting_started",
+    "api_reference",
+    "index.html",
+  ]);
+
+  function splitPath(pathname) {
+    const raw = (pathname || "").split("/").filter(Boolean);
+    return raw;
+  }
+
+  function joinPath(parts, trailingSlash) {
+    const p = "/" + parts.join("/");
+    if (trailingSlash && !p.endsWith("/")) {
+      return p + "/";
+    }
+    return p === "" ? "/" : p;
   }
 
   function targetPaths() {
-    const path = normalize(window.location.pathname);
-    const isZh = path === '/zh' || path.startsWith('/zh/');
+    const path = window.location.pathname || "/";
+    const trailingSlash = path.endsWith("/");
+    const parts = splitPath(path);
+    const zhIdx = parts.indexOf("zh");
+    const isZh = zhIdx >= 0;
 
     if (isZh) {
-      const stripped = path.replace(/^\/zh/, '') || '/';
+      const enParts = parts.slice(0, zhIdx).concat(parts.slice(zhIdx + 1));
       return {
         isZh: true,
-        en: stripped,
+        en: joinPath(enParts, trailingSlash),
         zh: path,
       };
     }
 
-    const base = path === '/' ? '/' : path;
-    const zh = base === '/' ? '/zh/' : '/zh' + base;
+    // Insert `zh` right before first content root segment.
+    // This keeps prefixes like /OmniNav/ or /docs/_build/html/ untouched.
+    let insertIdx = parts.findIndex((x) => CONTENT_ROOTS.has(x));
+    if (insertIdx < 0) {
+      insertIdx = parts.length;
+    }
+    const zhParts = parts.slice();
+    zhParts.splice(insertIdx, 0, "zh");
     return {
       isZh: false,
-      en: base,
-      zh,
+      en: path,
+      zh: joinPath(zhParts, trailingSlash),
     };
   }
 

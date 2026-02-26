@@ -3,6 +3,10 @@
 This page summarizes user installation. The source of truth is:
 - [INSTALL.md](https://github.com/Royalvice/OmniNav/blob/main/INSTALL.md)
 
+```{note}
+If command behavior differs from this page, follow `INSTALL.md` first.
+```
+
 ## 1. Clone and prerequisites
 
 ```bash
@@ -32,6 +36,11 @@ pip install -r requirements.txt
 pip install -e .
 ```
 
+```{tip}
+`python -m` style launch is recommended for examples under `examples/getting_started`:
+`python -m examples.getting_started.run_getting_started`
+```
+
 ## 3. ROS2/Nav2 environment (optional)
 
 ```bash
@@ -44,6 +53,10 @@ sudo apt install -y \
 python3 -m venv --system-site-packages ~/omninav_ros_env
 source ~/omninav_ros_env/bin/activate
 source /opt/ros/humble/setup.bash
+```
+
+```{warning}
+In ROS2 workflows, activate both the Python environment and ROS2 setup in the same shell before launching demos.
 ```
 
 ## 4. Verify

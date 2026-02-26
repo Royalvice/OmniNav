@@ -1,5 +1,10 @@
 /* OmniNav docs: clean + premium feel, layout-safe */
 
+:root {
+    --omni-accent: #0b5fff;
+    --omni-accent-2: #00a8a8;
+}
+
 .navbar-brand .logo__title {
     font-weight: 800;
     letter-spacing: 0.3px;
@@ -20,6 +25,11 @@ p[align="center"] img[alt="OmniNav"] {
 
 article.bd-article {
     line-height: 1.7;
+    max-width: 920px;
+}
+
+.bd-page-width {
+    max-width: 1500px;
 }
 
 h1, h2, h3 {
@@ -27,15 +37,22 @@ h1, h2, h3 {
 }
 
 h1 {
-    letter-spacing: 0.15px;
+    letter-spacing: 0.12px;
+    font-weight: 800;
 }
 
 h2 {
     margin-top: 1.8rem;
+    font-weight: 760;
+}
+
+h3 {
+    font-weight: 700;
 }
 
 pre {
-    border-radius: 8px;
+    border-radius: 10px;
+    border: 1px solid var(--pst-color-border);
 }
 
 .lang-switch {
@@ -56,9 +73,9 @@ pre {
 }
 
 .lang-switch a.active {
-    background: var(--pst-color-primary);
+    background: var(--omni-accent);
     color: var(--pst-color-on-primary);
-    border-color: var(--pst-color-primary);
+    border-color: var(--omni-accent);
     box-shadow: 0 2px 8px rgba(11, 95, 255, 0.2);
 }
 
@@ -67,9 +84,10 @@ pre {
 }
 
 .omninav-hero {
-    padding: 16px 18px;
+    padding: 18px 20px;
     border: 1px solid var(--pst-color-border);
-    border-radius: 12px;
+    border-radius: 14px;
+    box-shadow: 0 8px 24px rgba(13, 38, 76, 0.06);
     background:
       radial-gradient(120% 180% at 100% 0%, rgba(11, 95, 255, 0.10), transparent 48%),
       radial-gradient(120% 180% at 0% 100%, rgba(0, 168, 168, 0.10), transparent 48%),
@@ -78,4 +96,46 @@ pre {
 
 .omninav-hero p:last-child {
     margin-bottom: 0;
+}
+
+.sd-card {
+    border-radius: 12px !important;
+    border: 1px solid var(--pst-color-border) !important;
+    box-shadow: 0 6px 18px rgba(12, 36, 73, 0.05);
+    transition: transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.sd-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 26px rgba(12, 36, 73, 0.10);
+    border-color: rgba(11, 95, 255, 0.45) !important;
+}
+
+.sd-card .sd-card-title {
+    font-weight: 720;
+}
+
+.admonition {
+    border-radius: 10px;
+    border-left: 4px solid var(--omni-accent);
+}
+
+.admonition .admonition-title {
+    font-weight: 700;
+}
+
+.bd-content .highlight pre {
+    font-size: 0.9rem;
+}
+
+.bd-content code {
+    border-radius: 6px;
+}
+
+.bd-sidebar-primary .sidebar-header-items {
+    padding-top: 0.4rem;
+}
+
+.bd-header {
+    box-shadow: 0 1px 0 rgba(12, 36, 73, 0.08);
 }
